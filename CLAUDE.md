@@ -113,6 +113,7 @@ dart run build_runner build --delete-conflicting-outputs   # для freezed/json
 - **Документация** (SPEC, ARCHITECTURE, ROADMAP, README) — русский.
 - **Код, имена файлов, идентификаторы, коммиты** — английский.
 - **Сообщения коммитов** — Conventional Commits (`feat:`, `fix:`, `chore:` ...) на английском.
+- **В коммитах не указывать Claude как соавтора.** Без `Co-Authored-By: Claude ...` trailer и без `--author` с Claude. История git должна выглядеть авторской.
 - **UI-строки приложения** — русский (через `intl`).
 
 ## Важно
