@@ -21,19 +21,62 @@
 - **Окружения:** dev (локально) + prod. Stage добавим после релиза в сторы.
 - **Сторы:** App Store, Google Play
 
+## Структура репозитория
+
+Монорепо. Полная схема — в `ARCHITECTURE.md` §3.
+
+```
+safe-garden-AI/
+├── backend/              # Go: HTTP API (РФ) + LLM-worker (Hetzner)
+├── mobile/               # Flutter: iOS / Android
+├── infra/                # Terraform + Docker Compose для prod
+├── .github/workflows/    # CI: backend, mobile, release
+├── SPEC.md / ARCHITECTURE.md / ROADMAP.md / CLAUDE.md
+```
+
+## Требования к окружению
+
+Для разработки нужно:
+
+- **Go** 1.23+
+- **Flutter** 3.24+ / Dart 3.5+
+- **Docker** + **Docker Compose**
+- **Make**
+- **Git** — на Windows установить `core.autocrlf=input`, чтобы `.editorconfig` (`end_of_line = lf`) работал корректно:
+  ```
+  git config --global core.autocrlf input
+  ```
+
+iOS-сборка дополнительно требует macOS + Xcode 15+ с CocoaPods.
+
+## Быстрый старт
+
+> **Сейчас репозиторий на этапе 0.1** — только структура. Реальные команды появятся после 0.2 (`make dev` для бэка) и 0.3 (`flutter run` для мобилки). См. `ROADMAP.md`.
+
+После завершения Этапа 0:
+
+```bash
+# Backend (локальное окружение через docker-compose)
+cd backend
+make dev              # postgres + redis + minio + mailhog + air (live-reload)
+
+# Mobile
+cd mobile
+flutter pub get
+flutter run
+```
+
+Подробности — в `backend/README.md` и `mobile/README.md` (появятся в 0.5).
+
 ## Статус
 
-Стадия планирования. Код будет создаваться согласно `ROADMAP.md`, начиная с **Этапа 0 — Фундамент**.
+Этап **0.1 — Структура репозитория** ✅ завершён. В работе — **0.2 Backend skeleton** (см. `ROADMAP.md`).
 
-## Открытые блокеры до старта Этапа 0
+## Открытые блокеры по этапам
 
-См. `ROADMAP.md` «Критические зависимости». Активные:
-- Hetzner Cloud аккаунт + Anthropic API-ключ (зарубежная карта/юрлицо заказчика).
-- Yandex Cloud организация и биллинг.
-- Yandex 360 для домена.
-- Регистрация домена и DNS.
+См. `ROADMAP.md` «Критические зависимости». Краткий обзор:
 
-Отложенные (ко вторым этапам):
-- Каталог удобрений (Этап 5).
-- Privacy Policy / ToS (Этап 7).
-- Apple Developer Account и Google Play Console (Этап 7).
+- **Этап 0.6:** Hetzner Cloud аккаунт + Anthropic API-ключ (зарубежная карта/юрлицо), Yandex Cloud организация, Yandex 360 для домена, регистрация домена и DNS.
+- **Этап 4:** Yandex SpeechKit ключ.
+- **Этап 5:** Каталог удобрений (CSV от заказчика).
+- **Этап 7:** Apple Developer Account, Google Play Console, Privacy Policy / ToS на двух языках.

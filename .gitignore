@@ -1,32 +1,119 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
+# =====================================================================
+# Safe Garden AI — корневой .gitignore
+# Объединение шаблонов: Go + Flutter + Terraform + macOS/Windows/Linux
+# =====================================================================
+
+# === Secrets ===
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.mobileprovision
+
+# === Go (backend) ===
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Code coverage profiles and other test artifacts
 *.out
 coverage.*
 *.coverprofile
 profile.cov
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
 go.work
 go.work.sum
+# vendor/   # если когда-нибудь понадобится — раскомментировать
 
-# env file
-.env
+# === Flutter / Dart (mobile) ===
+# Замечания:
+#   - pubspec.lock КОММИТИМ (рекомендация Dart team для приложений)
+#   - .terraform.lock.hcl КОММИТИМ (фиксация версий провайдеров)
+#   - Сгенерированные *.g.dart / *.freezed.dart КОММИТИМ
+#     (CI не запускает build_runner; flutter test работает после clone)
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.pub/
+**/build/
+**/.fvm/
+**/doc/api/
+**/coverage/
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# iOS
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/App.framework
+**/ios/Flutter/flutter_assets/
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/Runner.xcworkspace/xcuserdata/
+**/ios/Runner.xcodeproj/xcuserdata/
+**/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Android
+**/android/.gradle/
+**/android/captures/
+**/android/local.properties
+**/android/key.properties
+**/android/app/release/
+**/android/app/debug/
+**/android/**/GeneratedPluginRegistrant.java
+*.iml
+*.jks
+*.keystore
+
+# === Terraform (infra) ===
+.terraform/
+.terraform.tfstate.lock.info
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+*.tfplan
+crash.log
+crash.*.log
+# .terraform.lock.hcl — НЕ игнорируем, коммитим
+
+# === Docker ===
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# === IDE ===
+.idea/
+.vscode/
+!.vscode/settings.json.example
+*.swp
+*.swo
+
+# === OS — macOS ===
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# === OS — Windows ===
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# === OS — Linux ===
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# === Logs / temp ===
+*.log
+tmp/
+.tmp/
