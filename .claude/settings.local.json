@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx ctx7@latest *)",
+      "PowerShell(npx ctx7@latest docs /charmbracelet/anthropic-sdk-go \"creating client messages with vision streaming image analysis tool use\")",
+      "PowerShell(npx ctx7@latest library \"Sign in with Apple Flutter\" \"sign_in_with_apple package Apple Google authentication\")",
+      "WebSearch"
+    ]
+  }
+}
