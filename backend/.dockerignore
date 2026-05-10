@@ -1,0 +1,17 @@
+.git
+.github
+.gitignore
+mobile
+infra
+*.md
+**/*_test.go
+tmp/
+bin/
+.env
+.env.*
+.air.toml
+.golangci.yml
+docker-compose.yml
+Dockerfile
+.dockerignore
+Makefile

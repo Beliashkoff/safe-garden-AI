@@ -113,7 +113,8 @@ $RECYCLE.BIN/
 .directory
 .Trash-*
 
-# === Logs / temp ===
+# === Logs / temp / build output ===
 *.log
 tmp/
 .tmp/
+bin/
