@@ -118,3 +118,12 @@ $RECYCLE.BIN/
 tmp/
 .tmp/
 bin/
+
+# === AI agents (Claude Code, Cursor, etc.) ===
+.claude/
+.cursor/
+.windsurf/
+.aider*
+.continue/
+.codeium/
+CLAUDE.md
