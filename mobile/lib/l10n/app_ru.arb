@@ -1,0 +1,13 @@
+{
+  "@@locale": "ru",
+  "appTitle": "ИИ Агроном",
+  "loginTitle": "Войти",
+  "loginSubtitle": "Диагностика растений с помощью AI",
+  "loginButtonApple": "Войти с Apple",
+  "loginButtonGoogle": "Войти с Google",
+  "loginButtonEmail": "Войти по email",
+  "loginComingSoon": "Скоро будет доступно",
+  "chatTitle": "Чат",
+  "chatEmptyHint": "Сфотографируйте растение или опишите проблему",
+  "chatInputPlaceholder": "Сообщение"
+}

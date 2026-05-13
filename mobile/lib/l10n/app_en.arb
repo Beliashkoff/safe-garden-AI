@@ -1,0 +1,13 @@
+{
+  "@@locale": "en",
+  "appTitle": "AI Agronom",
+  "loginTitle": "Sign in",
+  "loginSubtitle": "Plant diagnosis with AI",
+  "loginButtonApple": "Sign in with Apple",
+  "loginButtonGoogle": "Sign in with Google",
+  "loginButtonEmail": "Sign in with email",
+  "loginComingSoon": "Coming soon",
+  "chatTitle": "Chat",
+  "chatEmptyHint": "Take a photo of the plant or describe the problem",
+  "chatInputPlaceholder": "Message"
+}
