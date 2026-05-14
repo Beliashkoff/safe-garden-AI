@@ -68,6 +68,37 @@ flutter run
 
 Подробности — в `backend/README.md` и `mobile/README.md` (появятся в 0.5).
 
+## Ветка main и CI
+
+`main` защищена правилом branch protection. Прямые пуши запрещены — изменения попадают через PR с зелёным CI.
+
+CI состоит из двух workflow:
+
+- `.github/workflows/backend-ci.yml` — `lint` (golangci-lint + gofmt) и `test` (`go test -race`) на каждом PR/push в main.
+- `.github/workflows/mobile-ci.yml` — `analyze` (`dart format` + `flutter analyze`), `test` (`flutter test`), `build-apk-debug` (на PR), `build-apk-release` (на push в main).
+
+### Настройка branch protection (один раз, владелец репо)
+
+1. Закоммитить и запушить оба workflow → открыть тестовый PR → дождаться первого зелёного прогона (тогда GitHub узнает имена required checks).
+2. Settings → Branches → Add branch protection rule. Branch name pattern: `main`. Включить:
+   - **Require a pull request before merging**
+     - Require approvals: `1` (или `0` для одиночной разработки)
+     - Dismiss stale pull request approvals when new commits are pushed
+   - **Require status checks to pass before merging**
+     - Require branches to be up to date before merging
+     - Required status checks:
+       - `backend-ci / lint`
+       - `backend-ci / test`
+       - `mobile-ci / analyze`
+       - `mobile-ci / test`
+       - `mobile-ci / build-apk-debug`
+   - **Require linear history**
+   - **Do not allow bypassing the above settings**
+3. **Allow force pushes** — выключено.
+4. **Allow deletions** — выключено.
+
+`mobile-ci / build-apk-release` сознательно не входит в required checks: он запускается только на push в main и нужен как post-merge сигнал, иначе PR будет вечно в pending.
+
 ## Статус
 
 Этап **0.1 — Структура репозитория** ✅ завершён. В работе — **0.2 Backend skeleton** (см. `ROADMAP.md`).
