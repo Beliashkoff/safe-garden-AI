@@ -11,9 +11,7 @@ class ChatScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.chatTitle),
-      ),
+      appBar: AppBar(title: Text(l10n.chatTitle)),
       body: SafeArea(
         child: Column(
           children: [

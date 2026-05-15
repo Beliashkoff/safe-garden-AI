@@ -13,8 +13,9 @@ Widget _wrap(Widget child) {
 }
 
 void main() {
-  testWidgets('shows AppBar title, empty hint, and disabled input',
-      (tester) async {
+  testWidgets('shows AppBar title, empty hint, and disabled input', (
+    tester,
+  ) async {
     await tester.pumpWidget(_wrap(const ChatScreen()));
     await tester.pumpAndSettle();
 

@@ -35,8 +35,9 @@ void main() {
     expect(find.text('Диагностика растений с помощью AI'), findsOneWidget);
   });
 
-  testWidgets('Android: shows Google and Email, no Apple button',
-      (tester) async {
+  testWidgets('Android: shows Google and Email, no Apple button', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _wrap(const LoginScreen(), platform: TargetPlatform.android),
     );
