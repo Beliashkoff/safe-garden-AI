@@ -38,8 +38,8 @@ safe-garden-AI/
 
 Для разработки нужно:
 
-- **Go** 1.23+
-- **Flutter** 3.24+ / Dart 3.5+
+- **Go** 1.24+ (см. `backend/go.mod`)
+- **Flutter** 3.35+ stable / Dart 3.8+ (см. `mobile/pubspec.yaml`)
 - **Docker** + **Docker Compose**
 - **Make**
 - **Git** — на Windows установить `core.autocrlf=input`, чтобы `.editorconfig` (`end_of_line = lf`) работал корректно:
@@ -51,22 +51,20 @@ iOS-сборка дополнительно требует macOS + Xcode 15+ с 
 
 ## Быстрый старт
 
-> **Сейчас репозиторий на этапе 0.1** — только структура. Реальные команды появятся после 0.2 (`make dev` для бэка) и 0.3 (`flutter run` для мобилки). См. `ROADMAP.md`.
-
-После завершения Этапа 0:
+Скелеты backend и mobile уже подняты. Подробности — в [`backend/README.md`](./backend/README.md) и [`mobile/README.md`](./mobile/README.md).
 
 ```bash
 # Backend (локальное окружение через docker-compose)
 cd backend
-make dev              # postgres + redis + minio + mailhog + air (live-reload)
+cp .env.example .env
+docker compose up -d   # postgres + redis + minio + mailhog
+go run ./cmd/api       # либо `air` для live-reload
 
 # Mobile
 cd mobile
 flutter pub get
 flutter run
 ```
-
-Подробности — в `backend/README.md` и `mobile/README.md` (появятся в 0.5).
 
 ## Ветка main и CI
 
@@ -101,7 +99,11 @@ CI состоит из двух workflow:
 
 ## Статус
 
-Этап **0.1 — Структура репозитория** ✅ завершён. В работе — **0.2 Backend skeleton** (см. `ROADMAP.md`).
+- 0.1 Структура репозитория ✅
+- 0.2 Backend skeleton ✅
+- 0.3 Mobile skeleton ✅
+- 0.4 CI/CD bootstrap ✅
+- В работе — **0.5 Документация**. Дальнейшие этапы — в `ROADMAP.md`.
 
 ## Открытые блокеры по этапам
 
