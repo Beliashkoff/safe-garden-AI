@@ -13,11 +13,11 @@
 
 - **Mobile:** Flutter (Riverpod, dio, freezed), iOS 14+ / Android 8+
 - **Backend:** Go (chi, pgx, sqlc), PostgreSQL, Redis, Yandex Object Storage
-- **LLM:** Claude Opus 4.x через **отдельный `llm-worker`** на Hetzner Frankfurt (вне РФ; Anthropic блокирует РФ-AS, поэтому прямой вызов и AWS Bedrock не работают)
+- **LLM:** Claude Opus 4.x через **отдельный `llm-worker`** на HostKey Frankfurt (физически вне РФ; Anthropic блокирует РФ-AS, поэтому прямой вызов и AWS Bedrock не работают). Юрлицо провайдера — РФ; принятые риски и план миграции на иностранного провайдера — в `ARCHITECTURE.md` §11.7.
 - **Email:** Yandex 360 SMTP (OTP-коды)
 - **Транскрипция:** Yandex SpeechKit v3 (с конвертацией m4a→OggOpus через `ffmpeg`)
 - **Облако:** Yandex Cloud (152-ФЗ, РФ-юрисдикция, PII не покидает РФ)
-- **Деплой:** Docker Compose на VM (Yandex Compute + Hetzner CX22). Без Kubernetes в v1.
+- **Деплой:** Docker Compose на VM (Yandex Compute для api + HostKey Frankfurt `vm.v2-nano` для llm-worker). Без Kubernetes в v1.
 - **Окружения:** dev (локально) + prod. Stage добавим после релиза в сторы.
 - **Сторы:** App Store, Google Play
 
@@ -27,7 +27,7 @@
 
 ```
 safe-garden-AI/
-├── backend/              # Go: HTTP API (РФ) + LLM-worker (Hetzner)
+├── backend/              # Go: HTTP API (РФ) + LLM-worker (HostKey Frankfurt)
 ├── mobile/               # Flutter: iOS / Android
 ├── infra/                # Terraform + Docker Compose для prod
 ├── .github/workflows/    # CI: backend, mobile, release
@@ -109,7 +109,7 @@ CI состоит из двух workflow:
 
 См. `ROADMAP.md` «Критические зависимости». Краткий обзор:
 
-- **Этап 0.6:** Hetzner Cloud аккаунт + Anthropic API-ключ (зарубежная карта/юрлицо), Yandex Cloud организация, Yandex 360 для домена, регистрация домена и DNS.
+- **Этап 0.6:** HostKey аккаунт (рубли) + Anthropic API-ключ (зарубежная карта/юрлицо — Anthropic в рублях не принимает), Yandex Cloud организация, Yandex 360 для домена, регистрация домена и DNS.
 - **Этап 4:** Yandex SpeechKit ключ.
 - **Этап 5:** Каталог удобрений (CSV от заказчика).
 - **Этап 7:** Apple Developer Account, Google Play Console, Privacy Policy / ToS на двух языках.

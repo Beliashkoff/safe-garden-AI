@@ -1,6 +1,6 @@
 # Backend — Safe Garden AI
 
-HTTP API на Go (chi, pgx, sqlc), часть РФ-бэкенда из [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §3. Бизнес-логика, БД, S3 и SMTP — здесь. Вызовы Claude идут через отдельный `llm-worker` на Hetzner (появится в Этапе 0.7), не напрямую.
+HTTP API на Go (chi, pgx, sqlc), часть РФ-бэкенда из [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §3. Бизнес-логика, БД, S3 и SMTP — здесь. Вызовы Claude идут через отдельный `llm-worker` во Frankfurt (на HostKey, появится в Этапе 0.7), не напрямую.
 
 > Текущее состояние — скелет: `cmd/api` отдаёт `/healthz` и `/readyz`, config через envconfig, slog-логи с PII-фильтром, опциональный Sentry. Полная реализация — по этапам [`../ROADMAP.md`](../ROADMAP.md).
 

@@ -29,7 +29,7 @@
                                                   ▼
                                        ┌──────────────────────┐         ┌──────────────────┐
                                        │  llm-worker          │ HTTPS   │  Anthropic API   │
-                                       │  Hetzner Frankfurt   │────────▶│  Claude Opus 4.x │
+                                       │  HostKey Frankfurt   │────────▶│  Claude Opus 4.x │
                                        │  (вне РФ, без PII)   │◀────────│                  │
                                        └──────────────────────┘         └──────────────────┘
 ```
@@ -110,7 +110,7 @@
 | IaC                      | Terraform (`infra/terraform/`)                       |
 | Email (OTP)              | **Yandex 360 SMTP** (рабочий ящик `noreply@<domain>`)|
 | Транскрипция             | **Yandex SpeechKit v3** (sync recognize)             |
-| LLM-worker (вне РФ)      | **Hetzner Cloud Frankfurt** (CX22, Ubuntu 24.04, ~€4/мес). Зарубежная карта/юрлицо заказчика. |
+| LLM-worker (вне РФ)      | **HostKey Frankfurt** (vm.v2-nano, Ubuntu 24.04, ~830 ₽/мес). Оплата рублями, юрлицо провайдера — ООО «АЙТИБ» (РФ); принятые риски — см. §11.7. |
 | Конвертация аудио        | `ffmpeg` (m4a/AAC → OggOpus 16kHz mono для SpeechKit)|
 
 ---
@@ -135,7 +135,7 @@ safe-garden-AI/
 ├── backend/
 │   ├── cmd/
 │   │   ├── api/                     # HTTP-сервер (РФ, Yandex Cloud)
-│   │   ├── llmworker/               # LLM-микросервис (вне РФ, Hetzner)
+│   │   ├── llmworker/               # LLM-микросервис (вне РФ, HostKey Frankfurt)
 │   │   ├── seed/                    # сидер каталога удобрений
 │   │   └── migrate/                 # запуск миграций
 │   ├── internal/
@@ -344,7 +344,7 @@ POST /v1/audio/transcribe
    - Подгружает последние N сообщений (по умолчанию 20) как контекст.
    - Формирует payload для **`llm-worker`** (НЕ для Anthropic напрямую): `{ messages, system, tools, model, stream: true, metadata: { uid_hash } }`. Email и реальный UUID не передаются, только `uid_hash = sha256(uid + secret_pepper)`.
    - Делает `POST /v1/llm/messages` на worker по mTLS, открывает SSE-стрим.
-6. **LLM-worker (Hetzner Frankfurt):**
+6. **LLM-worker (HostKey Frankfurt):**
    - Получает payload, вызывает `client.Messages.NewStreaming(...)` через `anthropic-sdk-go`.
    - Параметры: `system` (см. §7), `messages` (история + текущее), `tools: [recommend_fertilizer]`, `model: claude-opus-4-7` (актуальный ID — проверить через ctx7 при имплементации), `cache_control: ephemeral` для system+tools.
    - При `tool_use` от Claude (`recommend_fertilizer`) — делает обратный RPC в РФ-бэкенд (`POST /internal/v1/tools/fertilizer` по mTLS), получает результат из БД каталога, передаёт в Claude как `tool_result`, продолжает стрим.
@@ -613,9 +613,9 @@ LIMIT 3;
 ### 8.6 Секреты
 - В коде нет ни одного секрета. Все через env.
 - **Бэкенд (Yandex VM):** секреты читаются из **Yandex Lockbox** при старте контейнера (sidecar или init-скрипт получает значения и кладёт в env). Доступ к Lockbox через сервис-аккаунт, привязанный к VM.
-- **LLM-worker (Hetzner VM):** секреты лежат в `/etc/llmworker/.env` на **LUKS-зашифрованном диске** (Hetzner поддерживает encrypted volumes). Файл с правами `600`, владелец — non-root user, под которым запущен Docker Compose. Никаких внешних secret-провайдеров — один VPS, отдельный Vault избыточен.
+- **LLM-worker (HostKey VM):** секреты лежат в `/etc/llmworker/.env` на **LUKS-зашифрованном томе** (поднимается внутри VM на отдельном loopback-диске или дополнительном volume; провайдер-агностично). Файл с правами `600`, владелец — non-root user, под которым запущен Docker Compose. Никаких внешних secret-провайдеров — один VPS, отдельный Vault избыточен. Считаем, что у оператора VPS есть физический root-доступ к хосту, поэтому критичные секреты (`ANTHROPIC_API_KEY`, mTLS-приватный ключ) можно дополнительно держать только в смонтированном виде в `tmpfs` и при ребуте подгружать вручную (опционально — обсудить с заказчиком).
 - **Секреты бэкенда (Yandex Cloud):** `DATABASE_URL`, `REDIS_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `JWT_PRIVATE_KEY`, `LLM_WORKER_URL`, `LLM_WORKER_MTLS_CERT`, `LLM_WORKER_MTLS_KEY`, `LLM_WORKER_CA`, `APPLE_CLIENT_ID`, `GOOGLE_CLIENT_ID`, `SMTP_USERNAME`, `SMTP_PASSWORD` (Yandex 360), `SPEECHKIT_API_KEY`, `UID_HASH_PEPPER`, `SENTRY_DSN`.
-- **Секреты worker'а (Hetzner):** `ANTHROPIC_API_KEY`, `LLM_WORKER_MTLS_CERT`, `LLM_WORKER_MTLS_KEY`, `LLM_WORKER_CA`, `BACKEND_CALLBACK_URL` (для tool-callback на РФ-бэк), `SENTRY_DSN`. **`ANTHROPIC_API_KEY` хранится только тут**, бэкенд его не знает.
+- **Секреты worker'а (HostKey):** `ANTHROPIC_API_KEY`, `LLM_WORKER_MTLS_CERT`, `LLM_WORKER_MTLS_KEY`, `LLM_WORKER_CA`, `BACKEND_CALLBACK_URL` (для tool-callback на РФ-бэк), `SENTRY_DSN`. **`ANTHROPIC_API_KEY` хранится только тут**, бэкенд его не знает.
 - Ротация: refresh-токены — ротация при каждом использовании; JWT-ключ — ручная ротация (kid в JWKS); mTLS-сертификаты — ежеквартально через cert-manager или вручную; Anthropic-ключ — ротация при подозрении на утечку.
 
 ---
@@ -643,7 +643,7 @@ LIMIT 3;
   1. `lint` — golangci-lint
   2. `unit` — `go test ./...` без тегов
   3. `integration` — `go test -tags=integration ./...` (Postgres testcontainer)
-  4. `build` — multi-stage Docker, push в Yandex Container Registry (для api) и в Hetzner Container Registry / GitHub Container Registry (для llmworker) на main
+  4. `build` — multi-stage Docker, push в Yandex Container Registry (для api) и в GitHub Container Registry (для llmworker, чтобы образ скачивался с HostKey-VM без зависимости от российских CR) на main
   5. `deploy-prod` — manual approval; SSH на VM → `docker compose pull && docker compose up -d` + healthcheck
 
 ### 10.2 Mobile CI (`.github/workflows/mobile-ci.yml`)
@@ -657,7 +657,7 @@ LIMIT 3;
 
 В v1 у нас **только два окружения** (см. SPEC §8 D15):
 - **dev:** локально, docker-compose, фейковый OAuth, mock LLM-клиент или подключение к prod-worker'у с dev-ключом Anthropic.
-- **prod:** `api.<domain>` (Yandex Cloud VM) + `llm.<internal-domain>` (Hetzner VM). До публикации в сторы prod используется и для нашего ручного тестирования.
+- **prod:** `api.<domain>` (Yandex Cloud VM) + `llm.<internal-domain>` (HostKey Frankfurt VM). До публикации в сторы prod используется и для нашего ручного тестирования.
 
 После релиза в сторы — добавить **stage** окружение (отдельная пара VM, отдельная БД, отдельный Anthropic-ключ) для тестов, чтобы новые фичи не катились сразу на пользователей.
 
@@ -684,11 +684,12 @@ Anthropic блокирует доступ из РФ многоуровнево:
 Отдельный микросервис `llm-worker` развёрнут на VPS вне РФ. РФ-бэкенд не делает запросов к Anthropic вообще — только к worker'у через mTLS.
 
 **Конфигурация:**
-- **Хостинг:** Hetzner Cloud, дата-центр Frankfurt (Falkenstein/Nuremberg как резерв). Тариф CX22 (~€4-5/мес) на старте; масштабирование вертикальное.
-- **Платежи:** иностранная карта/юрлицо заказчика. Оплата Hetzner и Anthropic — с одного юрлица, чтобы не было billing/IP mismatch.
-- **Anthropic-аккаунт:** оформлен на иностранное юрлицо/email, привязан к зарубежному адресу. Sandbox-ключ для stage, production-ключ для prod.
-- **Транспорт:** mTLS поверх HTTPS на нестандартном порту, зашифрованный приватной сетью Hetzner Cloud. Допуск по IP-allowlist (IP бэкенда в Yandex Cloud).
-- **Изоляция данных:** worker не имеет диска для долгосрочного хранения, без БД, без метрик с PII. Логи только: `request_id`, `model`, `tokens_in`, `tokens_out`, `latency_ms`.
+- **Хостинг:** HostKey Frankfurt (Frankfurt 1 Data Center; Amsterdam EuNetworks как резерв). Тариф `vm.v2-nano` (2 vCPU / 4 GB / 60 GB NVMe / 1 Gbps / 3 TB трафика, ~830 ₽/мес) на старте; масштабирование вертикальное через `vm.v2-small/medium`.
+- **Платежи за инфру:** рублёвая карта/банковский перевод заказчика на ООО «АЙТИБ» (HostKey).
+- **Anthropic-аккаунт:** оформлен на **иностранное юрлицо/email**, привязан к зарубежной карте и адресу. Anthropic в рублях не принимает оплату — зарубежная карта для самой Anthropic остаётся обязательной. Sandbox-ключ для stage, production-ключ для prod.
+- **Billing/IP mismatch для Anthropic:** не возникает — Anthropic-аккаунт привязан к иностранной карте, а исходящий трафик идёт с IP HostKey-VM во Frankfurt. То, что инфра оплачена с рублёвого счёта, Anthropic не видит.
+- **Транспорт:** mTLS поверх HTTPS на нестандартном порту. Публичный IP HostKey-VM, доступ ограничен HostKey-firewall (или iptables на VM) — IP-allowlist только для IP бэкенда в Yandex Cloud. Приватная сеть HostKey между VM не используется, т.к. worker и бэк физически в разных площадках/провайдерах.
+- **Изоляция данных:** worker не имеет долговременного хранилища PII, без БД, без метрик с PII. Логи только: `request_id`, `model`, `tokens_in`, `tokens_out`, `latency_ms`.
 
 ### 11.3 API между РФ-бэком и worker'ом
 
@@ -743,6 +744,24 @@ POST /internal/v1/tools/fertilizer
 - Trans-border data flow: только обезличенные сообщения в worker → Anthropic. ПДн не покидают РФ.
 - При запросе субъекта на удаление — каскадное удаление в Yandex Cloud, worker очищать не нужно (он stateless, ничего не хранит).
 
+### 11.7 Принятые риски HostKey
+
+Hosting-провайдер worker'а — **ООО «АЙТИБ»** (HostKey, юрлицо в РФ). Физическая площадка VM — Frankfurt, Германия. Это решение принято заказчиком осознанно ради оплаты в рублях; ниже зафиксированы риски и принятые компенсирующие меры.
+
+| Риск | Вероятность | Влияние | Компенсация |
+| ---- | ----------- | ------- | ----------- |
+| Российские власти (РКН, ФСБ, суд) принуждают ООО «АЙТИБ» прекратить услугу или раскрыть данные | Низкая в обычной обстановке, средняя при ужесточении регулирования | Полная остановка worker'а; в худшем случае — попытка снять snapshot диска | (а) Готовая инструкция переезда на резервный VPS у иностранного провайдера (Hetzner / OVH / Vultr Frankfurt) — оператор переключает DNS + перевыпускает mTLS-сертификаты за < 2 часов; (б) `ANTHROPIC_API_KEY` и mTLS-приватный ключ — только в LUKS-томе, при ребуте требуют ручной разблокировки; snapshot диска без passphrase не выдаёт ключи; (в) IP-allowlist на worker'е + рейт-лимит, чтобы попавший в чужие руки ключ нельзя было сразу слить через прокси. |
+| Anthropic в будущем включит в политику явный запрет инфры, аффилированной с РФ-юрлицом | Низкая | Бан ключа Anthropic | Резервный `openrouter_client` уже описан в §11.5; миграция на иностранного провайдера готова (см. выше). |
+| HostKey блокирует Anthropic-трафик «сверху» (исполнение требования РКН о прекращении доступа к зарубежным AI-сервисам из РФ-связанной инфры) | Низкая, но с течением времени растёт | Worker не достучится до Anthropic | Тот же план миграции; алерт на 5xx от worker'а. |
+| Snapshot/IPMI-доступ оператора к VM | Высокая (это нормальная функция любого VPS-провайдера) | Доступ к данным на диске | LUKS + ручная разблокировка после ребута; ключи Anthropic регулярно ротируются (см. §8.6). |
+
+**Triggers для миграции на иностранного провайдера (заранее согласованы):**
+1. Anthropic банит ключ под формулировкой про юрисдикцию инфраструктуры.
+2. HostKey уведомляет о законодательных требованиях прекратить услугу или раскрыть данные.
+3. Появляется регуляторный акт, прямо запрещающий проксирование AI-трафика через инфру РФ-юрлица.
+
+Миграция готовится не реактивно, а **заранее**: terraform-описание worker'а параметризовано (`provider = "hostkey" | "hetzner" | "ovh"`), docker-образ один и тот же, mTLS-CA общий. В норме это однокнопочный переезд.
+
 ---
 
 ## 12. Локальная разработка
@@ -780,8 +799,8 @@ services:
 
 Для Claude в dev есть три режима:
 1. **Mock** (`LLM_CLIENT_KIND=mock`) — `internal/llm/mock` воспроизводит ответы из фикстур; быстро, бесплатно, без сети.
-2. **Локальный worker** (`LLM_CLIENT_KIND=worker`, `LLM_WORKER_URL=http://localhost:8081`) — запуск worker'а локально через `make worker-dev`. Использует stage-ключ Anthropic. **Внимание:** запросы из РФ-IP к api.anthropic.com будут отвергнуты — нужен VPN на dev-машине или прокси через Hetzner-VPS заказчика.
-3. **Удалённый stage worker** — пинг на stage-Hetzner.
+2. **Локальный worker** (`LLM_CLIENT_KIND=worker`, `LLM_WORKER_URL=http://localhost:8081`) — запуск worker'а локально через `make worker-dev`. Использует stage-ключ Anthropic. **Внимание:** запросы из РФ-IP к api.anthropic.com будут отвергнуты — нужен VPN на dev-машине или прокси через prod-worker во Frankfurt.
+3. **Удалённый stage worker** — пинг на stage-VM HostKey Frankfurt.
 
 ---
 
@@ -790,7 +809,7 @@ services:
 | Риск                                                          | Влияние   | Смягчение                                                                                                                                  |
 | ------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Anthropic банит ключ (детект паттернов)                       | Критично  | Резервный `openrouter_client` готов и протестирован; разные ключи для stage/prod; мониторинг 401/403 от Anthropic с алертом.               |
-| Worker (Hetzner) недоступен                                   | Критично  | SLO worker'а 99.5%; health-check каждые 30s; при 5xx от worker'а — graceful 503 с понятным сообщением; готовая инструкция переезда на резервный VPS. |
+| Worker (HostKey) недоступен                                   | Критично  | SLO worker'а 99.5%; health-check каждые 30s; при 5xx от worker'а — graceful 503 с понятным сообщением; готовая инструкция переезда на резервный VPS у иностранного провайдера (Hetzner / OVH / Vultr). См. §11.7. |
 | Apple/Google отклоняют приложение                             | Высокое   | Чтение Guidelines заранее (App Store §5.1.1, Sign in with Apple §4.8); чек-лист перед сабмитом (см. ROADMAP §7).                            |
 | Утечка фото пользователей                                     | Критично  | Раздельные buckets, presigned URLs short TTL, KMS, audit_log, без общедоступного листинга.                                                 |
 | Пользователи отправляют не-садоводческий контент              | Среднее   | System prompt с инструкцией отказа; рейт-лимит; модерация Claude; отказ в ответе с дружелюбным сообщением.                                 |

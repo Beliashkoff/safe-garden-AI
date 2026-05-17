@@ -10,44 +10,44 @@
 
 **Цель:** репозиторий готов к разработке, локальное окружение поднимается одной командой, CI зелёный на пустом проекте.
 
-### 0.1 Структура репозитория
-- [ ] Создать каталоги `backend/`, `mobile/`, `infra/`, `.github/workflows/` согласно `ARCHITECTURE.md` §3.
-- [ ] `.editorconfig`, корневой `README.md` с быстрым стартом.
-- [ ] `.gitignore`: вывести из шаблонов Go + Flutter + Terraform + macOS/Windows.
-- [ ] LICENSE — обсудить (предлагаю closed source, без файла).
+### 0.1 Структура репозитория ✅
+- [x] Создать каталоги `backend/`, `mobile/`, `infra/`, `.github/workflows/` согласно `ARCHITECTURE.md` §3.
+- [x] `.editorconfig`, корневой `README.md` с быстрым стартом.
+- [x] `.gitignore`: вывести из шаблонов Go + Flutter + Terraform + macOS/Windows.
+- [x] LICENSE — обсудить (предлагаю closed source, без файла). _Решение: closed source, без файла._
 
-### 0.2 Backend skeleton
-- [ ] `go mod init github.com/<org>/safegarden-backend`
-- [ ] Минимальный `cmd/api/main.go`: chi-роутер, `/healthz` + `/readyz`.
-- [ ] `internal/config` через envconfig, `.env.example`.
-- [ ] `Makefile`: `dev`, `test`, `lint`, `build`, `migrate-up`, `migrate-down`, `sqlc-gen`.
-- [ ] `Dockerfile` (multi-stage, distroless).
-- [ ] `docker-compose.yml`: postgres, redis, minio, mailhog.
-- [ ] `.golangci.yml` с разумным набором линтеров.
-- [ ] `air.toml` для live-reload.
-- [ ] `slog`-handler с JSON-выводом и фильтром PII.
-- [ ] Sentry init (опционально по env).
+### 0.2 Backend skeleton ✅
+- [x] `go mod init github.com/<org>/safegarden-backend` — модуль `github.com/Beliashkoff/safe-garden-AI/backend`.
+- [x] Минимальный `cmd/api/main.go`: chi-роутер, `/healthz` + `/readyz`.
+- [x] `internal/config` через envconfig, `.env.example`.
+- [x] `Makefile`: `dev`, `test`, `lint`, `build`, `migrate-up`, `migrate-down`, `sqlc-gen`.
+- [x] `Dockerfile` (multi-stage, distroless).
+- [x] `docker-compose.yml`: postgres, redis, minio, mailhog.
+- [x] `.golangci.yml` с разумным набором линтеров.
+- [x] `air.toml` для live-reload.
+- [x] `slog`-handler с JSON-выводом и фильтром PII — в `internal/observability/`.
+- [x] Sentry init (опционально по env) — через `SENTRY_DSN`.
 
-### 0.3 Mobile skeleton
-- [ ] `flutter create` (template app).
-- [ ] `pubspec.yaml`: подтянуть базовые пакеты (riverpod, go_router, dio, freezed, dev: build_runner, mocktail).
-- [ ] `analysis_options.yaml`: `flutter_lints` + строгие правила (`prefer_const_constructors`, `unawaited_futures`, `avoid_print`).
-- [ ] Корневая структура `lib/app`, `lib/core`, `lib/features`, `lib/widgets`, `lib/l10n`.
-- [ ] Темизация (Material 3, light/dark), базовая локализация (RU).
-- [ ] Заглушка экрана «логин» и «чат» с навигацией.
+### 0.3 Mobile skeleton ✅
+- [x] `flutter create` (template app). _Пакет `agronom_ai`, `mobile/pubspec.yaml`._
+- [x] `pubspec.yaml`: подтянуть базовые пакеты (riverpod, go_router, dio, freezed, dev: build_runner, mocktail).
+- [x] `analysis_options.yaml`: `flutter_lints` + строгие правила (`prefer_const_constructors`, `unawaited_futures`, `avoid_print`).
+- [x] Корневая структура `lib/app`, `lib/core`, `lib/features`, `lib/widgets`, `lib/l10n`. _`lib/core` и `lib/widgets` создадим в Этапе 1, когда туда появится содержимое (избегаем пустых каталогов)._
+- [x] Темизация (Material 3, light/dark), базовая локализация (RU) — `lib/app/theme.dart`, `lib/l10n/app_ru.arb` + `app_en.arb`.
+- [x] Заглушка экрана «логин» и «чат» с навигацией — `lib/features/auth/presentation/`, `lib/features/chat/presentation/`, роутер в `lib/app/router.dart`.
 
-### 0.4 CI/CD bootstrap
-- [ ] `.github/workflows/backend-ci.yml`: lint + test (без интеграционных).
-- [ ] `.github/workflows/mobile-ci.yml`: analyze + test + build apk.
-- [ ] Branch protection: PR-only мердж в `main`, требовать зелёный CI.
+### 0.4 CI/CD bootstrap ✅
+- [x] `.github/workflows/backend-ci.yml`: lint + test (без интеграционных).
+- [x] `.github/workflows/mobile-ci.yml`: analyze + test + build apk (debug на PR, release на push в main).
+- [x] Branch protection: PR-only мердж в `main`, требовать зелёный CI. _Инструкция по включению — в корневом `README.md` §«Настройка branch protection». Само включение — off-repo действие в GitHub Settings, выполняется владельцем репо._
 
-### 0.5 Документация
-- [ ] `README.md` корневой: цель, ссылки на SPEC/ARCH/ROADMAP/CLAUDE, быстрый старт.
-- [ ] `backend/README.md`: команды, переменные окружения.
-- [ ] `mobile/README.md`: запуск, настройка iOS/Android симуляторов.
+### 0.5 Документация ✅
+- [x] `README.md` корневой: цель, ссылки на SPEC/ARCH/ROADMAP/CLAUDE, быстрый старт. _Актуализирован Quick Start (рабочие команды) и блок Статус 0.1–0.4 ✅._
+- [x] `backend/README.md`: команды, переменные окружения. _Полный гайд: prerequisites, env, Makefile-цели, happy path, Troubleshooting (Windows + Go-прокси из РФ)._
+- [x] `mobile/README.md`: запуск, настройка iOS/Android симуляторов. _Полный гайд: prerequisites, команды, симуляторы Android/iOS, CI-jobs, Troubleshooting (Flutter SDK на Windows, отсутствие Android SDK)._
 
 ### 0.6 Внешние аккаунты и инфраструктура (заказчик)
-- [ ] **Hetzner Cloud аккаунт** на иностранную карту/юрлицо заказчика. Сразу не покупаем VPS — только аккаунт.
+- [ ] **HostKey аккаунт** (hostkey.ru, ООО «АЙТИБ») на юрлицо/карту заказчика, с пополнением баланса в рублях. Сразу не покупаем VPS — только аккаунт. _Принятые юридические риски — в ARCHITECTURE.md §11.7._
 - [ ] **Anthropic API аккаунт** на иностранное юрлицо/email; запрос production-ключа (Tier 1 на старте).
 - [ ] **Yandex Cloud организация**, биллинг.
 - [ ] **Yandex 360** — подключение почты для домена, создание `noreply@<domain>`, генерация SMTP-пароля.
@@ -59,9 +59,9 @@
 - [ ] `internal/llm/worker_client.go` — клиент с mTLS (заглушка).
 - [ ] `internal/llm/mock_client.go` — фикстуры для dev/тестов.
 - [ ] `Makefile`: `make worker-dev` — запуск worker'а локально на `:8081`.
-- [ ] `infra/terraform/envs/prod` — описание Yandex VM + Hetzner CX22 + Managed PostgreSQL + Managed Redis + Object Storage bucket. **Без apply на этом этапе** — apply в Этапе 2, когда будет что деплоить.
+- [ ] `infra/terraform/envs/prod` — описание Yandex VM + HostKey VM (`vm.v2-nano` Frankfurt) + Managed PostgreSQL + Managed Redis + Object Storage bucket. Terraform-модуль worker'а параметризовать `provider = "hostkey" | "hetzner" | "ovh"`, чтобы готов был DR-переезд (см. ARCH §11.7). **Без apply на этом этапе** — apply в Этапе 2, когда будет что деплоить.
 - [ ] `infra/docker/compose/prod-yandex.yml` — Docker Compose для бэкенда (api + Caddy).
-- [ ] `infra/docker/compose/prod-hetzner.yml` — Docker Compose для worker'а (llmworker + Caddy).
+- [ ] `infra/docker/compose/prod-llmworker.yml` — Docker Compose для worker'а (llmworker + Caddy). Имя файла нейтрально к провайдеру, т.к. образ один и тот же для HostKey/Hetzner/OVH.
 
 ### DoD Этапа 0
 - `make dev` поднимает локальное окружение с docker-compose.
@@ -135,7 +135,7 @@
 - [ ] При первом запросе чата — авто-создание `conversation` для пользователя.
 
 ### 2.2 LLM-worker и интеграция Claude (см. ARCH §11)
-- [ ] **На worker'е (Hetzner stage):**
+- [ ] **На worker'е (HostKey Frankfurt stage):**
   - Подключить `anthropic-sdk-go` непосредственно к `api.anthropic.com`.
   - `internal/llmworker/server.go` — HTTP-сервер с mTLS, эндпоинт `POST /v1/llm/messages` (SSE).
   - System prompt в `internal/llm/prompts/system_v1.md`, грузится через `embed.FS`. Доставляется в worker'а в payload или хранится локально (предпочтительнее в payload — единая версия из РФ-репо).
@@ -151,7 +151,7 @@
   - Yandex Managed PostgreSQL (минимальный кластер, 1 нода для старта).
   - Yandex Managed Redis (минимальный кластер).
   - Yandex Object Storage bucket с приватным доступом.
-  - Hetzner CX22 в Frankfurt с LUKS-encrypted volume + Caddy + Docker Compose.
+  - HostKey `vm.v2-nano` в Frankfurt (Ubuntu 24.04) с LUKS-зашифрованным томом для секретов + Caddy + Docker Compose. Firewall (HostKey-панель или iptables) разрешает 443 только с IP Yandex-VM.
 - [ ] mTLS-сертификаты сгенерированы (CA + бэк + worker). На бэкенде — секрет читается из Yandex Lockbox; на worker'е — из `/etc/llmworker/.env` на encrypted volume (см. ARCH §8.6).
 
 ### 2.3 Backend: SSE-эндпоинт
@@ -184,8 +184,8 @@
 - Пользователь отправляет текст, видит стримящийся ответ.
 - История сохраняется и подгружается при перезапуске.
 - Отмена работает корректно (нет пустых сообщений).
-- Prod-окружение поднято и использует реальный Claude через `llm-worker` на Hetzner.
-- Worker доступен только с IP бэкенда в Yandex Cloud (Hetzner Cloud Firewall + IP-allowlist + mTLS).
+- Prod-окружение поднято и использует реальный Claude через `llm-worker` на HostKey Frankfurt.
+- Worker доступен только с IP бэкенда в Yandex Cloud (HostKey firewall / iptables IP-allowlist + mTLS).
 - До публикации в сторы prod-окружение используется и для нашего ручного тестирования (см. D15).
 
 ---
@@ -359,7 +359,7 @@
 - [ ] Аудит конфигов: backup-расписание PG, retention, ротация Caddy-логов.
 - [ ] Бэкапы PostgreSQL — **проверены восстановлением** на отдельной VM.
 - [ ] Sentry/Grafana дашборды проверены, алерты приходят.
-- [ ] Hetzner Cloud Firewall: разрешён только IP Yandex Cloud VM.
+- [ ] HostKey firewall / iptables на worker-VM: разрешён только IP Yandex Cloud VM на 443.
 - [ ] Yandex Cloud Security Group: разрешён только трафик от мобильных клиентов на 443 (Caddy).
 - [ ] Очистка тестовых данных из prod-БД (тестовые users, conversations, uploads).
 - [ ] **Подъём отдельного stage-окружения** (отдельная пара VM, отдельная БД, отдельный Anthropic-ключ) — для постpелизных фич. См. SPEC §8 D15.
@@ -420,7 +420,7 @@
 
 | Зависимость                                                           | Этап       | Кто решает          | Статус   |
 | --------------------------------------------------------------------- | ---------- | ------------------- | -------- |
-| Hetzner Cloud аккаунт + Anthropic API-ключ (зарубежная карта)         | Этап 0–2   | Заказчик            | открыто  |
+| HostKey аккаунт (рубли) + Anthropic API-ключ (зарубежная карта для самой Anthropic) | Этап 0–2 | Заказчик          | открыто  |
 | Yandex Cloud организация и биллинг                                    | Этап 0     | Заказчик            | открыто  |
 | Yandex 360 для домена (SMTP)                                          | Этап 1     | Заказчик / DevOps   | открыто  |
 | Yandex SpeechKit ключ                                                 | Этап 4     | DevOps              | открыто  |
