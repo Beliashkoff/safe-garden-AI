@@ -52,7 +52,7 @@
 - [ ] **Yandex Cloud организация**, биллинг.
 - [ ] **Yandex 360** — подключение почты для домена, создание `noreply@<domain>`, генерация SMTP-пароля.
 - [ ] **Yandex SpeechKit** — сервис-аккаунт + API-ключ.
-- [ ] **Домены:** регистрация (`<domain>` для api, `<domain>` для лендинга/политики), привязка к Yandex Cloud DNS.
+- [ ] **Домен `agronomai.site`** (заказчик уже владеет): перевод NS на Yandex Cloud DNS, создание зоны, MX/SPF/DKIM/DMARC для `noreply@agronomai.site`. Поддомены: `api.agronomai.site` (бэкенд, A-record в Этапе 2.2), `agronomai.site` (apex — лендинг, Этап 7.2), `worker.agronomai.site` (опционально, HostKey VM, Этап 2.2). Подробный runbook — в `backend/README.md` §«Регистрация внешних аккаунтов».
 
 ### 0.7 Скелет llm-worker
 - [ ] `cmd/llmworker/main.go` — заглушка, `/healthz` + `/v1/llm/messages` echo.

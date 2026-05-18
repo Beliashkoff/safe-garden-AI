@@ -58,6 +58,122 @@ cp .env.example .env
 
 Список будет расширяться по этапам: БД (Этап 1.1), Redis, S3-креды (Этап 3.1), Anthropic / Yandex SpeechKit / Yandex 360 SMTP (Этапы 2, 4). Все секреты — только через env, никогда в коде.
 
+В `.env.example` уже лежат **закомментированные** placeholder'ы под все ключи Этапа 0.6. Раскомментируем по мере подключения соответствующего этапа.
+
+## Регистрация внешних аккаунтов (Этап 0.6)
+
+Этап 0.6 — организационный: заказчик регистрирует внешние сервисы и получает ключи. Кода тут нет, но именно из этих регистраций берутся значения для `.env` следующих этапов. Чек-лист задач — в [`../ROADMAP.md`](../ROADMAP.md) §0.6.
+
+> **Секреты никогда не коммитим.** Хранение — в password manager заказчика (1Password / Bitwarden / Yandex Vault). В CI добавим через GitHub Secrets в Этапе 2. В prod-VM — через Yandex Lockbox и LUKS-том (см. `../ARCHITECTURE.md` §8.6).
+
+### A. HostKey (hostkey.ru)
+
+VPS-провайдер для `llm-worker'а` во Frankfurt. Юрлицо — ООО «АЙТИБ» (РФ), оплата ₽. Принятые юридические риски и план миграции на иностранного провайдера — в [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §11.7.
+
+1. Регистрация аккаунта на юрлицо/карту заказчика на `hostkey.ru`.
+2. Пополнение баланса (минимум для активации — около 1 000 ₽).
+3. **VPS пока не покупаем** — VM создадим в Этапе 2.2 через terraform. Сейчас нужен только аккаунт.
+4. Включить 2FA в личном кабинете.
+5. (Опционально) Залить SSH public key в профиль — пригодится в Этапе 0.7.
+
+### B. Anthropic (console.anthropic.com)
+
+Источник Claude API для worker'а. Anthropic в рублях не принимает — **зарубежная карта и иностранное юрлицо/email обязательны**, даже несмотря на то, что инфра у HostKey оплачивается в ₽.
+
+1. Регистрация на иностранное юрлицо/email.
+2. Workspace + Organization → ввести billing details, привязать зарубежную карту.
+3. Settings → Privacy → **отключить** «training on my data» (важно: PII не должна попадать в обучение).
+4. Create API key → сохранить в password manager как `ANTHROPIC_API_KEY`. **Только** для `internal/llmworker/`, никогда не использовать в основном бэкенде (CLAUDE.md инвариант №5).
+5. Запросить Tier 1 production (через usage-tier upgrade / org verification — Anthropic просит небольшой первый платёж).
+6. Включить billing alerts на $20 / $50 / $100.
+
+### C. Yandex Cloud (console.cloud.yandex.ru)
+
+Облако для РФ-бэкенда. PII (email, фото) физически не покидает РФ (152-ФЗ).
+
+1. Создать организацию, привязать платёжный аккаунт. Free Tier даёт стартовый грант.
+2. Создать каталоги (folder): `safe-garden-prod`, `safe-garden-stage`.
+3. Service account для бэкенда. Роли на старте — `viewer` на каталог; в Этапе 2.2 расширим до:
+   - `managed-postgresql.editor`
+   - `managed-redis.editor`
+   - `storage.editor` (Object Storage)
+   - `dns.editor` (Cloud DNS)
+   - `container-registry.images.puller`
+   - `lockbox.payloadViewer`
+4. Скачать IAM-ключ service account → положить в password manager. **Не** в git.
+5. Включить Yandex Cloud DNS (бесплатно) — туда перевезём `agronomai.site` (см. F).
+6. Bucket для медиа (`safe-garden-prod-media`) создадим в Этапе 3.1.
+
+### D. Yandex 360 для домена `agronomai.site`
+
+Email-провайдер для OTP. SMTP-отправитель — `noreply@agronomai.site`.
+
+1. На `360.yandex.ru/business` подключить домен `agronomai.site` — Yandex даст инструкцию по TXT/CNAME подтверждению владения.
+2. Создать ящик `noreply@agronomai.site`.
+3. В настройках ящика → пароли приложений → создать пароль для **«Почта по протоколу IMAP/SMTP»** → сохранить как `SMTP_PASSWORD`. Не использовать основной пароль ящика.
+4. В DNS-зоне `agronomai.site` (в Yandex Cloud DNS — см. F) добавить:
+   - `MX` → `mx.yandex.net.` приоритет 10
+   - `TXT` SPF: `v=spf1 include:_spf.yandex.net ~all`
+   - `TXT` DKIM: значение из Yandex 360 → DKIM-настройки
+   - `TXT` DMARC: `v=DMARC1; p=quarantine; rua=mailto:postmaster@agronomai.site`
+5. Smoke test отправки (с любой машины с интернетом):
+
+   ```bash
+   swaks --to <your-test@gmail.com> --from noreply@agronomai.site \
+         --server smtp.yandex.ru:465 --tls-on-connect \
+         --auth-user noreply@agronomai.site \
+         --auth-password '<app-password>'
+   ```
+
+   В заголовках письма должен быть валидный DKIM-подпись (`DKIM-Signature: ...`, `Authentication-Results: ... dkim=pass`).
+
+### E. Yandex SpeechKit
+
+Транскрипция голосовых сообщений (понадобится в Этапе 4).
+
+1. В Yandex Cloud → IAM → Service accounts → создать `speechkit-stt` с ролью `ai.speechkit-stt.user` (на каталог `safe-garden-prod`).
+2. Создать API-ключ → сохранить как `YANDEX_SPEECHKIT_API_KEY`.
+3. Включить billing-алёрты.
+4. Sync recognize ограничен 30 с — обрабатывается на уровне приложения в Этапе 4.
+
+### F. Домен `agronomai.site` + DNS
+
+Один домен на всё через поддомены. Карта:
+
+| Имя | Назначение | Когда создаём A-запись |
+| --- | --- | --- |
+| `agronomai.site` (apex) | Лендинг + Privacy + Terms | Этап 7.2 |
+| `api.agronomai.site` | РФ-бэкенд (Yandex Compute) | Этап 2.2 |
+| `worker.agronomai.site` | LLM-worker (опционально; mTLS защищает от анонимных обращений) | Этап 2.2 |
+| `noreply@agronomai.site` | SMTP-отправитель | Этап 0.6 (через MX, см. раздел D) |
+
+1. Определить текущего регистратора `agronomai.site` (`.site` — международный TLD, обычно международный регистратор).
+2. В Yandex Cloud DNS создать публичную зону `agronomai.site`.
+3. У регистратора заменить NS-серверы на выданные Yandex Cloud DNS (например, `ns1.yandexcloud.net`, `ns2.yandexcloud.net`). Распространение NS — до 48 ч, обычно <2 ч.
+4. После пропагации NS — добавить в зону записи из раздела D (MX/SPF/DKIM/DMARC). A-записи на VM пойдут в Этапах 2.2 и 7.2.
+5. Проверка:
+
+   ```bash
+   dig NS agronomai.site            # должны быть ns*.yandexcloud.net
+   dig MX agronomai.site            # должен быть mx.yandex.net.
+   dig TXT agronomai.site           # SPF + DKIM + DMARC
+   ```
+
+### Когда раскомментировать переменные в `.env.example`
+
+| Переменная | Раскомментируется в этапе |
+| --- | --- |
+| `POSTGRES_DSN` | 1.1 |
+| `REDIS_ADDR` | 1.2 |
+| `S3_*` | 3.1 |
+| `JWT_*` | 1.1 |
+| `APPLE_*`, `GOOGLE_CLIENT_ID_*` | 1.1 |
+| `SMTP_*` | 1.3 |
+| `LLM_WORKER_*` | 2.2 |
+| `YANDEX_SPEECHKIT_API_KEY` | 4.2 |
+
+`ANTHROPIC_API_KEY` и `UID_HASH_PEPPER` в этом файле никогда не появятся — они только в `.env` worker'а (`internal/llmworker/`, появится в Этапе 0.7).
+
 ## Команды Makefile
 
 | Цель                  | Что делает |

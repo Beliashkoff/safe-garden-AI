@@ -103,13 +103,14 @@ CI состоит из двух workflow:
 - 0.2 Backend skeleton ✅
 - 0.3 Mobile skeleton ✅
 - 0.4 CI/CD bootstrap ✅
-- В работе — **0.5 Документация**. Дальнейшие этапы — в `ROADMAP.md`.
+- 0.5 Документация ✅
+- В работе — **0.6 Внешние аккаунты** (HostKey, Anthropic, Yandex Cloud, Yandex 360, SpeechKit, DNS `agronomai.site`). Runbook — в [`backend/README.md`](./backend/README.md) §«Регистрация внешних аккаунтов». Дальнейшие этапы — в `ROADMAP.md`.
 
 ## Открытые блокеры по этапам
 
 См. `ROADMAP.md` «Критические зависимости». Краткий обзор:
 
-- **Этап 0.6:** HostKey аккаунт (рубли) + Anthropic API-ключ (зарубежная карта/юрлицо — Anthropic в рублях не принимает), Yandex Cloud организация, Yandex 360 для домена, регистрация домена и DNS.
+- **Этап 0.6:** HostKey аккаунт (рубли) + Anthropic API-ключ (зарубежная карта/юрлицо — Anthropic в рублях не принимает), Yandex Cloud организация, Yandex 360 для домена, перевод NS домена `agronomai.site` на Yandex Cloud DNS + MX/SPF/DKIM/DMARC. Пошагово — в [`backend/README.md`](./backend/README.md) §«Регистрация внешних аккаунтов».
 - **Этап 4:** Yandex SpeechKit ключ.
 - **Этап 5:** Каталог удобрений (CSV от заказчика).
 - **Этап 7:** Apple Developer Account, Google Play Console, Privacy Policy / ToS на двух языках.
