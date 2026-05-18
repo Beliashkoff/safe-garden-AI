@@ -210,7 +210,6 @@ safe-garden-AI/
 └── infra/
     ├── terraform/
     │   ├── envs/
-    │   │   ├── stage/
     │   │   └── prod/
     │   └── modules/
     ├── helm/                        # для K8s, после миграции с Compute
@@ -656,10 +655,10 @@ LIMIT 3;
 ### 10.3 Окружения
 
 В v1 у нас **только два окружения** (см. SPEC §8 D15):
-- **dev:** локально, docker-compose, фейковый OAuth, mock LLM-клиент или подключение к prod-worker'у с dev-ключом Anthropic.
-- **prod:** `api.<domain>` (Yandex Cloud VM) + `llm.<internal-domain>` (HostKey Frankfurt VM). До публикации в сторы prod используется и для нашего ручного тестирования.
+- **dev:** локально, docker-compose, фейковый OAuth, mock LLM-клиент или подключение к prod-worker'у через VPN.
+- **prod:** `api.agronomai.site` (Yandex Cloud VM) + `worker.agronomai.site` (HostKey Frankfurt VM). До публикации в сторы prod используется и для нашего ручного тестирования.
 
-После релиза в сторы — добавить **stage** окружение (отдельная пара VM, отдельная БД, отдельный Anthropic-ключ) для тестов, чтобы новые фичи не катились сразу на пользователей.
+**Stage-окружение не планируется** даже после релиза в сторы. Если в будущем возникнет необходимость в отдельной тестовой инфраструктуре — заведём отдельный пункт в `ROADMAP.md` и пересмотрим решение.
 
 ### 10.4 Релизы
 - Backend: SemVer теги, Container image теги = git SHA + версия.
@@ -686,7 +685,7 @@ Anthropic блокирует доступ из РФ многоуровнево:
 **Конфигурация:**
 - **Хостинг:** HostKey Frankfurt (Frankfurt 1 Data Center; Amsterdam EuNetworks как резерв). Тариф `vm.v2-nano` (2 vCPU / 4 GB / 60 GB NVMe / 1 Gbps / 3 TB трафика, ~830 ₽/мес) на старте; масштабирование вертикальное через `vm.v2-small/medium`.
 - **Платежи за инфру:** рублёвая карта/банковский перевод заказчика на ООО «АЙТИБ» (HostKey).
-- **Anthropic-аккаунт:** оформлен на **иностранное юрлицо/email**, привязан к зарубежной карте и адресу. Anthropic в рублях не принимает оплату — зарубежная карта для самой Anthropic остаётся обязательной. Sandbox-ключ для stage, production-ключ для prod.
+- **Anthropic-аккаунт:** оформлен на **иностранное юрлицо/email**, привязан к зарубежной карте и адресу. Anthropic в рублях не принимает оплату — зарубежная карта для самой Anthropic остаётся обязательной. Один production-ключ под prod-worker (stage-окружения нет, см. §10.3 и SPEC D15).
 - **Billing/IP mismatch для Anthropic:** не возникает — Anthropic-аккаунт привязан к иностранной карте, а исходящий трафик идёт с IP HostKey-VM во Frankfurt. То, что инфра оплачена с рублёвого счёта, Anthropic не видит.
 - **Транспорт:** mTLS поверх HTTPS на нестандартном порту. Публичный IP HostKey-VM, доступ ограничен HostKey-firewall (или iptables на VM) — IP-allowlist только для IP бэкенда в Yandex Cloud. Приватная сеть HostKey между VM не используется, т.к. worker и бэк физически в разных площадках/провайдерах.
 - **Изоляция данных:** worker не имеет долговременного хранилища PII, без БД, без метрик с PII. Логи только: `request_id`, `model`, `tokens_in`, `tokens_out`, `latency_ms`.
@@ -797,10 +796,9 @@ services:
 
 Бэкенд запускается отдельно через `air` (live reload) с env `.env.local`.
 
-Для Claude в dev есть три режима:
-1. **Mock** (`LLM_CLIENT_KIND=mock`) — `internal/llm/mock` воспроизводит ответы из фикстур; быстро, бесплатно, без сети.
-2. **Локальный worker** (`LLM_CLIENT_KIND=worker`, `LLM_WORKER_URL=http://localhost:8081`) — запуск worker'а локально через `make worker-dev`. Использует stage-ключ Anthropic. **Внимание:** запросы из РФ-IP к api.anthropic.com будут отвергнуты — нужен VPN на dev-машине или прокси через prod-worker во Frankfurt.
-3. **Удалённый stage worker** — пинг на stage-VM HostKey Frankfurt.
+Для Claude в dev есть два режима:
+1. **Mock** (`LLM_CLIENT_KIND=mock`) — `internal/llm/mock` воспроизводит ответы из фикстур; быстро, бесплатно, без сети. Используется по умолчанию в локальной разработке и в integration-тестах.
+2. **Локальный worker** (`LLM_CLIENT_KIND=worker`, `LLM_WORKER_URL=http://localhost:8081`) — запуск worker'а локально через `make worker-dev`. Использует production Anthropic-ключ. **Внимание:** запросы из РФ-IP к api.anthropic.com будут отвергнуты — нужен VPN на dev-машине или проксирование через prod-worker во Frankfurt.
 
 ---
 
@@ -808,7 +806,7 @@ services:
 
 | Риск                                                          | Влияние   | Смягчение                                                                                                                                  |
 | ------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Anthropic банит ключ (детект паттернов)                       | Критично  | Резервный `openrouter_client` готов и протестирован; разные ключи для stage/prod; мониторинг 401/403 от Anthropic с алертом.               |
+| Anthropic банит ключ (детект паттернов)                       | Критично  | Резервный `openrouter_client` готов и протестирован; мониторинг 401/403 от Anthropic с алертом; план холодной ротации ключа (новый production-ключ + перезапуск worker'а).               |
 | Worker (HostKey) недоступен                                   | Критично  | SLO worker'а 99.5%; health-check каждые 30s; при 5xx от worker'а — graceful 503 с понятным сообщением; готовая инструкция переезда на резервный VPS у иностранного провайдера (Hetzner / OVH / Vultr). См. §11.7. |
 | Apple/Google отклоняют приложение                             | Высокое   | Чтение Guidelines заранее (App Store §5.1.1, Sign in with Apple §4.8); чек-лист перед сабмитом (см. ROADMAP §7).                            |
 | Утечка фото пользователей                                     | Критично  | Раздельные buckets, presigned URLs short TTL, KMS, audit_log, без общедоступного листинга.                                                 |

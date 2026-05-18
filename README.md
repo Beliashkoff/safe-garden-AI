@@ -18,7 +18,7 @@
 - **Транскрипция:** Yandex SpeechKit v3 (с конвертацией m4a→OggOpus через `ffmpeg`)
 - **Облако:** Yandex Cloud (152-ФЗ, РФ-юрисдикция, PII не покидает РФ)
 - **Деплой:** Docker Compose на VM (Yandex Compute для api + HostKey Frankfurt `vm.v2-nano` для llm-worker). Без Kubernetes в v1.
-- **Окружения:** dev (локально) + prod. Stage добавим после релиза в сторы.
+- **Окружения:** dev (локально через docker-compose) + prod (Yandex Cloud + HostKey Frankfurt). Stage-окружения нет — до релиза prod используется и для ручного тестирования.
 - **Сторы:** App Store, Google Play
 
 ## Структура репозитория
