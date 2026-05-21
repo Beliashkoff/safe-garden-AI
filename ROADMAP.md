@@ -54,14 +54,14 @@
 - [ ] **Yandex SpeechKit** — сервис-аккаунт + API-ключ.
 - [ ] **Домен `agronomai.site`** (заказчик уже владеет): перевод NS на Yandex Cloud DNS, создание зоны, MX/SPF/DKIM/DMARC для `noreply@agronomai.site`. Поддомены: `api.agronomai.site` (бэкенд, A-record в Этапе 2.2), `agronomai.site` (apex — лендинг, Этап 7.2), `worker.agronomai.site` (опционально, HostKey VM, Этап 2.2). Подробный runbook — в `backend/README.md` §«Регистрация внешних аккаунтов».
 
-### 0.7 Скелет llm-worker
-- [ ] `cmd/llmworker/main.go` — заглушка, `/healthz` + `/v1/llm/messages` echo.
-- [ ] `internal/llm/worker_client.go` — клиент с mTLS (заглушка).
-- [ ] `internal/llm/mock_client.go` — фикстуры для dev/тестов.
-- [ ] `Makefile`: `make worker-dev` — запуск worker'а локально на `:8081`.
-- [ ] `infra/terraform/envs/prod` — описание Yandex VM + HostKey VM (`vm.v2-nano` Frankfurt) + Managed PostgreSQL + Managed Redis + Object Storage bucket. Terraform-модуль worker'а параметризовать `provider = "hostkey" | "hetzner" | "ovh"`, чтобы готов был DR-переезд (см. ARCH §11.7). **Без apply на этом этапе** — apply в Этапе 2, когда будет что деплоить.
-- [ ] `infra/docker/compose/prod-yandex.yml` — Docker Compose для бэкенда (api + Caddy).
-- [ ] `infra/docker/compose/prod-llmworker.yml` — Docker Compose для worker'а (llmworker + Caddy). Имя файла нейтрально к провайдеру, т.к. образ один и тот же для HostKey/Hetzner/OVH.
+### 0.7 Скелет llm-worker ✅
+- [x] `cmd/llmworker/main.go` — заглушка, `/healthz` + `/v1/llm/messages` echo. _Echo-SSE по контракту ARCH §11.3 (`message_started` → `delta`* → `usage` → `done`); защита от PII в payload (CLAUDE.md инвариант №5)._
+- [x] `internal/llm/worker_client.go` — клиент с mTLS (заглушка). _Tls.Config из путей CA/cert/key, SSE-парсер, отмена через ctx._
+- [x] `internal/llm/mock_client.go` — фикстуры для dev/тестов. _Дефолтная фикстура + словарь по `Model`._
+- [x] `Makefile`: `make worker-dev` — запуск worker'а локально на `:8081`.
+- [x] `infra/terraform/envs/prod` — описание Yandex VM + HostKey VM (`vm.v2-nano` Frankfurt) + Managed PostgreSQL + Managed Redis + Object Storage bucket. Terraform-модуль worker'а параметризовать `provider = "hostkey" | "hetzner" | "ovh"`, чтобы готов был DR-переезд (см. ARCH §11.7). **Без apply на этом этапе** — apply в Этапе 2, когда будет что деплоить. _Модули в `infra/terraform/modules/`, env в `envs/prod/`, state local; CI прогоняет `fmt -check` и `validate`. На HostKey TF-провайдера нет — `null_resource` + ручной runbook в `modules/worker-vm/README.md`._
+- [x] `infra/docker/compose/prod-yandex.yml` — Docker Compose для бэкенда (api + Caddy).
+- [x] `infra/docker/compose/prod-llmworker.yml` — Docker Compose для worker'а (llmworker + Caddy). Имя файла нейтрально к провайдеру, т.к. образ один и тот же для HostKey/Hetzner/OVH. _mTLS-client_auth терминируется Caddy; worker слушает HTTP внутри docker-сети._
 
 ### DoD Этапа 0
 - `make dev` поднимает локальное окружение с docker-compose.

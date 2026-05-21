@@ -70,10 +70,11 @@ flutter run
 
 `main` защищена правилом branch protection. Прямые пуши запрещены — изменения попадают через PR с зелёным CI.
 
-CI состоит из двух workflow:
+CI состоит из трёх workflow:
 
 - `.github/workflows/backend-ci.yml` — `lint` (golangci-lint + gofmt) и `test` (`go test -race`) на каждом PR/push в main.
 - `.github/workflows/mobile-ci.yml` — `analyze` (`dart format` + `flutter analyze`), `test` (`flutter test`), `build-apk-debug` (на PR), `build-apk-release` (на push в main).
+- `.github/workflows/infra-ci.yml` — `terraform` (`fmt -check` + `validate`) и `compose` (`docker compose config`). Запускается только при изменениях в `infra/**`.
 
 ### Настройка branch protection (один раз, владелец репо)
 
@@ -104,6 +105,7 @@ CI состоит из двух workflow:
 - 0.3 Mobile skeleton ✅
 - 0.4 CI/CD bootstrap ✅
 - 0.5 Документация ✅
+- 0.7 Скелет llm-worker ✅ — `cmd/llmworker` (echo-SSE), `internal/llm` (Client/WorkerClient/MockClient), Terraform-каркас, prod Docker Compose. `terraform apply` отложен до 2.2.
 - В работе — **0.6 Внешние аккаунты** (HostKey, Anthropic, Yandex Cloud, Yandex 360, SpeechKit, DNS `agronomai.site`). Runbook — в [`backend/README.md`](./backend/README.md) §«Регистрация внешних аккаунтов». Дальнейшие этапы — в `ROADMAP.md`.
 
 ## Открытые блокеры по этапам

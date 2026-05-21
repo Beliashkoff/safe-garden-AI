@@ -1,0 +1,20 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - docker-compose-v2
+  - ufw
+  - jq
+
+users:
+  - name: safegarden
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    groups: [docker]
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+runcmd:
+  - systemctl enable --now docker

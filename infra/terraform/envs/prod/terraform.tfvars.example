@@ -1,0 +1,31 @@
+# Скопировать в terraform.tfvars и заполнить.
+# terraform.tfvars в gitignore — секреты не коммитим.
+
+# === Yandex Cloud ===
+# Получить токен: yc iam create-token (или в личном кабинете)
+# yc_token       = "y0_AgAA..."
+# yc_cloud_id    = "b1g..."
+# yc_folder_id   = "b1g..."
+# yc_zone        = "ru-central1-a"
+
+# === SSH ===
+# ssh_public_key = "ssh-ed25519 AAAA... operator@host"
+
+# === Worker провайдер (см. ARCH §11.7) ===
+# По умолчанию hostkey — для DR-переезда поменять на hetzner / ovh.
+# worker_provider     = "hostkey"
+# hostkey_worker_ip   = "X.Y.Z.W"   # вписать после провижининга в личном кабинете HostKey
+
+# Заполнять только если worker_provider = "hetzner":
+# hcloud_token         = "..."
+# hcloud_ssh_key_id    = "12345"
+
+# Заполнять только если worker_provider = "ovh":
+# ovh_endpoint           = "ovh-eu"
+# ovh_application_key    = "..."
+# ovh_application_secret = "..."
+# ovh_consumer_key       = "..."
+# ovh_service_name       = "..."
+
+# === Object Storage ===
+# media_bucket_name = "safe-garden-prod-media"

@@ -1,0 +1,37 @@
+# Caddy для worker.agronomai.site. TLS-termination + mTLS client_auth.
+# Сертификаты:
+#   /etc/caddy/certs/worker.crt — серверный сертификат (выписан собственным CA)
+#   /etc/caddy/certs/worker.key — приватный ключ серверного сертификата
+#   /etc/caddy/certs/ca.pem     — собственный CA для проверки клиентских сертификатов
+# Том /etc/caddy/certs смонтирован read-only с LUKS-зашифрованного раздела
+# хоста — см. ARCH §8.6.
+
+{$DOMAIN}:443 {
+	tls /etc/caddy/certs/worker.crt /etc/caddy/certs/worker.key {
+		client_auth {
+			mode require_and_verify
+			trust_pool file {
+				pem_file /etc/caddy/certs/ca.pem
+			}
+		}
+	}
+
+	reverse_proxy llmworker:8081 {
+		flush_interval -1
+		transport http {
+			read_timeout 5m
+			write_timeout 5m
+		}
+	}
+
+	log {
+		output stdout
+		format json
+		level INFO
+	}
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		-Server
+	}
+}

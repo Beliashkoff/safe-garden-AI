@@ -1,0 +1,44 @@
+#cloud-config
+# Cloud-init для worker-VM. Применяется при первом запуске Hetzner/OVH-инстанса.
+# Для HostKey-VM (создаётся вручную) — выполнить шаги ниже руками. См. README.md.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - docker-compose-v2
+  - ufw
+  - cryptsetup
+  - jq
+
+users:
+  - name: safegarden
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    groups: [docker]
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+write_files:
+  - path: /etc/safegarden/README.md
+    permissions: "0644"
+    content: |
+      Worker VM bootstrap. См. ARCH §8.6 — секреты живут на LUKS-томе,
+      монтируемом отдельно от корневого диска. Развёртывание docker-compose
+      выполняется по infra/docker/compose/prod-llmworker.yml (Этап 2.2).
+
+runcmd:
+  # Firewall: разрешаем 443 (mTLS) только с указанных IP, плюс SSH.
+  - ufw default deny incoming
+  - ufw default allow outgoing
+%{ for cidr in allowed_source_ips ~}
+  - ufw allow from ${cidr} to any port 443 proto tcp
+  - ufw allow from ${cidr} to any port 22 proto tcp
+%{ endfor ~}
+  - ufw --force enable
+  - systemctl enable --now docker
+
+  # TODO (ARCH §8.6): провизионинг LUKS-тома для секретов выполняется
+  # отдельным шагом в 2.2 (cryptsetup luksFormat, mount в /etc/llmworker).
+  # Ключи Anthropic и mTLS-приватный ключ не лежат на корневом диске.

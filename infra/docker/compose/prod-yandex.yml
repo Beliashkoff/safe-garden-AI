@@ -1,0 +1,43 @@
+name: safegarden-api
+
+services:
+  api:
+    image: ghcr.io/beliashkoff/safe-garden-ai/api:${IMAGE_TAG:-latest}
+    env_file:
+      - path: /etc/safegarden/.env
+        required: false
+    restart: unless-stopped
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN env required}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - internal
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge

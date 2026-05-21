@@ -1,0 +1,59 @@
+name: infra-ci
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: terraform fmt
+        working-directory: infra/terraform
+        run: terraform fmt -check -recursive
+
+      - name: terraform init (no backend, no plugins from remote)
+        working-directory: infra/terraform/envs/prod
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        working-directory: infra/terraform/envs/prod
+        run: terraform validate
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: validate prod-yandex
+        env:
+          DOMAIN: api.agronomai.site
+          IMAGE_TAG: ci
+        run: docker compose -f infra/docker/compose/prod-yandex.yml config -q
+
+      - name: validate prod-llmworker
+        env:
+          DOMAIN: worker.agronomai.site
+          IMAGE_TAG: ci
+        run: docker compose -f infra/docker/compose/prod-llmworker.yml config -q

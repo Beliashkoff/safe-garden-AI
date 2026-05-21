@@ -19,16 +19,21 @@ HTTP API на Go (chi, pgx, sqlc), часть РФ-бэкенда из [`../ARCH
 ```
 backend/
 ├── cmd/
-│   └── api/                  # HTTP-сервис (точка входа main.go)
+│   ├── api/                  # HTTP-сервис (точка входа main.go)
+│   └── llmworker/            # HTTP-сервис worker'а (echo-SSE; Этап 0.7)
 ├── internal/
 │   ├── config/               # envconfig + .env
+│   ├── llm/                  # клиент llm-worker'а: Client/WorkerClient/MockClient/factory
+│   ├── llmworker/            # echo-сервер worker'а: config/server/sse/types
 │   └── observability/        # slog handler (PII-фильтр) + Sentry init
-├── .air.toml                 # live-reload
+├── .air.toml                 # live-reload (только для api)
 ├── .dockerignore
-├── .env.example              # шаблон env для локалки
+├── .env.example              # шаблон env для api
+├── .env.worker.example       # шаблон env для llmworker
 ├── .golangci.yml             # линтеры
 ├── docker-compose.yml        # postgres + redis + minio + mailhog
-├── Dockerfile                # multi-stage, distroless
+├── Dockerfile                # multi-stage, distroless (api)
+├── Dockerfile.llmworker      # multi-stage, distroless (llmworker)
 ├── go.mod / go.sum
 └── Makefile
 ```
@@ -37,8 +42,7 @@ backend/
 
 - `migrations/` — goose-миграции (Этап 1.1).
 - `internal/auth/`, `internal/storage/`, `internal/usecase/`, `internal/transport/http/` — слои домена (Этап 1+).
-- `internal/llm/` — клиент к `llm-worker` (Этап 2.2).
-- `internal/llmworker/` — код самого worker'а (Этап 0.7).
+- `internal/llm/prompts/`, `internal/llmworker/anthropic.go`, `internal/llmworker/tool_callback.go` — реальная интеграция Anthropic и tool-use (Этапы 2.2 и 5.2).
 
 ## Конфигурация (env)
 
@@ -163,26 +167,29 @@ Email-провайдер для OTP. SMTP-отправитель — `noreply@ag
 
 | Переменная | Раскомментируется в этапе |
 | --- | --- |
+| `LLM_CLIENT_KIND` | 0.7 (уже раскомментирована, значение по умолчанию `mock`) |
 | `POSTGRES_DSN` | 1.1 |
 | `REDIS_ADDR` | 1.2 |
 | `S3_*` | 3.1 |
 | `JWT_*` | 1.1 |
 | `APPLE_*`, `GOOGLE_CLIENT_ID_*` | 1.1 |
 | `SMTP_*` | 1.3 |
-| `LLM_WORKER_*` | 2.2 |
+| `LLM_WORKER_BASE_URL`, `LLM_WORKER_MTLS_*` | 2.2 |
 | `YANDEX_SPEECHKIT_API_KEY` | 4.2 |
 
-`ANTHROPIC_API_KEY` и `UID_HASH_PEPPER` в этом файле никогда не появятся — они только в `.env` worker'а (`internal/llmworker/`, появится в Этапе 0.7).
+`ANTHROPIC_API_KEY` и `UID_HASH_PEPPER` в этом файле никогда не появятся — они только в `.env` worker'а (см. `backend/.env.worker.example`). CLAUDE.md инвариант №5.
 
 ## Команды Makefile
 
 | Цель                  | Что делает |
 | --------------------- | ---------- |
-| `make dev`            | `docker compose up -d` + `air` (live-reload). |
+| `make dev`            | `docker compose up -d` + `air` (live-reload api). |
+| `make worker-dev`     | `go run ./cmd/llmworker` — echo-сервер worker'а на `:8081`. |
 | `make test`           | `go test ./...` — unit-тесты. |
 | `make test-integration` | `go test -tags=integration ./...` — integration (testcontainer Postgres, появятся в Этапе 1). |
 | `make lint`           | `golangci-lint run ./...`. |
 | `make build`          | Сборка статического бинаря в `bin/api` (`-ldflags="-s -w"`). |
+| `make worker-build`   | Сборка статического бинаря в `bin/llmworker`. |
 | `make migrate-up`     | `goose -dir migrations postgres "$POSTGRES_DSN" up` (Этап 1+). |
 | `make migrate-down`   | `goose ... down` — для локальной отладки миграций. В prod применяется только `up`. |
 | `make sqlc-gen`       | `sqlc generate` — перегенерация sqlc-кода после правки `*.sql`. |
@@ -204,6 +211,36 @@ make dev                  # docker compose + air одной командой
 curl http://localhost:8080/healthz   # → 200 ok
 curl http://localhost:8080/readyz    # → 200 ok
 ```
+
+### LLM-worker dev
+
+В Этапе 0.7 worker — echo-сервер, отвечающий SSE по контракту ARCH §11.3.
+Реальный вызов Anthropic появится в Этапе 2.2.
+
+```bash
+cp .env.worker.example .env.worker
+make worker-dev                       # либо: go run ./cmd/llmworker
+
+# /healthz
+curl http://localhost:8081/healthz    # → 200 ok
+
+# echo-SSE: текст последнего user-message возвращается дельтами
+curl -N -X POST http://localhost:8081/v1/llm/messages \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "model":"echo",
+       "messages":[{"role":"user","content":[{"type":"text","text":"hello world"}]}],
+       "metadata":{"uid_hash":"abc","request_id":"req_1"}
+     }'
+# event: message_started → event: delta × N → event: usage → event: done
+```
+
+Worker отклоняет payload с полями `email`, `user_id`, `refresh_token` (CLAUDE.md
+инвариант №5) — это не баг, а защита от случайных регрессий.
+
+В `cmd/api` worker пока не интегрирован — `internal/llm.Client` ждёт первого
+эндпоинта-потребителя в Этапе 2.3. Текущий выбор реализации управляется
+`LLM_CLIENT_KIND` (`mock` по умолчанию, `worker` для prod).
 
 Сервисы, поднимаемые `docker compose up -d` (см. [`docker-compose.yml`](./docker-compose.yml)):
 
