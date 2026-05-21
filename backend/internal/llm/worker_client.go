@@ -145,9 +145,8 @@ func (c *WorkerClient) parseStream(ctx context.Context, body io.ReadCloser, ch c
 			eventName = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
 		case strings.HasPrefix(line, "data:"):
 			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
-		case strings.HasPrefix(line, ":"):
-			// SSE-комментарий (heartbeat), игнорируем.
 		}
+		// Прочие строки (включая SSE-комментарии вида ": heartbeat") игнорируем.
 	}
 	// Финальный flush на случай, если стрим оборвался без пустой строки.
 	flush()
