@@ -16,6 +16,7 @@ import (
 
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/config"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/observability"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage"
 )
 
 func main() {
@@ -33,16 +34,36 @@ func main() {
 	}
 	defer observability.FlushSentry()
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	store, err := storage.New(ctx, cfg.PostgresDSN)
+	if err != nil {
+		slog.Error("storage init failed", "err", err)
+		os.Exit(1)
+	}
+	defer store.Close()
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(observability.AccessLog(logger))
 
+	// Liveness — succeeds as long as the process is running.
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	r.Get("/readyz", func(w http.ResponseWriter, _ *http.Request) {
+	// Readiness — pings the DB with a bounded timeout so a stalled DB does
+	// not hang the probe and orchestrator decisions.
+	r.Get("/readyz", func(w http.ResponseWriter, req *http.Request) {
+		pingCtx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
+		defer cancel()
+		if err := store.Ping(pingCtx); err != nil {
+			slog.Warn("readyz ping failed", "err", err)
+			http.Error(w, "db unavailable", http.StatusServiceUnavailable)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -51,9 +72,6 @@ func main() {
 		Handler:           r,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	go func() {
 		slog.Info("server starting", "addr", srv.Addr, "env", cfg.Env)

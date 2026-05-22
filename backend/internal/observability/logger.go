@@ -21,6 +21,15 @@ var redactedKeys = map[string]struct{}{
 	"text":          {},
 	"transcription": {},
 	"message_text":  {},
+	// Stage 1.1 additions:
+	"apple_sub":    {}, // stable external identifier — usable to correlate accounts across services
+	"google_sub":   {}, // same as above
+	"nonce":        {}, // replay material until verification completes
+	"display_name": {}, // user-provided, may contain real names
+	"code_hash":    {}, // defense-in-depth — never log hashes
+	"token_hash":   {},
+	"private_key":  {}, // accidental key dumps
+	"jwks":         {},
 }
 
 const redactedValue = "[REDACTED]"

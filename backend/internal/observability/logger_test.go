@@ -27,6 +27,15 @@ func TestRedactPII_SensitiveKeysAreRedacted(t *testing.T) {
 		{"text", "user wrote this private message"},
 		{"transcription", "transcribed voice content"},
 		{"message_text", "hello there"},
+		// Stage 1.1 additions:
+		{"apple_sub", "001234.appleSubjectValue"},
+		{"google_sub", "11223344556677889900"},
+		{"nonce", "raw-nonce-secret-bytes"},
+		{"display_name", "Иван Иванов"},
+		{"code_hash", "$2a$10$xxxxx"},
+		{"token_hash", "deadbeef-hash-bytes"},
+		{"private_key", "-----BEGIN PRIVATE KEY-----"},
+		{"jwks", "{keys: [...]}"},
 	}
 
 	for _, tc := range cases {
