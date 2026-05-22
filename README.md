@@ -38,7 +38,7 @@ safe-garden-AI/
 
 Для разработки нужно:
 
-- **Go** 1.24+ (см. `backend/go.mod`)
+- **Go** 1.25+ (см. `backend/go.mod`)
 - **Flutter** 3.35+ stable / Dart 3.8+ (см. `mobile/pubspec.yaml`)
 - **Docker** + **Docker Compose**
 - **Make**
@@ -106,6 +106,7 @@ CI состоит из трёх workflow:
 - 0.4 CI/CD bootstrap ✅
 - 0.5 Документация ✅
 - 0.7 Скелет llm-worker ✅ — `cmd/llmworker` (echo-SSE), `internal/llm` (Client/WorkerClient/MockClient), Terraform-каркас, prod Docker Compose. `terraform apply` отложен до 2.2.
+- 1.1 Backend: модели и хранилище ✅ — миграции `users`/`refresh_tokens`/`email_codes`/`audit_log`, sqlc-запросы, `internal/auth/jwt.go` (RS256 + `kid`-ротация), `internal/auth/oidc.go` (Apple + Google), refresh/OTP-примитивы. Integration-тесты через testcontainers.
 - В работе — **0.6 Внешние аккаунты** (HostKey, Anthropic, Yandex Cloud, Yandex 360, SpeechKit, DNS `agronomai.site`). Runbook — в [`backend/README.md`](./backend/README.md) §«Регистрация внешних аккаунтов». Дальнейшие этапы — в `ROADMAP.md`.
 
 ## Открытые блокеры по этапам

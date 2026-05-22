@@ -75,11 +75,11 @@
 
 **Цель:** пользователь может зарегистрироваться/войти через Apple, Google или Email + OTP, токены хранятся безопасно, refresh работает.
 
-### 1.1 Backend: модели и хранилище
-- [ ] Миграции: `users`, `refresh_tokens`, `email_codes`, `audit_log`.
-- [ ] sqlc-запросы: создание/поиск user, выпуск/поиск/ревок refresh-токена, OTP CRUD.
-- [ ] `internal/auth/jwt.go`: генерация/проверка RS256, ротация ключей через `kid`.
-- [ ] `internal/auth/oidc.go`: верификация Apple и Google id_token через JWKS (`coreos/go-oidc`).
+### 1.1 Backend: модели и хранилище ✅
+- [x] Миграции: `users`, `refresh_tokens`, `email_codes`, `audit_log`. _DDL дословно из ARCH §6.1; индексы `(token_hash) UNIQUE`, partial `(user_id) WHERE revoked_at IS NULL`, `(email, expires_at)`, `(user_id, created_at DESC)`._
+- [x] sqlc-запросы: создание/поиск user, выпуск/поиск/ревок refresh-токена, OTP CRUD. _`internal/storage/queries/` + сгенерированный `internal/storage/db/`. `Store.ExecTx` для атомарной ротации refresh-токена. Интеграционные тесты под `make test-integration` (testcontainers)._
+- [x] `internal/auth/jwt.go`: генерация/проверка RS256, ротация ключей через `kid`. _Multi-key `KeysDir` + single-file fallback. Parser: `WithValidMethods([RS256])` отвергает `alg=none`/HS256-confusion, `WithExpirationRequired`, leeway 60s, lookup по `kid` из header._
+- [x] `internal/auth/oidc.go`: верификация Apple и Google id_token через JWKS (`coreos/go-oidc`). _Apple — обязательный nonce через `subtle.ConstantTimeCompare`, identity = `apple_sub` (email не доверяем, ARCH §11.1). Google — manual aud-allowlist для iOS+Android client_id._
 
 ### 1.2 Backend: эндпоинты
 - [ ] `POST /v1/auth/apple`
