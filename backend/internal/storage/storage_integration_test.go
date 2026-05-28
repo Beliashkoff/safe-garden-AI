@@ -99,12 +99,15 @@ func applyMigrations(dsn string) error {
 	return goose.Up(conn, dir)
 }
 
-// truncateAll resets all stage-1.1 tables between tests. Using TRUNCATE with
-// RESTART IDENTITY + CASCADE keeps audit_log's BIGSERIAL deterministic.
+// truncateAll resets all tables between tests. Using TRUNCATE with
+// RESTART IDENTITY + CASCADE keeps BIGSERIAL columns (audit_log, usage_log)
+// deterministic.
 func truncateAll(t *testing.T) {
 	t.Helper()
 	_, err := testStore.pool.Exec(testCtx,
-		"TRUNCATE users, refresh_tokens, email_codes, audit_log RESTART IDENTITY CASCADE")
+		"TRUNCATE users, refresh_tokens, email_codes, audit_log, "+
+			"conversations, messages, message_blocks, uploads, fertilizers, usage_log "+
+			"RESTART IDENTITY CASCADE")
 	require.NoError(t, err)
 }
 

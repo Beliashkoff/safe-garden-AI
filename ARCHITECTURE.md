@@ -464,6 +464,7 @@ CREATE TABLE fertilizers (
   -- условия применимости для tool use:
   problems        TEXT[] NOT NULL,    -- e.g. {'leaf_yellowing','phosphorus_deficiency'}
   plants          TEXT[],             -- e.g. {'tomato','cucumber'} или NULL = универсальное
+  priority        INT,                -- ранжирование выдачи в recommend_fertilizer (§6.4), NULL — в конец
   active          BOOLEAN NOT NULL DEFAULT TRUE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()

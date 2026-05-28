@@ -20,6 +20,12 @@ type AuditLog struct {
 	CreatedAt pgtype.Timestamptz
 }
 
+type Conversation struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	CreatedAt pgtype.Timestamptz
+}
+
 type EmailCode struct {
 	ID        uuid.UUID
 	Email     string
@@ -28,6 +34,45 @@ type EmailCode struct {
 	ExpiresAt pgtype.Timestamptz
 	UsedAt    pgtype.Timestamptz
 	CreatedAt pgtype.Timestamptz
+}
+
+type Fertilizer struct {
+	ID          uuid.UUID
+	Slug        string
+	Name        string
+	ShortDesc   string
+	LongDesc    pgtype.Text
+	ImageUrl    pgtype.Text
+	DeeplinkUrl pgtype.Text
+	Category    string
+	Problems    []string
+	Plants      []string
+	Priority    pgtype.Int4
+	Active      bool
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type Message struct {
+	ID             uuid.UUID
+	ConversationID uuid.UUID
+	UserID         uuid.UUID
+	Role           string
+	Status         string
+	TokensIn       pgtype.Int4
+	TokensOut      pgtype.Int4
+	CreatedAt      pgtype.Timestamptz
+}
+
+type MessageBlock struct {
+	ID          uuid.UUID
+	MessageID   uuid.UUID
+	OrderIndex  int32
+	Type        string
+	ContentText pgtype.Text
+	StorageKey  pgtype.Text
+	Metadata    []byte
+	CreatedAt   pgtype.Timestamptz
 }
 
 type RefreshToken struct {
@@ -40,6 +85,26 @@ type RefreshToken struct {
 	ExpiresAt  pgtype.Timestamptz
 	RevokedAt  pgtype.Timestamptz
 	CreatedAt  pgtype.Timestamptz
+}
+
+type Upload struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	StorageKey  string
+	ContentType string
+	SizeBytes   int64
+	Used        bool
+	CreatedAt   pgtype.Timestamptz
+}
+
+type UsageLog struct {
+	ID        int64
+	UserID    uuid.UUID
+	Endpoint  string
+	TokensIn  pgtype.Int4
+	TokensOut pgtype.Int4
+	CostUsd   pgtype.Numeric
+	CreatedAt pgtype.Timestamptz
 }
 
 type User struct {

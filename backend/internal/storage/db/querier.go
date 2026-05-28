@@ -12,22 +12,39 @@ import (
 )
 
 type Querier interface {
+	// Finalises an assistant message: status + token counts (from the worker's SSE
+	// `usage` event, ARCH §11.3).
+	CompleteMessage(ctx context.Context, arg CompleteMessageParams) error
 	// DB-level baseline for the ≤3-requests/hour/email rate limit. Redis adds a
 	// faster check in front of this when it lands (stage 2.3).
 	CountRecentEmailCodes(ctx context.Context, email string) (int64, error)
 	CreateEmailCode(ctx context.Context, arg CreateEmailCodeParams) (EmailCode, error)
+	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
+	CreateMessageBlock(ctx context.Context, arg CreateMessageBlockParams) (MessageBlock, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	CreateUpload(ctx context.Context, arg CreateUploadParams) (Upload, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Periodic cleanup job (wired in a later stage). Keeps recently expired rows
 	// for a week to aid debugging reuse incidents.
 	DeleteExpiredRefreshTokens(ctx context.Context) error
+	// DELETE /v1/messages/:id — owner-scoped (user_id in WHERE). execrows lets the
+	// handler distinguish 404 (0 rows) from 204 (1 row). Blocks cascade.
+	DeleteMessage(ctx context.Context, arg DeleteMessageParams) (int64, error)
 	// Returns the most recent unused, unexpired code for the email. Older codes
 	// become irrelevant the moment a newer code is issued.
 	GetActiveEmailCode(ctx context.Context, email string) (EmailCode, error)
+	GetConversationByUser(ctx context.Context, userID uuid.UUID) (Conversation, error)
+	GetFertilizerBySlug(ctx context.Context, slug string) (Fertilizer, error)
+	GetMessageByID(ctx context.Context, id uuid.UUID) (Message, error)
+	// Idempotent: one chat per user. The DO UPDATE is a no-op that exists only so
+	// RETURNING yields the existing row on conflict — atomic, race-free.
+	GetOrCreateConversation(ctx context.Context, userID uuid.UUID) (Conversation, error)
 	// Intentionally returns the row even when revoked or expired so the caller
 	// can implement reuse-detection (presenting a revoked token revokes the
 	// whole family).
 	GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (RefreshToken, error)
+	// Used by POST /v1/messages to verify the caller owns the referenced storage_key.
+	GetUploadByStorageKey(ctx context.Context, storageKey string) (Upload, error)
 	GetUserByAppleSub(ctx context.Context, appleSub pgtype.Text) (User, error)
 	GetUserByEmail(ctx context.Context, email pgtype.Text) (User, error)
 	GetUserByGoogleSub(ctx context.Context, googleSub pgtype.Text) (User, error)
@@ -37,11 +54,28 @@ type Querier interface {
 	// user_id is nullable for system-level events (e.g. failed verification of an
 	// id_token before any user could be resolved).
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
+	InsertUsage(ctx context.Context, arg InsertUsageParams) error
 	LinkAppleSub(ctx context.Context, arg LinkAppleSubParams) (User, error)
 	LinkGoogleSub(ctx context.Context, arg LinkGoogleSubParams) (User, error)
 	ListAuditByUser(ctx context.Context, arg ListAuditByUserParams) ([]AuditLog, error)
+	// Batch-loads blocks for a page of messages (avoids N+1). Caller groups by
+	// message_id; rows arrive ordered within each message by order_index.
+	ListBlocksByMessageIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]MessageBlock, error)
+	// Keyset page strictly older than the cursor. The row-value comparison rides
+	// the (conversation_id, created_at, id) index and is stable across created_at
+	// ties. Explicit casts so sqlc types the id cursor as uuid, not timestamptz.
+	ListMessagesBefore(ctx context.Context, arg ListMessagesBeforeParams) ([]Message, error)
+	// First page of history (latest-first). The next cursor is the (created_at, id)
+	// of the last returned row.
+	ListRecentMessages(ctx context.Context, arg ListRecentMessagesParams) ([]Message, error)
+	// GC candidates: presigned-but-never-attached uploads older than the cutoff.
+	ListUnusedUploadsBefore(ctx context.Context, createdAt pgtype.Timestamptz) ([]Upload, error)
 	MarkEmailCodeUsed(ctx context.Context, id uuid.UUID) error
 	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
+	MarkUploadUsed(ctx context.Context, storageKey string) error
+	// ARCH §6.4. plant = NULL → no crop filter; universal items (plants IS NULL) always
+	// match. Ranked by priority (highest first), at most 3.
+	RecommendFertilizers(ctx context.Context, arg RecommendFertilizersParams) ([]RecommendFertilizersRow, error)
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
 	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
 	SetUserEmail(ctx context.Context, arg SetUserEmailParams) (User, error)
@@ -49,7 +83,14 @@ type Querier interface {
 	// email or OAuth subject later. Apple/Google review explicitly requires
 	// account deletion to free up identifiers.
 	SoftDeleteUser(ctx context.Context, id uuid.UUID) error
+	// Backs per-user daily token limits and budget alerts (ARCH §13 cost risk; wired
+	// in Stage 2.3).
+	SumUserTokensSince(ctx context.Context, arg SumUserTokensSinceParams) (SumUserTokensSinceRow, error)
 	TouchRefreshToken(ctx context.Context, id uuid.UUID) error
+	UpdateMessageStatus(ctx context.Context, arg UpdateMessageStatusParams) error
+	// Idempotent catalog seeding (Stage 5). Updates everything but id/created_at and
+	// bumps updated_at on conflict.
+	UpsertFertilizerBySlug(ctx context.Context, arg UpsertFertilizerBySlugParams) (Fertilizer, error)
 }
 
 var _ Querier = (*Queries)(nil)
