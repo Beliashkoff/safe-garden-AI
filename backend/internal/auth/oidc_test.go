@@ -243,6 +243,22 @@ func TestVerifyGoogle_HappyPath_iOS(t *testing.T) {
 	assert.True(t, id.EmailVerified)
 }
 
+func TestVerifyGoogle_HappyPath_WebServerClient(t *testing.T) {
+	idp := newFakeIDP(t)
+	defer idp.Close()
+	v, err := NewVerifier(context.Background(), VerifierConfig{
+		GoogleClientWeb:      "web.apps.googleusercontent.com",
+		GoogleIssuerOverride: idp.issuer,
+	})
+	require.NoError(t, err)
+
+	// Mobile google_sign_in sets serverClientId=web, so aud == web client.
+	tok := idp.sign(t, baseGoogleClaims("web.apps.googleusercontent.com", "google-sub-web", idp.issuer, time.Now().Add(10*time.Minute)), nil, nil)
+	id, err := v.VerifyGoogle(context.Background(), tok)
+	require.NoError(t, err)
+	assert.Equal(t, "google-sub-web", id.Subject)
+}
+
 func TestVerifyGoogle_RejectsAudNotInAllowlist(t *testing.T) {
 	idp := newFakeIDP(t)
 	defer idp.Close()

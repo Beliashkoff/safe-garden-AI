@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'AI Agronom';
+  String get appTitle => 'AI Agronomist';
 
   @override
   String get loginTitle => 'Sign in';
@@ -27,7 +27,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loginButtonEmail => 'Sign in with email';
 
   @override
-  String get loginComingSoon => 'Coming soon';
+  String get emailRequestTitle => 'Sign in with email';
+
+  @override
+  String get emailRequestHint =>
+      'Enter your email — we\'ll send you a sign-in code';
+
+  @override
+  String get emailFieldLabel => 'Email';
+
+  @override
+  String get emailRequestCta => 'Send code';
+
+  @override
+  String get emailVerifyTitle => 'Enter code';
+
+  @override
+  String emailVerifyHint(String email) {
+    return 'Code sent to $email';
+  }
+
+  @override
+  String get codeFieldLabel => '6-digit code';
+
+  @override
+  String get emailVerifyCta => 'Sign in';
+
+  @override
+  String get resendCode => 'Resend code';
+
+  @override
+  String get errorInvalidEmail => 'Invalid email';
+
+  @override
+  String get errorInvalidCode => 'Invalid or expired code';
+
+  @override
+  String get errorTooManyAttempts => 'Too many attempts. Request a new code.';
+
+  @override
+  String get errorRateLimited => 'Too many requests. Try again later.';
+
+  @override
+  String get errorNetwork => 'No connection. Check your internet.';
+
+  @override
+  String get errorGeneric => 'Something went wrong. Please try again.';
 
   @override
   String get chatTitle => 'Chat';
@@ -38,4 +83,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatInputPlaceholder => 'Message';
+
+  @override
+  String get chatLogout => 'Sign out';
+
+  @override
+  String get chatDeleteAccount => 'Delete account';
+
+  @override
+  String get deleteAccountConfirmTitle => 'Delete account?';
+
+  @override
+  String get deleteAccountConfirmBody =>
+      'This cannot be undone. All your data will be deleted.';
+
+  @override
+  String get commonCancel => 'Cancel';
+
+  @override
+  String get commonDelete => 'Delete';
 }

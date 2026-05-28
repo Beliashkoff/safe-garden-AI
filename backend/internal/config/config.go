@@ -36,6 +36,10 @@ type Config struct {
 	AppleBundleID    string `envconfig:"APPLE_BUNDLE_ID" default:""`
 	GoogleClientIOS  string `envconfig:"GOOGLE_CLIENT_ID_IOS" default:""`
 	GoogleClientAndr string `envconfig:"GOOGLE_CLIENT_ID_ANDROID" default:""`
+	// Web/server OAuth client. The mobile google_sign_in flow uses this as its
+	// serverClientId, so the id_token's aud equals this value — it must be in
+	// the verifier allowlist.
+	GoogleClientWeb string `envconfig:"GOOGLE_CLIENT_ID_WEB" default:""`
 
 	// SMTP — Mailer for OTP delivery. Dev defaults target the docker-compose
 	// MailHog (localhost:1025, no auth, no TLS). Prod uses Yandex 360
@@ -71,8 +75,8 @@ func (c *Config) validateProd() error {
 	if c.AppleBundleID == "" {
 		missing = append(missing, "APPLE_BUNDLE_ID")
 	}
-	if c.GoogleClientIOS == "" && c.GoogleClientAndr == "" {
-		missing = append(missing, "GOOGLE_CLIENT_ID_IOS or GOOGLE_CLIENT_ID_ANDROID")
+	if c.GoogleClientIOS == "" && c.GoogleClientAndr == "" && c.GoogleClientWeb == "" {
+		missing = append(missing, "GOOGLE_CLIENT_ID_IOS or GOOGLE_CLIENT_ID_ANDROID or GOOGLE_CLIENT_ID_WEB")
 	}
 	if c.JWTKeysDir == "" && c.JWTPrivateKeyPath == "" {
 		missing = append(missing, "JWT_KEYS_DIR or JWT_PRIVATE_KEY_PATH")

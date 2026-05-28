@@ -1,25 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../application/auth_controller.dart';
+import 'auth_error_message.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
-  void _showComingSoon(BuildContext context) {
+  @override
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  bool _busy = false;
+
+  Future<void> _runOAuth(Future<void> Function() action) async {
+    setState(() => _busy = true);
     final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(l10n.loginComingSoon)));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action();
+    } on Object catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(authErrorMessage(l10n, e))),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final platform = theme.platform;
+    final controller = ref.read(authControllerProvider.notifier);
     final showAppleButton =
-        platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
+        theme.platform == TargetPlatform.iOS ||
+        theme.platform == TargetPlatform.macOS;
 
     return Scaffold(
       body: SafeArea(
@@ -43,18 +62,22 @@ class LoginScreen extends StatelessWidget {
               const SizedBox(height: 48),
               if (showAppleButton) ...[
                 FilledButton(
-                  onPressed: () => _showComingSoon(context),
+                  onPressed: _busy
+                      ? null
+                      : () => _runOAuth(controller.signInWithApple),
                   child: Text(l10n.loginButtonApple),
                 ),
                 const SizedBox(height: 12),
               ],
               FilledButton.tonal(
-                onPressed: () => _showComingSoon(context),
+                onPressed: _busy
+                    ? null
+                    : () => _runOAuth(controller.signInWithGoogle),
                 child: Text(l10n.loginButtonGoogle),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
-                onPressed: () => context.go('/chat'),
+                onPressed: _busy ? null : () => context.go('/login/email'),
                 child: Text(l10n.loginButtonEmail),
               ),
             ],

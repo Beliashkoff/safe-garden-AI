@@ -66,6 +66,7 @@ func main() {
 		AppleBundleID:    cfg.AppleBundleID,
 		GoogleClientIOS:  cfg.GoogleClientIOS,
 		GoogleClientAndr: cfg.GoogleClientAndr,
+		GoogleClientWeb:  cfg.GoogleClientWeb,
 	})
 	if err != nil {
 		slog.Error("oidc verifier init failed", "err", err)

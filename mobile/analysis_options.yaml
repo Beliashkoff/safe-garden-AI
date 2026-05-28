@@ -10,6 +10,9 @@ analyzer:
     unawaited_futures: error
     missing_required_param: error
     missing_return: error
+    # freezed forwards @JsonKey/@Default to generated fields; the analyzer
+    # flags the annotation on the factory parameter. Standard freezed workaround.
+    invalid_annotation_target: ignore
   exclude:
     - lib/l10n/generated/**
     - "**/*.g.dart"

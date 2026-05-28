@@ -4,7 +4,7 @@ Flutter-приложение для iOS 14+ / Android 8+. Пакет в [`pubspe
 
 State management — Riverpod, навигация — `go_router`, HTTP — `dio`, иммутабельные модели — `freezed`, локализация — `intl` ARB. Полная архитектура — в [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §3, §9.
 
-> Текущее состояние — скелет: два экрана (логин, чат) как заглушки, тема Material 3 (light/dark), локализация EN/RU.
+> Текущее состояние — реализована авторизация (Этап 1.4–1.6): email-OTP, Apple, Google против бэкенда Этапа 1.2; безопасное хранение токенов, прозрачный refresh на 401, авто-вход при старте, удаление аккаунта. Тема Material 3 (light/dark), локализация RU/EN.
 
 ## Prerequisites
 
@@ -20,24 +20,33 @@ State management — Riverpod, навигация — `go_router`, HTTP — `dio
 
 ```
 lib/
-├── main.dart                          # точка входа
+├── main.dart                          # точка входа (ProviderScope)
 ├── app/
-│   ├── app.dart                       # корневой MaterialApp
-│   ├── router.dart                    # go_router конфигурация
+│   ├── app.dart                       # корневой MaterialApp.router (ConsumerWidget)
+│   ├── router.dart                    # go_router + redirect-гард по auth-статусу
+│   ├── splash_screen.dart             # экран во время bootstrap-проверки сессии
 │   └── theme.dart                     # Material 3, light/dark
+├── core/
+│   ├── config/app_config.dart         # baseUrl/serverClientId через --dart-define
+│   ├── network/
+│   │   ├── api_client.dart            # единый Dio + интерсепторы (auth, refresh-on-401)
+│   │   └── api_exception.dart         # типизированные ошибки из §4.7 конверта
+│   └── storage/secure_token_store.dart # flutter_secure_storage: access/refresh
 ├── features/
-│   ├── auth/presentation/             # экран логина (заглушка)
-│   └── chat/presentation/             # экран чата (заглушка)
+│   ├── auth/
+│   │   ├── domain/auth_models.dart    # freezed: AppUser, AuthTokens, …
+│   │   ├── data/                      # auth_api, oauth_providers, auth_repository
+│   │   ├── application/auth_controller.dart # AsyncNotifier<AuthSnapshot>
+│   │   └── presentation/              # login / email_request / email_verify
+│   └── chat/presentation/            # экран чата (заглушка + logout/delete)
 └── l10n/
-    ├── app_en.arb                     # English (инфраструктурный, v1 — RU only)
-    ├── app_ru.arb                     # Русский
+    ├── app_en.arb                     # English
+    ├── app_ru.arb                     # Русский (template)
     └── generated/app_localizations.dart  # генерируется автоматически
 ```
 
 Будущие каталоги по `../ROADMAP.md`:
 
-- `lib/core/api/`, `lib/core/storage/` — общий ApiClient (dio) и SecureTokenStore (Этап 1.5).
-- `lib/features/auth/data/` — репозиторий + Riverpod-нотифаер (Этап 1.5).
 - `lib/features/chat/data/` — SSE-клиент, локальный кэш через `drift` (Этап 2.4–2.5).
 
 ## Зависимости
@@ -51,6 +60,10 @@ lib/
 | `dio`                 | HTTP-клиент. В будущем — через единый `ApiClient` с интерсепторами (см. CLAUDE.md). |
 | `freezed_annotation` + `json_annotation` | Иммутабельные модели + JSON-сериализация. Codegen через `build_runner`. |
 | `intl` + `flutter_localizations` | i18n. UI-строки — только через ARB, без хардкода. |
+| `flutter_secure_storage` | Хранение access/refresh-токенов (Keychain / EncryptedSharedPreferences). |
+| `sign_in_with_apple`  | Apple Sign-In (id_token + nonce). |
+| `google_sign_in` (v7) | Google Sign-In (id_token через `serverClientId`). |
+| `crypto`              | sha256 для Apple nonce. |
 | `cupertino_icons`     | Иконки iOS. |
 | `flutter_lints` (dev) | Базовые правила, поверх — строгие в `analysis_options.yaml`. |
 | `mocktail` (dev)      | Моки для тестов. |
@@ -92,6 +105,43 @@ flutter build ios                  # iOS (только macOS)
 - Генерация `AppLocalizations` запускается автоматически при `flutter pub get` (`flutter.generate: true` в `pubspec.yaml`, конфиг — в `l10n.yaml`).
 - В v1 UI — только RU. EN ARB держим, чтобы инфраструктура локализации была проверена и готова к расширению (см. ROADMAP §6.5).
 - Не использовать хардкод-строки в UI — всё через `AppLocalizations.of(context).xxx`.
+
+## Аутентификация (Этап 1.4–1.6)
+
+Клиент общается с бэкендом Этапа 1.2 (`/v1/auth/*`, `/v1/account`). Контракт —
+[`../backend/internal/transport/http/docs/openapi.yaml`](../backend/internal/transport/http/docs/openapi.yaml)
+(Swagger UI на `/v1/docs`).
+
+**Конфигурация через `--dart-define`** ([`lib/core/config/app_config.dart`](./lib/core/config/app_config.dart)):
+
+| Переменная | Назначение | Default |
+| ---------- | ---------- | ------- |
+| `API_BASE_URL` | Базовый URL API. Для Android-эмулятора host = `10.0.2.2`. | `http://10.0.2.2:8080/v1` |
+| `GOOGLE_SERVER_CLIENT_ID` | Web/server OAuth client ID. Передаётся в `google_sign_in` как `serverClientId`; `aud` в id_token будет равен ему — бэк должен иметь его в `GOOGLE_CLIENT_ID_WEB`. | `""` |
+
+```bash
+flutter run \
+  --dart-define=API_BASE_URL=http://10.0.2.2:8080/v1 \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=<web-client-id>.apps.googleusercontent.com
+```
+
+**Локальный E2E email-OTP** (когда установлен Android SDK): поднять бэк `make dev`
+(api + MailHog), запустить эмулятор, `flutter run` с `API_BASE_URL` выше. Ввести email →
+код взять в MailHog UI (`http://localhost:8025`) → войти. Проверить авто-вход после
+рестарта, logout и удаление аккаунта (меню в AppBar чата).
+
+**Платформенная настройка (зависит от внешних аккаунтов — Этапы 0.6 / 7):**
+
+- **Google (Android/iOS):** создать OAuth-клиенты в Google Cloud Console (Android — по
+  package `site.agronomai.app` + SHA-1; iOS — по bundle id; Web — для `serverClientId`).
+  `google_sign_in` v7 для базового входа **не требует** `google-services.json` —
+  достаточно `serverClientId` в рантайме. SHA-1 debug-ключа: `keytool -list -v -alias
+  androiddebugkey -keystore ~/.android/debug.keystore` (пароль `android`).
+- **Apple (iOS):** файл [`ios/Runner/Runner.entitlements`](./ios/Runner/Runner.entitlements)
+  с `com.apple.developer.applesignin` уже добавлен. Остаётся (на macOS, Этап 7) включить
+  capability «Sign in with Apple» в Xcode (Signing & Capabilities) — это пропишет
+  `CODE_SIGN_ENTITLEMENTS` в проект и привяжет к provisioning profile. Apple-кнопка
+  показывается только на iOS/macOS.
 
 ## Симуляторы и эмуляторы
 

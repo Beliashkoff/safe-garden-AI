@@ -1,46 +1,64 @@
 import 'package:agronom_ai/features/auth/presentation/login_screen.dart';
 import 'package:agronom_ai/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
 
-Widget _wrap(Widget child, {TargetPlatform platform = TargetPlatform.android}) {
+import 'helpers/fakes.dart';
+
+Widget _wrap(
+  MockAuthRepository repo, {
+  TargetPlatform platform = TargetPlatform.android,
+}) {
   final router = GoRouter(
     initialLocation: '/login',
     routes: [
-      GoRoute(path: '/login', builder: (context, state) => child),
       GoRoute(
-        path: '/chat',
-        builder: (context, state) =>
-            const Scaffold(body: Center(child: Text('CHAT_STUB'))),
+        path: '/login',
+        builder: (_, _) => const LoginScreen(),
+        routes: [
+          GoRoute(
+            path: 'email',
+            builder: (_, _) =>
+                const Scaffold(body: Center(child: Text('EMAIL_STUB'))),
+          ),
+        ],
       ),
     ],
   );
 
-  return MaterialApp.router(
-    theme: ThemeData(platform: platform, useMaterial3: true),
-    locale: const Locale('ru'),
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
-    supportedLocales: AppLocalizations.supportedLocales,
-    routerConfig: router,
+  return ProviderScope(
+    overrides: authTestOverrides(repo),
+    child: MaterialApp.router(
+      theme: ThemeData(platform: platform, useMaterial3: true),
+      locale: const Locale('ru'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      routerConfig: router,
+    ),
   );
 }
 
 void main() {
+  late MockAuthRepository repo;
+
+  setUp(() {
+    repo = MockAuthRepository();
+    when(() => repo.tryRestoreSession()).thenAnswer((_) async => null);
+  });
+
   testWidgets('shows title and subtitle', (tester) async {
-    await tester.pumpWidget(_wrap(const LoginScreen()));
+    await tester.pumpWidget(_wrap(repo));
     await tester.pumpAndSettle();
 
     expect(find.text('Войти'), findsOneWidget);
     expect(find.text('Диагностика растений с помощью AI'), findsOneWidget);
   });
 
-  testWidgets('Android: shows Google and Email, no Apple button', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _wrap(const LoginScreen(), platform: TargetPlatform.android),
-    );
+  testWidgets('Android: Google and Email, no Apple', (tester) async {
+    await tester.pumpWidget(_wrap(repo, platform: TargetPlatform.android));
     await tester.pumpAndSettle();
 
     expect(find.text('Войти с Google'), findsOneWidget);
@@ -48,10 +66,8 @@ void main() {
     expect(find.text('Войти с Apple'), findsNothing);
   });
 
-  testWidgets('iOS: shows Apple, Google and Email buttons', (tester) async {
-    await tester.pumpWidget(
-      _wrap(const LoginScreen(), platform: TargetPlatform.iOS),
-    );
+  testWidgets('iOS: Apple, Google and Email', (tester) async {
+    await tester.pumpWidget(_wrap(repo, platform: TargetPlatform.iOS));
     await tester.pumpAndSettle();
 
     expect(find.text('Войти с Apple'), findsOneWidget);
@@ -59,23 +75,13 @@ void main() {
     expect(find.text('Войти по email'), findsOneWidget);
   });
 
-  testWidgets('Email button navigates to /chat', (tester) async {
-    await tester.pumpWidget(_wrap(const LoginScreen()));
+  testWidgets('Email button navigates to the email screen', (tester) async {
+    await tester.pumpWidget(_wrap(repo));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Войти по email'));
     await tester.pumpAndSettle();
 
-    expect(find.text('CHAT_STUB'), findsOneWidget);
-  });
-
-  testWidgets('Google button shows "Coming soon" snackbar', (tester) async {
-    await tester.pumpWidget(_wrap(const LoginScreen()));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Войти с Google'));
-    await tester.pump();
-
-    expect(find.text('Скоро будет доступно'), findsOneWidget);
+    expect(find.text('EMAIL_STUB'), findsOneWidget);
   });
 }

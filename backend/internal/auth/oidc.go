@@ -34,6 +34,7 @@ type VerifierConfig struct {
 	AppleBundleID    string
 	GoogleClientIOS  string
 	GoogleClientAndr string
+	GoogleClientWeb  string
 
 	// Optional overrides for tests — when non-empty, used in place of the
 	// real Apple/Google issuer URLs. Production code leaves these empty.
@@ -69,6 +70,9 @@ func NewVerifier(ctx context.Context, cfg VerifierConfig) (*Verifier, error) {
 	}
 	if cfg.GoogleClientAndr != "" {
 		v.googleClients[cfg.GoogleClientAndr] = struct{}{}
+	}
+	if cfg.GoogleClientWeb != "" {
+		v.googleClients[cfg.GoogleClientWeb] = struct{}{}
 	}
 
 	if cfg.AppleBundleID != "" {

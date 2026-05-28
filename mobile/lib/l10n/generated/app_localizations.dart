@@ -134,11 +134,95 @@ abstract class AppLocalizations {
   /// **'Войти по email'**
   String get loginButtonEmail;
 
-  /// No description provided for @loginComingSoon.
+  /// No description provided for @emailRequestTitle.
   ///
   /// In ru, this message translates to:
-  /// **'Скоро будет доступно'**
-  String get loginComingSoon;
+  /// **'Вход по email'**
+  String get emailRequestTitle;
+
+  /// No description provided for @emailRequestHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Введите email — мы пришлём код для входа'**
+  String get emailRequestHint;
+
+  /// No description provided for @emailFieldLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Email'**
+  String get emailFieldLabel;
+
+  /// No description provided for @emailRequestCta.
+  ///
+  /// In ru, this message translates to:
+  /// **'Получить код'**
+  String get emailRequestCta;
+
+  /// No description provided for @emailVerifyTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Введите код'**
+  String get emailVerifyTitle;
+
+  /// No description provided for @emailVerifyHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Код отправлен на {email}'**
+  String emailVerifyHint(String email);
+
+  /// No description provided for @codeFieldLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Код из 6 цифр'**
+  String get codeFieldLabel;
+
+  /// No description provided for @emailVerifyCta.
+  ///
+  /// In ru, this message translates to:
+  /// **'Войти'**
+  String get emailVerifyCta;
+
+  /// No description provided for @resendCode.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отправить код повторно'**
+  String get resendCode;
+
+  /// No description provided for @errorInvalidEmail.
+  ///
+  /// In ru, this message translates to:
+  /// **'Некорректный email'**
+  String get errorInvalidEmail;
+
+  /// No description provided for @errorInvalidCode.
+  ///
+  /// In ru, this message translates to:
+  /// **'Неверный или истёкший код'**
+  String get errorInvalidCode;
+
+  /// No description provided for @errorTooManyAttempts.
+  ///
+  /// In ru, this message translates to:
+  /// **'Слишком много попыток. Запросите новый код.'**
+  String get errorTooManyAttempts;
+
+  /// No description provided for @errorRateLimited.
+  ///
+  /// In ru, this message translates to:
+  /// **'Слишком часто. Попробуйте позже.'**
+  String get errorRateLimited;
+
+  /// No description provided for @errorNetwork.
+  ///
+  /// In ru, this message translates to:
+  /// **'Нет соединения. Проверьте интернет.'**
+  String get errorNetwork;
+
+  /// No description provided for @errorGeneric.
+  ///
+  /// In ru, this message translates to:
+  /// **'Что-то пошло не так. Попробуйте ещё раз.'**
+  String get errorGeneric;
 
   /// No description provided for @chatTitle.
   ///
@@ -157,6 +241,42 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Сообщение'**
   String get chatInputPlaceholder;
+
+  /// No description provided for @chatLogout.
+  ///
+  /// In ru, this message translates to:
+  /// **'Выйти'**
+  String get chatLogout;
+
+  /// No description provided for @chatDeleteAccount.
+  ///
+  /// In ru, this message translates to:
+  /// **'Удалить аккаунт'**
+  String get chatDeleteAccount;
+
+  /// No description provided for @deleteAccountConfirmTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Удалить аккаунт?'**
+  String get deleteAccountConfirmTitle;
+
+  /// No description provided for @deleteAccountConfirmBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Это действие необратимо. Все данные будут удалены.'**
+  String get deleteAccountConfirmBody;
+
+  /// No description provided for @commonCancel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отмена'**
+  String get commonCancel;
+
+  /// No description provided for @commonDelete.
+  ///
+  /// In ru, this message translates to:
+  /// **'Удалить'**
+  String get commonDelete;
 }
 
 class _AppLocalizationsDelegate

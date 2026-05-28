@@ -6,8 +6,33 @@
   "loginButtonApple": "Войти с Apple",
   "loginButtonGoogle": "Войти с Google",
   "loginButtonEmail": "Войти по email",
-  "loginComingSoon": "Скоро будет доступно",
+  "emailRequestTitle": "Вход по email",
+  "emailRequestHint": "Введите email — мы пришлём код для входа",
+  "emailFieldLabel": "Email",
+  "emailRequestCta": "Получить код",
+  "emailVerifyTitle": "Введите код",
+  "emailVerifyHint": "Код отправлен на {email}",
+  "@emailVerifyHint": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "codeFieldLabel": "Код из 6 цифр",
+  "emailVerifyCta": "Войти",
+  "resendCode": "Отправить код повторно",
+  "errorInvalidEmail": "Некорректный email",
+  "errorInvalidCode": "Неверный или истёкший код",
+  "errorTooManyAttempts": "Слишком много попыток. Запросите новый код.",
+  "errorRateLimited": "Слишком часто. Попробуйте позже.",
+  "errorNetwork": "Нет соединения. Проверьте интернет.",
+  "errorGeneric": "Что-то пошло не так. Попробуйте ещё раз.",
   "chatTitle": "Чат",
   "chatEmptyHint": "Сфотографируйте растение или опишите проблему",
-  "chatInputPlaceholder": "Сообщение"
+  "chatInputPlaceholder": "Сообщение",
+  "chatLogout": "Выйти",
+  "chatDeleteAccount": "Удалить аккаунт",
+  "deleteAccountConfirmTitle": "Удалить аккаунт?",
+  "deleteAccountConfirmBody": "Это действие необратимо. Все данные будут удалены.",
+  "commonCancel": "Отмена",
+  "commonDelete": "Удалить"
 }
