@@ -32,12 +32,25 @@ type Config struct {
 
 	// BackendCallbackURL — куда worker делает tool-callback (Этап 5.2).
 	BackendCallbackURL string `envconfig:"BACKEND_CALLBACK_URL" default:""`
+
+	// MaxTokens — потолок output-токенов на ответ Claude.
+	MaxTokens int `envconfig:"WORKER_MAX_TOKENS" default:"2048"`
+
+	// ModelOverride — если задан, важнее модели из payload (аварийный
+	// rollback на другую модель без передеплоя бэкенда). Пусто — берём
+	// req.Model (его задаёт РФ-бэкенд, по умолчанию llm.DefaultModel).
+	ModelOverride string `envconfig:"ANTHROPIC_MODEL" default:""`
 }
 
 func LoadConfig() (*Config, error) {
 	var c Config
 	if err := envconfig.Process("", &c); err != nil {
 		return nil, fmt.Errorf("llmworker envconfig: %w", err)
+	}
+	// В prod worker без ключа бессмысленен — лучше упасть на старте, чем тихо
+	// уйти в echo и слать пользователям эхо вместо ответов Claude.
+	if c.Env == "prod" && c.AnthropicAPIKey == "" {
+		return nil, fmt.Errorf("llmworker: ANTHROPIC_API_KEY is required when ENV=prod")
 	}
 	return &c, nil
 }

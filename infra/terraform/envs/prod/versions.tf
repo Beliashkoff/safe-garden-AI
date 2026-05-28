@@ -20,6 +20,22 @@ terraform {
     }
   }
 
-  # backend будет добавлен в Этапе 2.2 — remote state в Yandex Object Storage.
-  # До этого момента state локальный (gitignored).
+  # Remote state в Yandex Object Storage (S3-совместимо). Включается при первом
+  # apply (Этап 2.2 runbook, см. envs/prod/README.md): сначала создаётся приватный
+  # бакет `safe-garden-tfstate`, затем раскомментировать блок и `terraform init
+  # -migrate-state`. До этого — local state (gitignored). Оставлено
+  # закомментированным, чтобы CI `init -backend=false` + `validate` проходили.
+  #
+  # backend "s3" {
+  #   endpoints = { s3 = "https://storage.yandexcloud.net" }
+  #   bucket   = "safe-garden-tfstate"
+  #   key      = "prod/terraform.tfstate"
+  #   region   = "ru-central1"
+  #
+  #   skip_region_validation      = true
+  #   skip_credentials_validation = true
+  #   skip_requesting_account_id  = true
+  #   skip_s3_checksum            = true
+  #   # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY = static key сервис-аккаунта YC.
+  # }
 }
