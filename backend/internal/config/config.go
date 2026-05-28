@@ -55,6 +55,16 @@ type Config struct {
 	// DocsEnabled serves the OpenAPI spec + Swagger UI at /v1/docs. Safe to
 	// leave on in prod (the contract is not secret) but available to disable.
 	DocsEnabled bool `envconfig:"DOCS_ENABLED" default:"true"`
+
+	// RedisAddr — Managed Redis for per-user rate limiting (ARCH §8.2). Empty in
+	// dev → message rate limiting is disabled (allow-all). Required in prod.
+	RedisAddr     string `envconfig:"REDIS_ADDR" default:""`
+	RedisPassword string `envconfig:"REDIS_PASSWORD" default:""`
+
+	// UIDHashPepper — salt for uid_hash = sha256(user_id + pepper). The hash is
+	// the only user identifier sent to the worker/Anthropic (ARCH §11.4, §8.6).
+	// Required in prod.
+	UIDHashPepper string `envconfig:"UID_HASH_PEPPER" default:""`
 }
 
 func Load() (*Config, error) {
@@ -72,9 +82,19 @@ func Load() (*Config, error) {
 
 func (c *Config) validateProd() error {
 	var missing []string
-	if c.AppleBundleID == "" {
-		missing = append(missing, "APPLE_BUNDLE_ID")
+	require := func(value, name string) {
+		if value == "" {
+			missing = append(missing, name)
+		}
 	}
+
+	require(c.AppleBundleID, "APPLE_BUNDLE_ID")
+	require(c.SMTPUsername, "SMTP_USERNAME")
+	require(c.SMTPPassword, "SMTP_PASSWORD")
+	require(c.SMTPFrom, "SMTP_FROM")
+	require(c.RedisAddr, "REDIS_ADDR")
+	require(c.UIDHashPepper, "UID_HASH_PEPPER")
+
 	if c.GoogleClientIOS == "" && c.GoogleClientAndr == "" && c.GoogleClientWeb == "" {
 		missing = append(missing, "GOOGLE_CLIENT_ID_IOS or GOOGLE_CLIENT_ID_ANDROID or GOOGLE_CLIENT_ID_WEB")
 	}
@@ -87,15 +107,7 @@ func (c *Config) validateProd() error {
 	if c.JWTPrivateKeyPath != "" && c.JWTKID == "" {
 		missing = append(missing, "JWT_KID (required when JWT_PRIVATE_KEY_PATH is set)")
 	}
-	if c.SMTPUsername == "" {
-		missing = append(missing, "SMTP_USERNAME")
-	}
-	if c.SMTPPassword == "" {
-		missing = append(missing, "SMTP_PASSWORD")
-	}
-	if c.SMTPFrom == "" {
-		missing = append(missing, "SMTP_FROM")
-	}
+
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required vars: %s", strings.Join(missing, ", "))
 	}

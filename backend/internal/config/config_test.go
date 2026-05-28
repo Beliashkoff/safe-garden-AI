@@ -20,15 +20,19 @@ var allConfigEnvKeys = []string{
 	"GOOGLE_CLIENT_ID_WEB",
 	"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD",
 	"SMTP_FROM", "SMTP_FROM_NAME", "SMTP_TLS", "DOCS_ENABLED",
+	"REDIS_ADDR", "REDIS_PASSWORD", "UID_HASH_PEPPER",
 }
 
-// setProdSMTP sets the SMTP vars required by validateProd. Prod tests that are
-// not specifically about SMTP call this so they exercise the path under test.
-func setProdSMTP(t *testing.T) {
+// setProdSecrets sets the non-OIDC/JWT vars required by validateProd (SMTP,
+// Redis, pepper). Prod tests not specifically about these call it so they
+// exercise the path under test.
+func setProdSecrets(t *testing.T) {
 	t.Helper()
 	t.Setenv("SMTP_USERNAME", "noreply@example.com")
 	t.Setenv("SMTP_PASSWORD", "app-password")
 	t.Setenv("SMTP_FROM", "noreply@example.com")
+	t.Setenv("REDIS_ADDR", "localhost:6379")
+	t.Setenv("UID_HASH_PEPPER", "pepper-123")
 }
 
 // isolateEnv unsets every config-related variable and restores the prior value
@@ -119,7 +123,7 @@ func TestLoad_Prod_HappyPath_KeysDir(t *testing.T) {
 	t.Setenv("GOOGLE_CLIENT_ID_IOS", "ios-client.apps.googleusercontent.com")
 	t.Setenv("JWT_KEYS_DIR", "/secrets/jwt")
 	t.Setenv("JWT_ACTIVE_KID", "2026-Q2")
-	setProdSMTP(t)
+	setProdSecrets(t)
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -134,7 +138,7 @@ func TestLoad_Prod_HappyPath_SingleKey(t *testing.T) {
 	t.Setenv("GOOGLE_CLIENT_ID_ANDROID", "android-client.apps.googleusercontent.com")
 	t.Setenv("JWT_PRIVATE_KEY_PATH", "/secrets/jwt.pem")
 	t.Setenv("JWT_KID", "dev1")
-	setProdSMTP(t)
+	setProdSecrets(t)
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -155,6 +159,25 @@ func TestLoad_Prod_RequiresSMTP(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SMTP_USERNAME")
 	assert.Contains(t, err.Error(), "SMTP_PASSWORD")
+}
+
+func TestLoad_Prod_RequiresRedisAndPepper(t *testing.T) {
+	isolateEnv(t)
+	t.Setenv("ENV", "prod")
+	t.Setenv("POSTGRES_DSN", "postgres://x")
+	t.Setenv("APPLE_BUNDLE_ID", "com.example.app")
+	t.Setenv("GOOGLE_CLIENT_ID_IOS", "ios.apps.googleusercontent.com")
+	t.Setenv("JWT_PRIVATE_KEY_PATH", "/secrets/jwt.pem")
+	t.Setenv("JWT_KID", "dev1")
+	t.Setenv("SMTP_USERNAME", "noreply@example.com")
+	t.Setenv("SMTP_PASSWORD", "pw")
+	t.Setenv("SMTP_FROM", "noreply@example.com")
+	// REDIS_ADDR + UID_HASH_PEPPER intentionally unset.
+
+	_, err := Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "REDIS_ADDR")
+	assert.Contains(t, err.Error(), "UID_HASH_PEPPER")
 }
 
 func TestLoad_Defaults_SMTPTargetsMailHog(t *testing.T) {

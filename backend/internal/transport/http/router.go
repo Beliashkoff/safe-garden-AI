@@ -36,6 +36,12 @@ func NewRouter(d Deps) chi.Router {
 		r.Use(middleware.RequireAuth(d.TokenParser))
 		r.Get("/account", d.Handler.GetAccount)
 		r.Delete("/account", d.Handler.DeleteAccount)
+
+		// Chat (stage 2.3).
+		r.Post("/messages", d.Handler.PostMessage)
+		r.Delete("/messages/{id}", d.Handler.DeleteMessage)
+		r.Get("/conversation", d.Handler.GetConversation)
+		r.Get("/conversation/messages", d.Handler.ListMessages)
 	})
 
 	if d.DocsEnabled {

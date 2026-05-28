@@ -13,18 +13,22 @@ import (
 
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/httperr"
 	authuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/auth"
+	chatuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/chat"
 )
 
 // maxAuthBodyBytes caps auth request bodies (ARCH §8.2 text body ≤ 32 KB).
 const maxAuthBodyBytes = 32 * 1024
 
-// Handler serves the auth + account endpoints.
+// Handler serves the auth + account + chat endpoints.
 type Handler struct {
-	svc *authuc.Service
+	svc  *authuc.Service
+	chat *chatuc.Service
 }
 
 // New constructs the handler set.
-func New(svc *authuc.Service) *Handler { return &Handler{svc: svc} }
+func New(svc *authuc.Service, chat *chatuc.Service) *Handler {
+	return &Handler{svc: svc, chat: chat}
+}
 
 // decodeJSON reads a size-limited JSON body, rejecting unknown fields. It
 // returns a ready-to-write *httperr.Error on failure.
@@ -72,6 +76,18 @@ func mapErr(err error) error {
 		return httperr.Unauthorized("invalid refresh token")
 	case errors.Is(err, authuc.ErrUserNotFound):
 		return httperr.NotFound("account not found")
+	case errors.Is(err, chatuc.ErrEmptyContent):
+		return httperr.ValidationFailed("message content is empty")
+	case errors.Is(err, chatuc.ErrUnsupportedBlock):
+		return httperr.UnsupportedMedia("only text content is supported")
+	case errors.Is(err, chatuc.ErrTextTooLarge):
+		return httperr.PayloadTooLarge("message text is too large")
+	case errors.Is(err, chatuc.ErrBadCursor):
+		return httperr.ValidationFailed("invalid cursor")
+	case errors.Is(err, chatuc.ErrRateLimited):
+		return httperr.RateLimited("too many messages, slow down")
+	case errors.Is(err, chatuc.ErrMessageNotFound):
+		return httperr.NotFound("message not found")
 	default:
 		return err
 	}

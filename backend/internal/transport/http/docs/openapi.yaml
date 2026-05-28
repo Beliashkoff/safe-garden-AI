@@ -17,6 +17,8 @@ tags:
     description: Sign-in, token lifecycle
   - name: account
     description: Current user profile
+  - name: chat
+    description: Single-conversation chat with streamed replies
 
 paths:
   /auth/apple:
@@ -166,6 +168,95 @@ paths:
         "204": { description: Account deleted }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /messages:
+    post:
+      tags: [chat]
+      summary: Send a message (streamed reply)
+      description: >
+        Saves the user message, then streams the assistant reply as
+        Server-Sent Events. Stage 2.3 accepts text content only. Event stream:
+        `message_started {message_id}` → `delta {text}`* →
+        (`tool_use`/`fertilizer_card`)? → `done {message_id, tokens_used:{in,out}}`;
+        on failure an `error {code, message}` event is sent. Pre-stream errors
+        (validation, rate limit) are returned as a normal JSON Error instead.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PostMessageRequest" }
+      responses:
+        "200":
+          description: SSE stream (text/event-stream)
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413": { $ref: "#/components/responses/ValidationError" }
+        "415": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /messages/{id}:
+    delete:
+      tags: [chat]
+      summary: Delete one of your messages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /conversation:
+    get:
+      tags: [chat]
+      summary: Get the conversation (latest page)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 50, maximum: 100 }
+      responses:
+        "200":
+          description: Conversation with the most recent messages
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /conversation/messages:
+    get:
+      tags: [chat]
+      summary: Get older messages (keyset pagination)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 50, maximum: 100 }
+      responses:
+        "200":
+          description: A page of older messages
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessagesPage" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -287,3 +378,57 @@ components:
             message: { type: string }
             details: { type: object, additionalProperties: true }
         request_id: { type: string }
+
+    PostMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: array
+          items: { $ref: "#/components/schemas/ContentBlock" }
+
+    ContentBlock:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [text, image_ref, audio_ref]
+          description: Stage 2.3 accepts only `text`; image_ref/audio_ref → 415.
+        text: { type: string }
+        storage_key: { type: string }
+
+    Message:
+      type: object
+      required: [id, role, status, created_at, content]
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [user, assistant, system] }
+        status: { type: string, enum: [pending, complete, cancelled, failed] }
+        created_at: { type: string, format: date-time }
+        content:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string }
+              text: { type: string }
+
+    ConversationResponse:
+      type: object
+      required: [id, messages]
+      properties:
+        id: { type: string, format: uuid }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/Message" }
+        next_cursor: { type: string }
+
+    MessagesPage:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/Message" }
+        next_cursor: { type: string }

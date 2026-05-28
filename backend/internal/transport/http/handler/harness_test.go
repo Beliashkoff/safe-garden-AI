@@ -28,6 +28,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
@@ -36,11 +37,13 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	authpkg "github.com/Beliashkoff/safe-garden-AI/backend/internal/auth"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/ratelimit"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage"
 	httptransport "github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/handler"
 	authuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/auth"
+	chatuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/chat"
 )
 
 const (
@@ -119,7 +122,9 @@ func applyMigrations(dsn string) error {
 
 func truncateAll(t *testing.T) {
 	t.Helper()
-	_, err := adminDB.Exec("TRUNCATE users, refresh_tokens, email_codes, audit_log RESTART IDENTITY CASCADE")
+	_, err := adminDB.Exec("TRUNCATE users, refresh_tokens, email_codes, audit_log, " +
+		"conversations, messages, message_blocks, uploads, fertilizers, usage_log " +
+		"RESTART IDENTITY CASCADE")
 	require.NoError(t, err)
 }
 
@@ -146,18 +151,40 @@ func (m *recordingMailer) code() string {
 	return m.lastCode
 }
 
+// chatMsgLimiter mirrors the chat usecase's consumer-side rate-limit interface.
+type chatMsgLimiter interface {
+	AllowMessage(ctx context.Context, userID uuid.UUID) (bool, error)
+}
+
 // harness is a full HTTP stack wired against the shared test Postgres, a fresh
-// fake IdP, and a recording mailer.
+// fake IdP, a recording mailer, and a mock LLM client (mutable by chat tests).
 type harness struct {
 	srv    *httptest.Server
 	mailer *recordingMailer
 	idp    *fakeIDP
 	issuer *authpkg.Issuer
+	mock   *llm.MockClient
 }
 
-func newHarness(t *testing.T) *harness {
+type harnessConfig struct {
+	limiter chatMsgLimiter
+}
+
+type harnessOpt func(*harnessConfig)
+
+// withMessageLimiter overrides the (default no-op) chat rate limiter.
+func withMessageLimiter(l chatMsgLimiter) harnessOpt {
+	return func(c *harnessConfig) { c.limiter = l }
+}
+
+func newHarness(t *testing.T, opts ...harnessOpt) *harness {
 	t.Helper()
 	truncateAll(t)
+
+	cfg := harnessConfig{limiter: ratelimit.NewNoopMessage()}
+	for _, o := range opts {
+		o(&cfg)
+	}
 
 	idp := newFakeIDP(t)
 	t.Cleanup(idp.Close)
@@ -172,15 +199,18 @@ func newHarness(t *testing.T) *harness {
 
 	issuer := newTestIssuer(t)
 	rec := &recordingMailer{}
-	svc := authuc.NewService(testStore, issuer, verifier, rec,
+	authService := authuc.NewService(testStore, issuer, verifier, rec,
 		ratelimit.NewDB(testStore), 720*time.Hour, testLogger)
+
+	mock := llm.NewMockClient()
+	chatService := chatuc.NewService(testStore, mock, cfg.limiter, "test-pepper", llm.DefaultModel, testLogger)
 
 	root := chi.NewRouter()
 	root.Use(chimw.RequestID)
 	root.Use(chimw.RealIP)
 	root.Use(chimw.Recoverer)
 	root.Mount("/v1", httptransport.NewRouter(httptransport.Deps{
-		Handler:     handler.New(svc),
+		Handler:     handler.New(authService, chatService),
 		TokenParser: issuer,
 		DocsEnabled: true,
 	}))
@@ -188,7 +218,7 @@ func newHarness(t *testing.T) *harness {
 	srv := httptest.NewServer(root)
 	t.Cleanup(srv.Close)
 
-	return &harness{srv: srv, mailer: rec, idp: idp, issuer: issuer}
+	return &harness{srv: srv, mailer: rec, idp: idp, issuer: issuer, mock: mock}
 }
 
 func newTestIssuer(t *testing.T) *authpkg.Issuer {

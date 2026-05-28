@@ -13,9 +13,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 
 	authpkg "github.com/Beliashkoff/safe-garden-AI/backend/internal/auth"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/config"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/mailer"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/observability"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/ratelimit"
@@ -23,6 +26,7 @@ import (
 	httptransport "github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/handler"
 	authuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/auth"
+	chatuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/chat"
 )
 
 func main() {
@@ -88,6 +92,41 @@ func main() {
 		ratelimit.NewDB(store), cfg.RefreshTTL, logger,
 	)
 
+	// LLM client: worker (mTLS+SSE) or mock, per LLM_CLIENT_KIND.
+	llmCfg, err := llm.LoadConfig()
+	if err != nil {
+		slog.Error("llm config load failed", "err", err)
+		os.Exit(1)
+	}
+	llmClient, err := llm.New(llmCfg)
+	if err != nil {
+		slog.Error("llm client init failed", "err", err)
+		os.Exit(1)
+	}
+
+	// Per-user message rate limit (ARCH §8.2). Redis when configured; otherwise a
+	// no-op allow-all for local dev without Redis.
+	var msgLimiter interface {
+		AllowMessage(ctx context.Context, userID uuid.UUID) (bool, error)
+	}
+	if cfg.RedisAddr != "" {
+		rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
+		defer func() { _ = rdb.Close() }()
+		pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		if err := rdb.Ping(pingCtx).Err(); err != nil {
+			cancel()
+			slog.Error("redis ping failed", "err", err)
+			os.Exit(1)
+		}
+		cancel()
+		msgLimiter = ratelimit.NewRedis(rdb, logger)
+	} else {
+		slog.Warn("REDIS_ADDR empty — message rate limiting disabled (dev only)")
+		msgLimiter = ratelimit.NewNoopMessage()
+	}
+
+	chatService := chatuc.NewService(store, llmClient, msgLimiter, cfg.UIDHashPepper, llm.DefaultModel, logger)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -95,7 +134,7 @@ func main() {
 	r.Use(observability.AccessLog(logger))
 
 	r.Mount("/v1", httptransport.NewRouter(httptransport.Deps{
-		Handler:     handler.New(authService),
+		Handler:     handler.New(authService, chatService),
 		TokenParser: issuer,
 		DocsEnabled: cfg.DocsEnabled,
 	}))

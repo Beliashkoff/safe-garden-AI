@@ -152,16 +152,13 @@ _Schema-only этап: HTTP/usecase чата — 2.3, llm-worker — 2.2. Тес
   - [ ] Сам `terraform apply` (Yandex VM + Managed PG/Redis + Object Storage + Lockbox; HostKey `vm.v2-nano` Frankfurt + firewall 443 только с Yandex-IP) — оператор после 0.6.
 - [x] mTLS-инструментарий: `infra/mtls/gen-certs.sh` (CA + worker + api-client) + `infra/scripts/setup-luks.sh` (LUKS-том секретов) + Go-тест `buildMTLSConfig`. _Генерация/раздача сертификатов (Lockbox для бэка, LUKS для worker'а, §8.6) — шаг runbook'а оператора._
 
-### 2.3 Backend: SSE-эндпоинт
-- [ ] `POST /v1/messages` — handler:
-  - валидация payload (только text в этом этапе),
-  - сохранение user-message,
-  - подгрузка истории,
-  - вызов `llm.Client.Send(...)`, ретрансляция дельт в SSE на mobile,
-  - сохранение assistant-message по завершении (или `cancelled` при разрыве).
-- [ ] `GET /v1/conversation` — отдача истории с пагинацией.
-- [ ] Rate-limit 20 RPS на `/messages` per user.
-- [ ] `usage_log` запись при завершении (токены берутся из worker SSE-события `usage`).
+### 2.3 Backend: SSE-эндпоинт ✅
+- [x] `POST /v1/messages` — handler (text-only): валидация (image/audio → 415), сохранение user-message+блока (ExecTx), подгрузка истории (~20, ARCH §7.4), `llm.Client.Send`, ретрансляция дельт в SSE; финал — `complete` (+токены+блок+usage) / `cancelled` при разрыве (на detached-контексте, сохраняет частичный ответ) / `failed`. _`internal/usecase/chat` (Service+Sink+relay) + `handler/chat.go` (sseSink, lazy-headers: pre-stream ошибки → JSON, далее → SSE). uid_hash = sha256(user_id+UID_HASH_PEPPER) — единственный идентификатор в payload (§11.4)._
+- [x] `GET /v1/conversation` (+`/conversation/messages`) — keyset-пагинация (курсор base64 `created_at:id`), хронологический порядок; `DELETE /v1/messages/{id}` (ownership) добавлен (ARCH §4.3).
+- [x] Rate-limit 20 RPS на `/messages` per user — Redis `redis_rate` (`ratelimit.RedisLimiter`, fail-open); dev без `REDIS_ADDR` → noop. Тесты через miniredis.
+- [x] `usage_log` запись при завершении (токены из SSE-события `usage`). _cost_usd пока NULL — расчёт по прайсингу позже._
+
+_Реальный Claude — через worker (Этап 2.2); локально/в тестах `LLM_CLIENT_KIND=mock`. OpenAPI обновлён (4 эндпоинта). Тесты: юнит (курсор/история/uidHash/валидация) + integration хендлеров (testcontainers + MockClient: happy/cancel/429/pagination/delete/415) под `make test-integration`._
 
 ### 2.4 Mobile: чат-UI
 - [ ] Экран чата: список сообщений, инпут, кнопка «Отправить».
