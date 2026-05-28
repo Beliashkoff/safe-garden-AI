@@ -14,9 +14,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	authpkg "github.com/Beliashkoff/safe-garden-AI/backend/internal/auth"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/config"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/mailer"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/observability"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/ratelimit"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage"
+	httptransport "github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/handler"
+	authuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/auth"
 )
 
 func main() {
@@ -44,11 +50,54 @@ func main() {
 	}
 	defer store.Close()
 
+	issuer, err := authpkg.NewIssuer(authpkg.IssuerConfig{
+		KeysDir:        cfg.JWTKeysDir,
+		ActiveKID:      cfg.JWTActiveKID,
+		PrivateKeyPath: cfg.JWTPrivateKeyPath,
+		KID:            cfg.JWTKID,
+		AccessTTL:      cfg.JWTAccessTTL,
+	})
+	if err != nil {
+		slog.Error("jwt issuer init failed", "err", err)
+		os.Exit(1)
+	}
+
+	verifier, err := authpkg.NewVerifier(ctx, authpkg.VerifierConfig{
+		AppleBundleID:    cfg.AppleBundleID,
+		GoogleClientIOS:  cfg.GoogleClientIOS,
+		GoogleClientAndr: cfg.GoogleClientAndr,
+	})
+	if err != nil {
+		slog.Error("oidc verifier init failed", "err", err)
+		os.Exit(1)
+	}
+
+	mailerImpl := mailer.New(mailer.SMTPConfig{
+		Host:     cfg.SMTPHost,
+		Port:     cfg.SMTPPort,
+		Username: cfg.SMTPUsername,
+		Password: cfg.SMTPPassword,
+		From:     cfg.SMTPFrom,
+		FromName: cfg.SMTPFromName,
+		UseTLS:   cfg.SMTPTLS,
+	}, logger)
+
+	authService := authuc.NewService(
+		store, issuer, verifier, mailerImpl,
+		ratelimit.NewDB(store), cfg.RefreshTTL, logger,
+	)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(observability.AccessLog(logger))
+
+	r.Mount("/v1", httptransport.NewRouter(httptransport.Deps{
+		Handler:     handler.New(authService),
+		TokenParser: issuer,
+		DocsEnabled: cfg.DocsEnabled,
+	}))
 
 	// Liveness — succeeds as long as the process is running.
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {

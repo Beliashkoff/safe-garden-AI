@@ -36,6 +36,21 @@ type Config struct {
 	AppleBundleID    string `envconfig:"APPLE_BUNDLE_ID" default:""`
 	GoogleClientIOS  string `envconfig:"GOOGLE_CLIENT_ID_IOS" default:""`
 	GoogleClientAndr string `envconfig:"GOOGLE_CLIENT_ID_ANDROID" default:""`
+
+	// SMTP — Mailer for OTP delivery. Dev defaults target the docker-compose
+	// MailHog (localhost:1025, no auth, no TLS). Prod uses Yandex 360
+	// (smtp.yandex.ru:465, implicit TLS, AUTH LOGIN) — see validateProd.
+	SMTPHost     string `envconfig:"SMTP_HOST" default:"localhost"`
+	SMTPPort     int    `envconfig:"SMTP_PORT" default:"1025"`
+	SMTPUsername string `envconfig:"SMTP_USERNAME" default:""`
+	SMTPPassword string `envconfig:"SMTP_PASSWORD" default:""`
+	SMTPFrom     string `envconfig:"SMTP_FROM" default:"noreply@localhost"`
+	SMTPFromName string `envconfig:"SMTP_FROM_NAME" default:"Safe Garden AI"`
+	SMTPTLS      bool   `envconfig:"SMTP_TLS" default:"false"`
+
+	// DocsEnabled serves the OpenAPI spec + Swagger UI at /v1/docs. Safe to
+	// leave on in prod (the contract is not secret) but available to disable.
+	DocsEnabled bool `envconfig:"DOCS_ENABLED" default:"true"`
 }
 
 func Load() (*Config, error) {
@@ -67,6 +82,15 @@ func (c *Config) validateProd() error {
 	}
 	if c.JWTPrivateKeyPath != "" && c.JWTKID == "" {
 		missing = append(missing, "JWT_KID (required when JWT_PRIVATE_KEY_PATH is set)")
+	}
+	if c.SMTPUsername == "" {
+		missing = append(missing, "SMTP_USERNAME")
+	}
+	if c.SMTPPassword == "" {
+		missing = append(missing, "SMTP_PASSWORD")
+	}
+	if c.SMTPFrom == "" {
+		missing = append(missing, "SMTP_FROM")
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required vars: %s", strings.Join(missing, ", "))

@@ -107,6 +107,8 @@ CI состоит из трёх workflow:
 - 0.5 Документация ✅
 - 0.7 Скелет llm-worker ✅ — `cmd/llmworker` (echo-SSE), `internal/llm` (Client/WorkerClient/MockClient), Terraform-каркас, prod Docker Compose. `terraform apply` отложен до 2.2.
 - 1.1 Backend: модели и хранилище ✅ — миграции `users`/`refresh_tokens`/`email_codes`/`audit_log`, sqlc-запросы, `internal/auth/jwt.go` (RS256 + `kid`-ротация), `internal/auth/oidc.go` (Apple + Google), refresh/OTP-примитивы. Integration-тесты через testcontainers.
+- 1.2 Backend: эндпоинты ✅ — 8 эндпоинтов auth/account (`internal/transport/http`), `RequireAuth` + цепочка middleware, единый формат ошибок (`httperr`), usecase `internal/usecase/auth` (sign-in Apple/Google/email с auto-link по email, ротация refresh + reuse-detection, soft-delete + аудит), DB-baseline rate limit. OpenAPI 3.0 + Swagger UI на `/v1/docs`. Integration-тесты хендлеров через testcontainers + fake OIDC.
+- 1.3 Backend: email-провайдер ✅ — `internal/mailer` (интерфейс + SMTP на stdlib `net/smtp`: implicit TLS для Yandex 360, plaintext для MailHog, log-fallback), шаблоны OTP RU/EN (HTML+text). _SPF/DKIM/DMARC для `noreply@agronomai.site` настраиваются в DNS — часть Этапа 0.6._
 - В работе — **0.6 Внешние аккаунты** (HostKey, Anthropic, Yandex Cloud, Yandex 360, SpeechKit, DNS `agronomai.site`). Runbook — в [`backend/README.md`](./backend/README.md) §«Регистрация внешних аккаунтов». Дальнейшие этапы — в `ROADMAP.md`.
 
 ## Открытые блокеры по этапам

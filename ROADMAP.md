@@ -81,23 +81,25 @@
 - [x] `internal/auth/jwt.go`: генерация/проверка RS256, ротация ключей через `kid`. _Multi-key `KeysDir` + single-file fallback. Parser: `WithValidMethods([RS256])` отвергает `alg=none`/HS256-confusion, `WithExpirationRequired`, leeway 60s, lookup по `kid` из header._
 - [x] `internal/auth/oidc.go`: верификация Apple и Google id_token через JWKS (`coreos/go-oidc`). _Apple — обязательный nonce через `subtle.ConstantTimeCompare`, identity = `apple_sub` (email не доверяем, ARCH §11.1). Google — manual aud-allowlist для iOS+Android client_id._
 
-### 1.2 Backend: эндпоинты
-- [ ] `POST /v1/auth/apple`
-- [ ] `POST /v1/auth/google`
-- [ ] `POST /v1/auth/email/request` (с rate limit 3/час/email)
-- [ ] `POST /v1/auth/email/verify` (≤ 5 попыток на код)
-- [ ] `POST /v1/auth/refresh` (с ротацией)
-- [ ] `POST /v1/auth/logout`
-- [ ] `GET /v1/account`
-- [ ] `DELETE /v1/account` (каскад + аудит; в этом этапе — без удаления медиа, доделаем в Этапе 3)
-- [ ] Middleware `RequireAuth`: проверяет JWT, кладёт `user_id` в context.
-- [ ] Middleware `RequestID`, `RealIP`, `Logger`, `Recoverer`.
+### 1.2 Backend: эндпоинты ✅
+- [x] `POST /v1/auth/apple`
+- [x] `POST /v1/auth/google`
+- [x] `POST /v1/auth/email/request` (с rate limit 3/час/email) _DB-baseline через `CountRecentEmailCodes` за интерфейсом `ratelimit.Limiter`; Redis-уровень — в 2.3._
+- [x] `POST /v1/auth/email/verify` (≤ 5 попыток на код) _Атомарный `IncrementEmailCodeAttempts` до сверки — cap держится и на неверных попытках._
+- [x] `POST /v1/auth/refresh` (с ротацией) _Атомарная ротация в `ExecTx`; предъявление revoked/expired токена → `RevokeAllUserRefreshTokens` + аудит `refresh_reuse_detected`._
+- [x] `POST /v1/auth/logout` _Идемпотентно: отзыв предъявленного refresh._
+- [x] `GET /v1/account`
+- [x] `DELETE /v1/account` (каскад + аудит; в этом этапе — без удаления медиа, доделаем в Этапе 3) _Soft-delete (обнуляет email/sub) + revoke all + аудит `account_deleted`, атомарно._
+- [x] Middleware `RequireAuth`: проверяет JWT, кладёт `user_id` в context. _`internal/transport/http/middleware`; `user_id` через типизированный `ctxkey`._
+- [x] Middleware `RequestID`, `RealIP`, `Logger`, `Recoverer`. _chi RequestID/RealIP/Recoverer + `observability.AccessLog` (роль «Logger»)._
 
-### 1.3 Backend: email-провайдер
-- [ ] Абстракция `Mailer` интерфейс. Реализации: `yandex360` (через SMTP `smtp.yandex.ru:465` SSL/TLS) и `dev` (в mailhog для локалки).
-- [ ] Использовать `gomail.v2` или эквивалент. AUTH LOGIN, SMTPS.
-- [ ] Креды: `SMTP_USERNAME=noreply@<domain>`, `SMTP_PASSWORD=<пароль приложения из Yandex 360>`.
-- [ ] Тексты OTP-писем (RU + EN), HTML + text/plain. SPF/DKIM/DMARC настроены через Yandex 360.
+_Слои: `transport/http` (хендлеры + `httperr` — единый формат ошибок ARCH §4.7) → `usecase/auth` (Service: оркестрация, auto-link аккаунтов по email) → примитивы `internal/auth` + `storage`. Auto-link: sign-in с Apple/Google привязывается к существующему аккаунту при совпадении email (Apple — без private-relay; Google — при `email_verified`). **Swagger:** spec-first OpenAPI 3.0 (`internal/transport/http/docs/openapi.yaml`, embed) + Swagger UI на `/v1/docs` (флаг `DOCS_ENABLED`). Тесты: unit (usecase-хелперы, middleware, mailer, ratelimit) + integration хендлеров (testcontainers + fake OIDC) под `make test-integration`._
+
+### 1.3 Backend: email-провайдер ✅
+- [x] Абстракция `Mailer` интерфейс (`internal/mailer`). Реализации: SMTP (`yandex360` через `smtp.yandex.ru:465` implicit TLS **и** `dev`/MailHog `localhost:1025` plaintext — выбор по `SMTP_TLS`) + log-fallback при пустом `SMTP_HOST`.
+- [x] ~~`gomail.v2`~~ → stdlib `net/smtp` (без сторонней зависимости; go-mail недоступен из РФ-прокси). AUTH LOGIN (кастомный, поверх implicit TLS), SMTPS на 465.
+- [x] Креды: `SMTP_USERNAME=noreply@<domain>`, `SMTP_PASSWORD=<пароль приложения из Yandex 360>` (обязательны в prod).
+- [x] Тексты OTP-писем (RU + EN), HTML + text/plain (multipart/alternative, quoted-printable, RFC 2047 subject). _SPF/DKIM/DMARC для `noreply@agronomai.site` — DNS-настройка, часть Этапа 0.6._
 
 ### 1.4 Mobile: UI
 - [ ] Экран онбординга (1 слайд) → экран логина.

@@ -1,0 +1,289 @@
+openapi: 3.0.3
+info:
+  title: Safe Garden AI Backend
+  description: >
+    Authentication and account API (stage 1.2). All endpoints are served under
+    /v1. Bodies are JSON. Errors use the envelope in the Error schema
+    (ARCHITECTURE.md §4.7). This spec is the source of truth for the mobile
+    client.
+  version: 0.1.0
+servers:
+  - url: https://api.agronomai.site/v1
+    description: Production
+  - url: http://localhost:8080/v1
+    description: Local development
+tags:
+  - name: auth
+    description: Sign-in, token lifecycle
+  - name: account
+    description: Current user profile
+
+paths:
+  /auth/apple:
+    post:
+      tags: [auth]
+      summary: Sign in with Apple
+      description: Verifies an Apple id_token (with nonce) and signs the user in, creating or linking the account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppleSignInRequest"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignInResponse"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/google:
+    post:
+      tags: [auth]
+      summary: Sign in with Google
+      description: Verifies a Google id_token and signs the user in, creating or linking the account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoogleSignInRequest"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignInResponse"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/email/request:
+    post:
+      tags: [auth]
+      summary: Request an email OTP
+      description: >
+        Issues and emails a 6-digit one-time code (valid 10 minutes). Limited to
+        3 requests per hour per email. Returns 204 regardless of whether the
+        address is already registered.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailRequest"
+      responses:
+        "204": { description: Code sent (if the address is valid) }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/email/verify:
+    post:
+      tags: [auth]
+      summary: Verify an email OTP
+      description: Verifies a code (≤5 attempts per code) and signs the user in, creating the account on first use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailVerifyRequest"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignInResponse"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Rotate the refresh token
+      description: >
+        Exchanges a refresh token for a new access+refresh pair. The presented
+        token is revoked. Presenting a revoked/expired token revokes the whole
+        token family and returns 401.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResponse"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Log out
+      description: Revokes the presented refresh token. Idempotent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "204": { description: Logged out }
+        "400": { $ref: "#/components/responses/ValidationError" }
+
+  /account:
+    get:
+      tags: [account]
+      summary: Get the current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [account]
+      summary: Delete the current account
+      description: Soft-deletes the account, revokes all refresh tokens, and writes an audit record. Media deletion happens asynchronously (stage 3).
+      security:
+        - bearerAuth: []
+      responses:
+        "204": { description: Account deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    AppleSignInRequest:
+      type: object
+      required: [id_token, nonce]
+      properties:
+        id_token: { type: string }
+        nonce: { type: string, description: The raw nonce echoed in the Apple id_token }
+
+    GoogleSignInRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token: { type: string }
+
+    EmailRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+
+    EmailVerifyRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email: { type: string, format: email }
+        code: { type: string, pattern: "^[0-9]{6}$", description: 6-digit code }
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+
+    SignInResponse:
+      type: object
+      required: [access_token, refresh_token, user]
+      properties:
+        access_token: { type: string, description: JWT access token (RS256, ~15m) }
+        refresh_token: { type: string, description: Opaque refresh token (~30d) }
+        user: { $ref: "#/components/schemas/User" }
+
+    RefreshResponse:
+      type: object
+      required: [access_token, refresh_token]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+
+    AccountResponse:
+      type: object
+      required: [user]
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+
+    User:
+      type: object
+      required: [id, email_verified, providers]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email, description: Omitted when unset }
+        display_name: { type: string }
+        email_verified: { type: boolean }
+        providers:
+          type: object
+          required: [apple, google, email]
+          properties:
+            apple: { type: boolean }
+            google: { type: boolean }
+            email: { type: boolean }
+
+    Error:
+      type: object
+      required: [error, request_id]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - unauthorized
+                - forbidden
+                - validation_failed
+                - not_found
+                - rate_limited
+                - payload_too_large
+                - unsupported_media_type
+                - internal_error
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+        request_id: { type: string }

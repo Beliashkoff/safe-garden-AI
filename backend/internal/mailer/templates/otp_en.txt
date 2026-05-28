@@ -1,0 +1,5 @@
+Your Safe Garden AI sign-in code: {{.Code}}
+
+The code is valid for {{.TTLMinutes}} minutes. Do not share it with anyone.
+
+If you did not request a sign-in, you can safely ignore this email.

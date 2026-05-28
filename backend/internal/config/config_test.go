@@ -17,6 +17,17 @@ var allConfigEnvKeys = []string{
 	"JWT_KEYS_DIR", "JWT_ACTIVE_KID", "JWT_PRIVATE_KEY_PATH", "JWT_KID",
 	"JWT_ACCESS_TTL", "REFRESH_TTL",
 	"APPLE_BUNDLE_ID", "GOOGLE_CLIENT_ID_IOS", "GOOGLE_CLIENT_ID_ANDROID",
+	"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD",
+	"SMTP_FROM", "SMTP_FROM_NAME", "SMTP_TLS", "DOCS_ENABLED",
+}
+
+// setProdSMTP sets the SMTP vars required by validateProd. Prod tests that are
+// not specifically about SMTP call this so they exercise the path under test.
+func setProdSMTP(t *testing.T) {
+	t.Helper()
+	t.Setenv("SMTP_USERNAME", "noreply@example.com")
+	t.Setenv("SMTP_PASSWORD", "app-password")
+	t.Setenv("SMTP_FROM", "noreply@example.com")
 }
 
 // isolateEnv unsets every config-related variable and restores the prior value
@@ -107,6 +118,7 @@ func TestLoad_Prod_HappyPath_KeysDir(t *testing.T) {
 	t.Setenv("GOOGLE_CLIENT_ID_IOS", "ios-client.apps.googleusercontent.com")
 	t.Setenv("JWT_KEYS_DIR", "/secrets/jwt")
 	t.Setenv("JWT_ACTIVE_KID", "2026-Q2")
+	setProdSMTP(t)
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -121,10 +133,39 @@ func TestLoad_Prod_HappyPath_SingleKey(t *testing.T) {
 	t.Setenv("GOOGLE_CLIENT_ID_ANDROID", "android-client.apps.googleusercontent.com")
 	t.Setenv("JWT_PRIVATE_KEY_PATH", "/secrets/jwt.pem")
 	t.Setenv("JWT_KID", "dev1")
+	setProdSMTP(t)
 
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, "prod", cfg.Env)
+}
+
+func TestLoad_Prod_RequiresSMTP(t *testing.T) {
+	isolateEnv(t)
+	t.Setenv("ENV", "prod")
+	t.Setenv("POSTGRES_DSN", "postgres://x")
+	t.Setenv("APPLE_BUNDLE_ID", "com.example.app")
+	t.Setenv("GOOGLE_CLIENT_ID_IOS", "ios.apps.googleusercontent.com")
+	t.Setenv("JWT_PRIVATE_KEY_PATH", "/secrets/jwt.pem")
+	t.Setenv("JWT_KID", "dev1")
+	// SMTP intentionally unset.
+
+	_, err := Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SMTP_USERNAME")
+	assert.Contains(t, err.Error(), "SMTP_PASSWORD")
+}
+
+func TestLoad_Defaults_SMTPTargetsMailHog(t *testing.T) {
+	isolateEnv(t)
+	t.Setenv("POSTGRES_DSN", "postgres://dev:dev@localhost:5432/dev?sslmode=disable")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "localhost", cfg.SMTPHost)
+	assert.Equal(t, 1025, cfg.SMTPPort)
+	assert.False(t, cfg.SMTPTLS)
+	assert.True(t, cfg.DocsEnabled)
 }
 
 func TestLoad_Prod_KeysDirMissingActiveKID(t *testing.T) {
