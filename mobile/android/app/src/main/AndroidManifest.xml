@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Photo attachments (stage 3.3): camera capture. Gallery selection on
+         Android 13+ uses the system Photo Picker, which needs no storage
+         permission; image_picker handles older versions. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"

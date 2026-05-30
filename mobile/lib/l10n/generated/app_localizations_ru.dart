@@ -123,6 +123,44 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось получить ответ. Попробуйте ещё раз.';
 
   @override
+  String get chatAttach => 'Прикрепить фото';
+
+  @override
+  String get chatAttachCamera => 'Камера';
+
+  @override
+  String get chatAttachGallery => 'Галерея';
+
+  @override
+  String get chatPermissionCameraTitle => 'Нужен доступ к камере';
+
+  @override
+  String get chatPermissionCameraBody =>
+      'Разрешите доступ к камере в настройках, чтобы сфотографировать растение.';
+
+  @override
+  String get chatPermissionPhotosTitle => 'Нужен доступ к фото';
+
+  @override
+  String get chatPermissionPhotosBody =>
+      'Разрешите доступ к фото в настройках, чтобы прикрепить снимок.';
+
+  @override
+  String get chatOpenSettings => 'Открыть настройки';
+
+  @override
+  String chatMaxPhotos(int max) {
+    return 'Можно прикрепить до $max фото';
+  }
+
+  @override
+  String get chatUploadFailed =>
+      'Не удалось загрузить фото. Попробуйте ещё раз.';
+
+  @override
+  String get chatRemovePhoto => 'Удалить фото';
+
+  @override
   String get deleteAccountConfirmTitle => 'Удалить аккаунт?';
 
   @override

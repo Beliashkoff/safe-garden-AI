@@ -27,12 +27,18 @@ func (f *fakeStore) CreateUpload(_ context.Context, arg db.CreateUploadParams) (
 }
 
 type fakePresigner struct {
-	gotKey string
+	gotKey    string
+	gotGetKey string
 }
 
 func (f *fakePresigner) PresignPut(_ context.Context, key, contentType string, _ time.Duration) (string, map[string]string, error) {
 	f.gotKey = key
 	return "http://put/" + key, map[string]string{"Content-Type": contentType}, nil
+}
+
+func (f *fakePresigner) PresignGet(_ context.Context, key string, _ time.Duration) (string, error) {
+	f.gotGetKey = key
+	return "http://get/" + key, nil
 }
 
 func newSvc(store uploadStore, p presigner) *Service {
@@ -75,4 +81,30 @@ func TestPresign_RecordFailure(t *testing.T) {
 	store := &fakeStore{err: errors.New("db down")}
 	_, err := newSvc(store, &fakePresigner{}).Presign(context.Background(), uuid.New(), PresignInput{ContentType: "image/png", SizeBytes: 10})
 	require.Error(t, err)
+}
+
+func TestPresignView_HappyPath(t *testing.T) {
+	uid := uuid.New()
+	p := &fakePresigner{}
+	key := "u/" + uid.String() + "/img/abc.jpg"
+
+	out, err := newSvc(&fakeStore{}, p).PresignView(context.Background(), uid, key)
+	require.NoError(t, err)
+	assert.Equal(t, "http://get/"+key, out.URL)
+	assert.Equal(t, key, p.gotGetKey)
+	assert.False(t, out.ExpiresAt.IsZero())
+}
+
+func TestPresignView_RejectsForeignKey(t *testing.T) {
+	uid := uuid.New()
+	other := uuid.New()
+	p := &fakePresigner{}
+
+	_, err := newSvc(&fakeStore{}, p).PresignView(context.Background(), uid, "u/"+other.String()+"/img/abc.jpg")
+	assert.ErrorIs(t, err, ErrNotOwner)
+
+	_, err = newSvc(&fakeStore{}, p).PresignView(context.Background(), uid, "")
+	assert.ErrorIs(t, err, ErrNotOwner)
+
+	assert.Empty(t, p.gotGetKey, "must not presign a key the user does not own")
 }

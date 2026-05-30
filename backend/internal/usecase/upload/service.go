@@ -3,6 +3,7 @@ package upload
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,10 +24,11 @@ var imageExt = map[string]string{
 	"image/heic": "heic",
 }
 
-// presigner issues presigned PUT URLs (consumer-side interface; satisfied by
-// *objstore.Client).
+// presigner issues presigned PUT/GET URLs (consumer-side interface; satisfied
+// by *objstore.Client).
 type presigner interface {
 	PresignPut(ctx context.Context, key, contentType string, ttl time.Duration) (url string, headers map[string]string, err error)
+	PresignGet(ctx context.Context, key string, ttl time.Duration) (url string, err error)
 }
 
 // uploadStore records pending uploads (consumer-side interface; satisfied by
@@ -93,4 +95,20 @@ func (s *Service) Presign(ctx context.Context, userID uuid.UUID, in PresignInput
 		Headers:   headers,
 		ExpiresAt: s.now().Add(s.ttl),
 	}, nil
+}
+
+// PresignView issues a short-lived presigned GET URL for an owned object, so the
+// client can display a stored photo it no longer has cached locally. Ownership
+// is enforced by the owner-scoped key prefix (`u/{user_id}/`), the same scheme
+// the chat usecase uses to verify image_ref blocks; a key outside the caller's
+// prefix yields ErrNotOwner (mapped to 403) without revealing whether it exists.
+func (s *Service) PresignView(ctx context.Context, userID uuid.UUID, storageKey string) (ViewOutput, error) {
+	if storageKey == "" || !strings.HasPrefix(storageKey, "u/"+userID.String()+"/") {
+		return ViewOutput{}, ErrNotOwner
+	}
+	url, err := s.objs.PresignGet(ctx, storageKey, s.ttl)
+	if err != nil {
+		return ViewOutput{}, fmt.Errorf("upload: presign view: %w", err)
+	}
+	return ViewOutput{URL: url, ExpiresAt: s.now().Add(s.ttl)}, nil
 }

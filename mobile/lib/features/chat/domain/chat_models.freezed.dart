@@ -23,6 +23,8 @@ ContentBlock _$ContentBlockFromJson(Map<String, dynamic> json) {
 mixin _$ContentBlock {
   String get type => throw _privateConstructorUsedError;
   String get text => throw _privateConstructorUsedError;
+  @JsonKey(name: 'storage_key')
+  String get storageKey => throw _privateConstructorUsedError;
 
   /// Serializes this ContentBlock to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -41,7 +43,11 @@ abstract class $ContentBlockCopyWith<$Res> {
     $Res Function(ContentBlock) then,
   ) = _$ContentBlockCopyWithImpl<$Res, ContentBlock>;
   @useResult
-  $Res call({String type, String text});
+  $Res call({
+    String type,
+    String text,
+    @JsonKey(name: 'storage_key') String storageKey,
+  });
 }
 
 /// @nodoc
@@ -58,7 +64,11 @@ class _$ContentBlockCopyWithImpl<$Res, $Val extends ContentBlock>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? type = null, Object? text = null}) {
+  $Res call({
+    Object? type = null,
+    Object? text = null,
+    Object? storageKey = null,
+  }) {
     return _then(
       _value.copyWith(
             type: null == type
@@ -68,6 +78,10 @@ class _$ContentBlockCopyWithImpl<$Res, $Val extends ContentBlock>
             text: null == text
                 ? _value.text
                 : text // ignore: cast_nullable_to_non_nullable
+                      as String,
+            storageKey: null == storageKey
+                ? _value.storageKey
+                : storageKey // ignore: cast_nullable_to_non_nullable
                       as String,
           )
           as $Val,
@@ -84,7 +98,11 @@ abstract class _$$ContentBlockImplCopyWith<$Res>
   ) = __$$ContentBlockImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String type, String text});
+  $Res call({
+    String type,
+    String text,
+    @JsonKey(name: 'storage_key') String storageKey,
+  });
 }
 
 /// @nodoc
@@ -100,7 +118,11 @@ class __$$ContentBlockImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? type = null, Object? text = null}) {
+  $Res call({
+    Object? type = null,
+    Object? text = null,
+    Object? storageKey = null,
+  }) {
     return _then(
       _$ContentBlockImpl(
         type: null == type
@@ -111,6 +133,10 @@ class __$$ContentBlockImplCopyWithImpl<$Res>
             ? _value.text
             : text // ignore: cast_nullable_to_non_nullable
                   as String,
+        storageKey: null == storageKey
+            ? _value.storageKey
+            : storageKey // ignore: cast_nullable_to_non_nullable
+                  as String,
       ),
     );
   }
@@ -119,7 +145,11 @@ class __$$ContentBlockImplCopyWithImpl<$Res>
 /// @nodoc
 @JsonSerializable()
 class _$ContentBlockImpl implements _ContentBlock {
-  const _$ContentBlockImpl({required this.type, this.text = ''});
+  const _$ContentBlockImpl({
+    required this.type,
+    this.text = '',
+    @JsonKey(name: 'storage_key') this.storageKey = '',
+  });
 
   factory _$ContentBlockImpl.fromJson(Map<String, dynamic> json) =>
       _$$ContentBlockImplFromJson(json);
@@ -129,10 +159,13 @@ class _$ContentBlockImpl implements _ContentBlock {
   @override
   @JsonKey()
   final String text;
+  @override
+  @JsonKey(name: 'storage_key')
+  final String storageKey;
 
   @override
   String toString() {
-    return 'ContentBlock(type: $type, text: $text)';
+    return 'ContentBlock(type: $type, text: $text, storageKey: $storageKey)';
   }
 
   @override
@@ -141,12 +174,14 @@ class _$ContentBlockImpl implements _ContentBlock {
         (other.runtimeType == runtimeType &&
             other is _$ContentBlockImpl &&
             (identical(other.type, type) || other.type == type) &&
-            (identical(other.text, text) || other.text == text));
+            (identical(other.text, text) || other.text == text) &&
+            (identical(other.storageKey, storageKey) ||
+                other.storageKey == storageKey));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, type, text);
+  int get hashCode => Object.hash(runtimeType, type, text, storageKey);
 
   /// Create a copy of ContentBlock
   /// with the given fields replaced by the non-null parameter values.
@@ -163,8 +198,11 @@ class _$ContentBlockImpl implements _ContentBlock {
 }
 
 abstract class _ContentBlock implements ContentBlock {
-  const factory _ContentBlock({required final String type, final String text}) =
-      _$ContentBlockImpl;
+  const factory _ContentBlock({
+    required final String type,
+    final String text,
+    @JsonKey(name: 'storage_key') final String storageKey,
+  }) = _$ContentBlockImpl;
 
   factory _ContentBlock.fromJson(Map<String, dynamic> json) =
       _$ContentBlockImpl.fromJson;
@@ -173,6 +211,9 @@ abstract class _ContentBlock implements ContentBlock {
   String get type;
   @override
   String get text;
+  @override
+  @JsonKey(name: 'storage_key')
+  String get storageKey;
 
   /// Create a copy of ContentBlock
   /// with the given fields replaced by the non-null parameter values.

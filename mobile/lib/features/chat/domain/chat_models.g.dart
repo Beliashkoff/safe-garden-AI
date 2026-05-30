@@ -10,10 +10,15 @@ _$ContentBlockImpl _$$ContentBlockImplFromJson(Map<String, dynamic> json) =>
     _$ContentBlockImpl(
       type: json['type'] as String,
       text: json['text'] as String? ?? '',
+      storageKey: json['storage_key'] as String? ?? '',
     );
 
 Map<String, dynamic> _$$ContentBlockImplToJson(_$ContentBlockImpl instance) =>
-    <String, dynamic>{'type': instance.type, 'text': instance.text};
+    <String, dynamic>{
+      'type': instance.type,
+      'text': instance.text,
+      'storage_key': instance.storageKey,
+    };
 
 _$ChatMessageImpl _$$ChatMessageImplFromJson(Map<String, dynamic> json) =>
     _$ChatMessageImpl(

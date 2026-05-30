@@ -4,10 +4,11 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../domain/chat_models.dart';
 import 'chat_error_message.dart';
+import 'widgets/message_photos.dart';
 
-/// A single chat bubble. User messages render as plain selectable text on the
-/// right; assistant messages render markdown on the left, with status notes
-/// (streaming spinner, cancelled, failed + retry).
+/// A single chat bubble. User messages render photos (if any) and plain
+/// selectable text on the right; assistant messages render markdown on the
+/// left, with status notes (streaming spinner, cancelled, failed + retry).
 class MessageBubble extends StatelessWidget {
   const MessageBubble({required this.message, this.onRetry, super.key});
 
@@ -19,7 +20,6 @@ class MessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
     final isUser = message.role == MessageRole.user;
-    final text = message.content.isNotEmpty ? message.content.first.text : '';
 
     final background = isUser
         ? theme.colorScheme.primaryContainer
@@ -43,7 +43,7 @@ class MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
-          children: _content(theme, l10n, isUser, text, foreground),
+          children: _content(theme, l10n, isUser, foreground),
         ),
       ),
     );
@@ -53,31 +53,56 @@ class MessageBubble extends StatelessWidget {
     ThemeData theme,
     AppLocalizations l10n,
     bool isUser,
-    String text,
     Color foreground,
   ) {
     final children = <Widget>[];
+    final hasText = message.content.any(
+      (b) => b.type == 'text' && b.text.isNotEmpty,
+    );
 
-    if (isUser) {
+    // Render blocks in order, grouping consecutive image blocks into one grid.
+    final imageRun = <String>[];
+    void flushImages() {
+      if (imageRun.isEmpty) {
+        return;
+      }
       children.add(
-        SelectableText(
-          text,
-          style: theme.textTheme.bodyLarge?.copyWith(color: foreground),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: MessagePhotos(storageKeys: List.of(imageRun)),
         ),
       );
-    } else if (text.isNotEmpty) {
-      children.add(
-        MarkdownBody(
-          data: text,
-          selectable: true,
-          styleSheet: MarkdownStyleSheet.fromTheme(
-            theme,
-          ).copyWith(p: theme.textTheme.bodyLarge?.copyWith(color: foreground)),
-        ),
-      );
+      imageRun.clear();
     }
 
-    if (message.streaming && text.isEmpty) {
+    for (final block in message.content) {
+      if (block.type == 'image') {
+        if (block.storageKey.isNotEmpty) {
+          imageRun.add(block.storageKey);
+        }
+        continue;
+      }
+      if (block.type == 'text' && block.text.isNotEmpty) {
+        flushImages();
+        children.add(
+          isUser
+              ? SelectableText(
+                  block.text,
+                  style: theme.textTheme.bodyLarge?.copyWith(color: foreground),
+                )
+              : MarkdownBody(
+                  data: block.text,
+                  selectable: true,
+                  styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                    p: theme.textTheme.bodyLarge?.copyWith(color: foreground),
+                  ),
+                ),
+        );
+      }
+    }
+    flushImages();
+
+    if (message.streaming && !hasText) {
       children.add(
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 4),

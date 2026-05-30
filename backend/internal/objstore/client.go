@@ -41,6 +41,10 @@ func (Disabled) PresignPut(context.Context, string, string, time.Duration) (stri
 	return "", nil, ErrDisabled
 }
 
+func (Disabled) PresignGet(context.Context, string, time.Duration) (string, error) {
+	return "", ErrDisabled
+}
+
 func (Disabled) Get(context.Context, string) ([]byte, string, error) {
 	return nil, "", ErrDisabled
 }
@@ -105,6 +109,20 @@ func (c *Client) PresignPut(ctx context.Context, key, contentType string, ttl ti
 		return "", nil, fmt.Errorf("objstore: presign put: %w", err)
 	}
 	return req.URL, map[string]string{"Content-Type": contentType}, nil
+}
+
+// PresignGet returns a presigned GET URL valid for ttl. Used to let the mobile
+// client display a stored photo it no longer has locally (history after a
+// reinstall / on another device) without the backend proxying the bytes.
+func (c *Client) PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error) {
+	req, err := c.presign.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	}, s3.WithPresignExpires(ttl))
+	if err != nil {
+		return "", fmt.Errorf("objstore: presign get: %w", err)
+	}
+	return req.URL, nil
 }
 
 // Get reads an object, returning its bytes and stored Content-Type. Refuses

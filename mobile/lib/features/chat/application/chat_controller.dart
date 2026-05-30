@@ -77,11 +77,17 @@ class ChatController extends AsyncNotifier<ChatState> {
     return ChatState(messages: cached);
   }
 
-  /// Sends [text] and streams the assistant reply.
-  Future<void> sendMessage(String text) async {
+  /// Sends a message of [text] and/or already-uploaded photos (referenced by
+  /// [imageStorageKeys]) and streams the assistant reply.
+  Future<void> sendMessage(
+    String text, {
+    List<String> imageStorageKeys = const [],
+  }) async {
     final trimmed = text.trim();
     final current = state.valueOrNull;
-    if (trimmed.isEmpty || current == null || current.sending) {
+    if ((trimmed.isEmpty && imageStorageKeys.isEmpty) ||
+        current == null ||
+        current.sending) {
       return;
     }
 
@@ -92,7 +98,11 @@ class ChatController extends AsyncNotifier<ChatState> {
       role: MessageRole.user,
       status: MessageStatus.complete,
       createdAt: now,
-      content: [ContentBlock(type: 'text', text: trimmed)],
+      content: [
+        if (trimmed.isNotEmpty) ContentBlock(type: 'text', text: trimmed),
+        for (final key in imageStorageKeys)
+          ContentBlock(type: 'image', storageKey: key),
+      ],
     );
     final assistantMsg = ChatMessage(
       id: localAssistantId,
@@ -118,6 +128,7 @@ class ChatController extends AsyncNotifier<ChatState> {
     try {
       await for (final event in _repo.sendMessage(
         text: trimmed,
+        imageStorageKeys: imageStorageKeys,
         cancelToken: cancelToken,
       )) {
         switch (event) {
@@ -184,20 +195,30 @@ class ChatController extends AsyncNotifier<ChatState> {
   /// Cancels the in-flight stream (closes the connection).
   void cancel() => _cancelToken?.cancel('user_cancelled');
 
-  /// Resends the last user message after a failed/cancelled reply.
+  /// Resends the last user message after a failed/cancelled reply, preserving
+  /// both its text and any attached photos (still valid in object storage).
   Future<void> retry() async {
     final current = state.valueOrNull;
     if (current == null || current.sending) {
       return;
     }
-    String? text;
+    String text = '';
+    final imageKeys = <String>[];
+    var found = false;
     for (final m in current.messages.reversed) {
       if (m.role == MessageRole.user && m.content.isNotEmpty) {
-        text = m.content.first.text;
+        for (final b in m.content) {
+          if (b.type == 'text' && text.isEmpty) {
+            text = b.text;
+          } else if (b.type == 'image' && b.storageKey.isNotEmpty) {
+            imageKeys.add(b.storageKey);
+          }
+        }
+        found = true;
         break;
       }
     }
-    if (text == null) {
+    if (!found || (text.isEmpty && imageKeys.isEmpty)) {
       return;
     }
     final trimmed = [...current.messages];
@@ -210,7 +231,7 @@ class ChatController extends AsyncNotifier<ChatState> {
       trimmed.removeLast();
     }
     state = AsyncData(current.copyWith(messages: trimmed));
-    await sendMessage(text);
+    await sendMessage(text, imageStorageKeys: imageKeys);
   }
 
   /// Loads an older page of history (keyset pagination).

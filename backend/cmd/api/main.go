@@ -37,6 +37,7 @@ import (
 // objstore.Disabled.
 type objStore interface {
 	PresignPut(ctx context.Context, key, contentType string, ttl time.Duration) (string, map[string]string, error)
+	PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error)
 	Get(ctx context.Context, key string) ([]byte, string, error)
 }
 

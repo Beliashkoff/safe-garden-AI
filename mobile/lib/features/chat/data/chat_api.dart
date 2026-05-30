@@ -54,21 +54,25 @@ class ChatApi {
     }
   }
 
-  /// Streams the assistant reply to a text message as typed [SseEvent]s. Errors
-  /// before the stream opens (validation, rate limit, auth) surface as the
-  /// future failing with an [ApiException]; mid-stream failures arrive as an
-  /// [SseError] event or as a Dio cancellation when [cancelToken] is cancelled.
+  /// Streams the assistant reply as typed [SseEvent]s. The message body carries
+  /// an optional text block followed by one `image_ref` block per uploaded photo
+  /// (ARCH §4.3). Errors before the stream opens (validation, rate limit, auth)
+  /// surface as the future failing with an [ApiException]; mid-stream failures
+  /// arrive as an [SseError] event or as a Dio cancellation when [cancelToken]
+  /// is cancelled.
   Stream<SseEvent> sendMessage({
     required String text,
+    List<String> imageStorageKeys = const [],
     CancelToken? cancelToken,
   }) async* {
+    final content = <Map<String, String>>[
+      if (text.isNotEmpty) {'type': 'text', 'text': text},
+      for (final key in imageStorageKeys)
+        {'type': 'image_ref', 'storage_key': key},
+    ];
     final bytes = await _client.openEventStream(
       path: '/messages',
-      body: {
-        'content': [
-          {'type': 'text', 'text': text},
-        ],
-      },
+      body: {'content': content},
       cancelToken: cancelToken,
     );
     yield* parseSse(bytes);

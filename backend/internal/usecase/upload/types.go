@@ -19,3 +19,10 @@ type PresignOutput struct {
 	Headers   map[string]string
 	ExpiresAt time.Time
 }
+
+// ViewOutput is returned to the client to display a stored photo: a presigned
+// GET URL valid until ExpiresAt.
+type ViewOutput struct {
+	URL       string
+	ExpiresAt time.Time
+}

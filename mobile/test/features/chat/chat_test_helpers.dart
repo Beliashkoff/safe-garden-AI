@@ -20,6 +20,10 @@ class FakeChatRepository implements ChatRepository {
   /// Produces the SSE stream returned by [sendMessage].
   Stream<SseEvent> Function()? scriptedStream;
 
+  /// Records the arguments of the last [sendMessage] call.
+  String? lastSendText;
+  List<String> lastSendImageKeys = const [];
+
   final List<String> deleted = [];
   int clearCacheCount = 0;
 
@@ -53,8 +57,11 @@ class FakeChatRepository implements ChatRepository {
   @override
   Stream<SseEvent> sendMessage({
     required String text,
+    List<String> imageStorageKeys = const [],
     CancelToken? cancelToken,
   }) {
+    lastSendText = text;
+    lastSendImageKeys = imageStorageKeys;
     final build = scriptedStream;
     return build == null ? const Stream<SseEvent>.empty() : build();
   }

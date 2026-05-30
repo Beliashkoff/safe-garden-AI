@@ -182,6 +182,10 @@ func (f *fakeObjStore) PresignPut(_ context.Context, key, contentType string, _ 
 	return "http://fake-storage.local/" + key, map[string]string{"Content-Type": contentType}, nil
 }
 
+func (f *fakeObjStore) PresignGet(_ context.Context, key string, _ time.Duration) (string, error) {
+	return "http://fake-storage.local/" + key + "?get=1", nil
+}
+
 func (f *fakeObjStore) Get(_ context.Context, key string) ([]byte, string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

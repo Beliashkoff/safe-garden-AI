@@ -126,4 +126,76 @@ void main() {
     expect(repo.deleted, contains('a1'));
     expect(_state(container).messages.map((m) => m.id), isNot(contains('a1')));
   });
+
+  test('sendMessage with photos adds image blocks and forwards keys', () async {
+    final repo = FakeChatRepository()
+      ..scriptedStream = () => Stream.fromIterable([
+        const SseMessageStarted('s1'),
+        const SseDelta('ok'),
+        const SseDone(messageId: 's1', tokensIn: 1, tokensOut: 1),
+      ]);
+    final container = ProviderContainer(overrides: chatTestOverrides(repo));
+    addTearDown(container.dispose);
+    final notifier = await _boot(container);
+
+    await notifier.sendMessage(
+      'look',
+      imageStorageKeys: const ['u/a/img/1.jpg', 'u/a/img/2.jpg'],
+    );
+    await pumpEventQueue();
+
+    expect(repo.lastSendText, 'look');
+    expect(repo.lastSendImageKeys, ['u/a/img/1.jpg', 'u/a/img/2.jpg']);
+    final user = _state(container).messages.first;
+    expect(user.role, MessageRole.user);
+    expect(user.content.where((b) => b.type == 'text').single.text, 'look');
+    expect(
+      user.content.where((b) => b.type == 'image').map((b) => b.storageKey),
+      ['u/a/img/1.jpg', 'u/a/img/2.jpg'],
+    );
+  });
+
+  test('a photo-only message (no text) is allowed', () async {
+    final repo = FakeChatRepository()
+      ..scriptedStream = () => Stream.fromIterable([
+        const SseMessageStarted('s1'),
+        const SseDone(messageId: 's1', tokensIn: 0, tokensOut: 0),
+      ]);
+    final container = ProviderContainer(overrides: chatTestOverrides(repo));
+    addTearDown(container.dispose);
+    final notifier = await _boot(container);
+
+    await notifier.sendMessage('', imageStorageKeys: const ['u/a/img/1.jpg']);
+    await pumpEventQueue();
+
+    expect(repo.lastSendImageKeys, ['u/a/img/1.jpg']);
+    final user = _state(container).messages.first;
+    expect(user.content, hasLength(1));
+    expect(user.content.single.type, 'image');
+    expect(_state(container).messages, hasLength(2));
+  });
+
+  test('retry resends the text and photos of the last user message', () async {
+    final repo = FakeChatRepository()
+      ..scriptedStream = () async* {
+        throw const ApiException(code: 'network', message: 'x');
+      };
+    final container = ProviderContainer(overrides: chatTestOverrides(repo));
+    addTearDown(container.dispose);
+    final notifier = await _boot(container);
+
+    await notifier.sendMessage('look', imageStorageKeys: const ['u/a/img/1.jpg']);
+    await pumpEventQueue();
+    expect(_state(container).messages.last.status, MessageStatus.failed);
+
+    repo.scriptedStream = () => Stream.fromIterable([
+      const SseMessageStarted('s2'),
+      const SseDone(messageId: 's2', tokensIn: 0, tokensOut: 0),
+    ]);
+    await notifier.retry();
+    await pumpEventQueue();
+
+    expect(repo.lastSendText, 'look');
+    expect(repo.lastSendImageKeys, ['u/a/img/1.jpg']);
+  });
 }

@@ -27,12 +27,17 @@ enum MessageStatus {
   failed,
 }
 
-/// A single content block of a message. Stage 2.4–2.5 handles `text` only;
-/// `image_ref`/`audio_ref` arrive in stage 3.
+/// A single content block of a message. `type` is `text` or `image` (stage 3.3;
+/// `audio` follows in stage 4). For an image block, [storageKey] is the
+/// owner-scoped object key the bubble resolves to a file via the media cache;
+/// [text] carries the text body otherwise.
 @freezed
 class ContentBlock with _$ContentBlock {
-  const factory ContentBlock({required String type, @Default('') String text}) =
-      _ContentBlock;
+  const factory ContentBlock({
+    required String type,
+    @Default('') String text,
+    @JsonKey(name: 'storage_key') @Default('') String storageKey,
+  }) = _ContentBlock;
 
   factory ContentBlock.fromJson(Map<String, dynamic> json) =>
       _$ContentBlockFromJson(json);

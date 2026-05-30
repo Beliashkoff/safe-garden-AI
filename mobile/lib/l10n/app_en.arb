@@ -36,6 +36,22 @@
   "chatErrorUnsupported": "This content type is not supported yet.",
   "chatErrorTooLarge": "The message is too long.",
   "chatErrorGeneric": "Couldn't get a response. Please try again.",
+  "chatAttach": "Attach photo",
+  "chatAttachCamera": "Camera",
+  "chatAttachGallery": "Gallery",
+  "chatPermissionCameraTitle": "Camera access needed",
+  "chatPermissionCameraBody": "Allow camera access in Settings to photograph the plant.",
+  "chatPermissionPhotosTitle": "Photo access needed",
+  "chatPermissionPhotosBody": "Allow photo access in Settings to attach a picture.",
+  "chatOpenSettings": "Open settings",
+  "chatMaxPhotos": "Up to {max} photos per message",
+  "@chatMaxPhotos": {
+    "placeholders": {
+      "max": { "type": "int" }
+    }
+  },
+  "chatUploadFailed": "Couldn't upload the photo. Please try again.",
+  "chatRemovePhoto": "Remove photo",
   "deleteAccountConfirmTitle": "Delete account?",
   "deleteAccountConfirmBody": "This cannot be undone. All your data will be deleted.",
   "commonCancel": "Cancel",

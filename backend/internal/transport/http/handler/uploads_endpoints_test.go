@@ -75,6 +75,45 @@ func TestUploads_Presign_RequiresAuth(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
+type viewResp struct {
+	URL       string    `json:"url"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+func TestUploads_View_HappyPath(t *testing.T) {
+	h := newHarness(t)
+	res := h.signInEmail(t, "view@example.com")
+	up := h.presign(t, res.AccessToken, "image/jpeg", 1024)
+
+	resp, data := h.do(t, http.MethodPost, "/v1/uploads/view",
+		map[string]any{"storage_key": up.Key}, bearer(res.AccessToken))
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "body: %s", data)
+
+	var out viewResp
+	require.NoError(t, json.Unmarshal(data, &out))
+	assert.NotEmpty(t, out.URL)
+	assert.True(t, out.ExpiresAt.After(time.Now()))
+}
+
+func TestUploads_View_RejectsForeignKey(t *testing.T) {
+	h := newHarness(t)
+	owner := h.signInEmail(t, "view-owner@example.com")
+	up := h.presign(t, owner.AccessToken, "image/jpeg", 1024)
+
+	other := h.signInEmail(t, "view-other@example.com")
+	resp, data := h.do(t, http.MethodPost, "/v1/uploads/view",
+		map[string]any{"storage_key": up.Key}, bearer(other.AccessToken))
+	require.Equalf(t, http.StatusForbidden, resp.StatusCode, "body: %s", data)
+	assert.Contains(t, string(data), "forbidden")
+}
+
+func TestUploads_View_RequiresAuth(t *testing.T) {
+	h := newHarness(t)
+	resp, _ := h.do(t, http.MethodPost, "/v1/uploads/view",
+		map[string]any{"storage_key": "u/x/img/a.jpg"}, nil)
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
 func TestChat_PostMessage_WithImage(t *testing.T) {
 	h := newHarness(t)
 	res := h.signInEmail(t, "photo@example.com")

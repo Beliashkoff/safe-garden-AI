@@ -43,8 +43,10 @@ func NewRouter(d Deps) chi.Router {
 		r.Get("/conversation", d.Handler.GetConversation)
 		r.Get("/conversation/messages", d.Handler.ListMessages)
 
-		// Uploads (stage 3.1) — presigned photo upload.
+		// Uploads (stage 3.1) — presigned photo upload; view = presigned GET
+		// so the client can display a stored photo (stage 3.3).
 		r.Post("/uploads/presign", d.Handler.PostPresign)
+		r.Post("/uploads/view", d.Handler.PostPresignView)
 	})
 
 	if d.DocsEnabled {

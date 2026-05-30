@@ -314,6 +314,72 @@ abstract class AppLocalizations {
   /// **'Не удалось получить ответ. Попробуйте ещё раз.'**
   String get chatErrorGeneric;
 
+  /// No description provided for @chatAttach.
+  ///
+  /// In ru, this message translates to:
+  /// **'Прикрепить фото'**
+  String get chatAttach;
+
+  /// No description provided for @chatAttachCamera.
+  ///
+  /// In ru, this message translates to:
+  /// **'Камера'**
+  String get chatAttachCamera;
+
+  /// No description provided for @chatAttachGallery.
+  ///
+  /// In ru, this message translates to:
+  /// **'Галерея'**
+  String get chatAttachGallery;
+
+  /// No description provided for @chatPermissionCameraTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Нужен доступ к камере'**
+  String get chatPermissionCameraTitle;
+
+  /// No description provided for @chatPermissionCameraBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Разрешите доступ к камере в настройках, чтобы сфотографировать растение.'**
+  String get chatPermissionCameraBody;
+
+  /// No description provided for @chatPermissionPhotosTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Нужен доступ к фото'**
+  String get chatPermissionPhotosTitle;
+
+  /// No description provided for @chatPermissionPhotosBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Разрешите доступ к фото в настройках, чтобы прикрепить снимок.'**
+  String get chatPermissionPhotosBody;
+
+  /// No description provided for @chatOpenSettings.
+  ///
+  /// In ru, this message translates to:
+  /// **'Открыть настройки'**
+  String get chatOpenSettings;
+
+  /// No description provided for @chatMaxPhotos.
+  ///
+  /// In ru, this message translates to:
+  /// **'Можно прикрепить до {max} фото'**
+  String chatMaxPhotos(int max);
+
+  /// No description provided for @chatUploadFailed.
+  ///
+  /// In ru, this message translates to:
+  /// **'Не удалось загрузить фото. Попробуйте ещё раз.'**
+  String get chatUploadFailed;
+
+  /// No description provided for @chatRemovePhoto.
+  ///
+  /// In ru, this message translates to:
+  /// **'Удалить фото'**
+  String get chatRemovePhoto;
+
   /// No description provided for @deleteAccountConfirmTitle.
   ///
   /// In ru, this message translates to:

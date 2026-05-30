@@ -121,6 +121,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatErrorGeneric => 'Couldn\'t get a response. Please try again.';
 
   @override
+  String get chatAttach => 'Attach photo';
+
+  @override
+  String get chatAttachCamera => 'Camera';
+
+  @override
+  String get chatAttachGallery => 'Gallery';
+
+  @override
+  String get chatPermissionCameraTitle => 'Camera access needed';
+
+  @override
+  String get chatPermissionCameraBody =>
+      'Allow camera access in Settings to photograph the plant.';
+
+  @override
+  String get chatPermissionPhotosTitle => 'Photo access needed';
+
+  @override
+  String get chatPermissionPhotosBody =>
+      'Allow photo access in Settings to attach a picture.';
+
+  @override
+  String get chatOpenSettings => 'Open settings';
+
+  @override
+  String chatMaxPhotos(int max) {
+    return 'Up to $max photos per message';
+  }
+
+  @override
+  String get chatUploadFailed =>
+      'Couldn\'t upload the photo. Please try again.';
+
+  @override
+  String get chatRemovePhoto => 'Remove photo';
+
+  @override
   String get deleteAccountConfirmTitle => 'Delete account?';
 
   @override

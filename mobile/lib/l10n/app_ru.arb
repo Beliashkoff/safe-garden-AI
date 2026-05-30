@@ -41,6 +41,22 @@
   "chatErrorUnsupported": "Этот тип содержимого пока не поддерживается.",
   "chatErrorTooLarge": "Сообщение слишком длинное.",
   "chatErrorGeneric": "Не удалось получить ответ. Попробуйте ещё раз.",
+  "chatAttach": "Прикрепить фото",
+  "chatAttachCamera": "Камера",
+  "chatAttachGallery": "Галерея",
+  "chatPermissionCameraTitle": "Нужен доступ к камере",
+  "chatPermissionCameraBody": "Разрешите доступ к камере в настройках, чтобы сфотографировать растение.",
+  "chatPermissionPhotosTitle": "Нужен доступ к фото",
+  "chatPermissionPhotosBody": "Разрешите доступ к фото в настройках, чтобы прикрепить снимок.",
+  "chatOpenSettings": "Открыть настройки",
+  "chatMaxPhotos": "Можно прикрепить до {max} фото",
+  "@chatMaxPhotos": {
+    "placeholders": {
+      "max": { "type": "int" }
+    }
+  },
+  "chatUploadFailed": "Не удалось загрузить фото. Попробуйте ещё раз.",
+  "chatRemovePhoto": "Удалить фото",
   "deleteAccountConfirmTitle": "Удалить аккаунт?",
   "deleteAccountConfirmBody": "Это действие необратимо. Все данные будут удалены.",
   "commonCancel": "Отмена",

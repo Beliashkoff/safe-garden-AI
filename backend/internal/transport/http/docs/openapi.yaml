@@ -288,6 +288,31 @@ paths:
         "413": { $ref: "#/components/responses/ValidationError" }
         "415": { $ref: "#/components/responses/ValidationError" }
 
+  /uploads/view:
+    post:
+      tags: [uploads]
+      summary: Get a presigned GET URL to display a stored photo
+      description: >
+        Returns a short-lived presigned GET URL (TTL 5 min) for an owned object,
+        so the client can display a photo it no longer has cached locally (e.g.
+        history after a reinstall or on another device). Ownership is enforced by
+        the owner-scoped key prefix; a key outside the caller's prefix returns 403.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PresignViewRequest" }
+      responses:
+        "200":
+          description: Presigned view URL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PresignViewResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/ValidationError" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -482,4 +507,17 @@ components:
           type: object
           additionalProperties: { type: string }
           description: headers the client must send on the PUT (e.g. Content-Type)
+        expires_at: { type: string, format: date-time }
+
+    PresignViewRequest:
+      type: object
+      required: [storage_key]
+      properties:
+        storage_key: { type: string, description: "owner-scoped key (u/{user_id}/img/...) to display" }
+
+    PresignViewResponse:
+      type: object
+      required: [url, expires_at]
+      properties:
+        url: { type: string, description: presigned GET URL (TTL 5 min) }
         expires_at: { type: string, format: date-time }

@@ -107,6 +107,8 @@ func mapResourceErr(err error) error {
 		return httperr.PayloadTooLarge("file is too large")
 	case errors.Is(err, uploaduc.ErrInvalidSize):
 		return httperr.ValidationFailed("invalid size")
+	case errors.Is(err, uploaduc.ErrNotOwner):
+		return httperr.Forbidden("not your upload")
 	default:
 		return err
 	}
