@@ -13,3 +13,7 @@ UPDATE uploads SET used = TRUE WHERE storage_key = $1;
 -- name: ListUnusedUploadsBefore :many
 -- GC candidates: presigned-but-never-attached uploads older than the cutoff.
 SELECT * FROM uploads WHERE used = FALSE AND created_at < $1;
+
+-- name: DeleteUpload :exec
+-- Removes one upload row after its object has been deleted from storage (GC).
+DELETE FROM uploads WHERE storage_key = $1;

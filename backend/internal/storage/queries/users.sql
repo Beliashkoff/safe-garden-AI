@@ -45,3 +45,25 @@ SET deleted_at = NOW(),
     google_sub = NULL,
     updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: DeleteUserConversations :exec
+-- Hard-deletes the user's conversation; cascades to messages and message_blocks
+-- (ARCH §6.3 / SPEC F9). Called inside DeleteAccount's transaction.
+DELETE FROM conversations WHERE user_id = $1;
+
+-- name: DeleteUserUploads :exec
+-- Hard-deletes the user's upload rows. The objects in Object Storage are removed
+-- asynchronously by the cleanup job (prefix u/{user_id}/).
+DELETE FROM uploads WHERE user_id = $1;
+
+-- name: ListUsersPendingMediaPurge :many
+-- Cleanup work-list: deleted accounts whose Object Storage media has not been
+-- purged yet. Oldest first; bounded by $1.
+SELECT id FROM users
+WHERE deleted_at IS NOT NULL AND media_purged_at IS NULL
+ORDER BY deleted_at
+LIMIT $1;
+
+-- name: MarkUserMediaPurged :exec
+-- Marks the user's media prefix as purged so the cleanup job skips it next run.
+UPDATE users SET media_purged_at = NOW() WHERE id = $1;

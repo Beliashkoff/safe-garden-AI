@@ -30,6 +30,14 @@ type Querier interface {
 	// DELETE /v1/messages/:id — owner-scoped (user_id in WHERE). execrows lets the
 	// handler distinguish 404 (0 rows) from 204 (1 row). Blocks cascade.
 	DeleteMessage(ctx context.Context, arg DeleteMessageParams) (int64, error)
+	// Removes one upload row after its object has been deleted from storage (GC).
+	DeleteUpload(ctx context.Context, storageKey string) error
+	// Hard-deletes the user's conversation; cascades to messages and message_blocks
+	// (ARCH §6.3 / SPEC F9). Called inside DeleteAccount's transaction.
+	DeleteUserConversations(ctx context.Context, userID uuid.UUID) error
+	// Hard-deletes the user's upload rows. The objects in Object Storage are removed
+	// asynchronously by the cleanup job (prefix u/{user_id}/).
+	DeleteUserUploads(ctx context.Context, userID uuid.UUID) error
 	// Returns the most recent unused, unexpired code for the email. Older codes
 	// become irrelevant the moment a newer code is issued.
 	GetActiveEmailCode(ctx context.Context, email string) (EmailCode, error)
@@ -70,9 +78,14 @@ type Querier interface {
 	ListRecentMessages(ctx context.Context, arg ListRecentMessagesParams) ([]Message, error)
 	// GC candidates: presigned-but-never-attached uploads older than the cutoff.
 	ListUnusedUploadsBefore(ctx context.Context, createdAt pgtype.Timestamptz) ([]Upload, error)
+	// Cleanup work-list: deleted accounts whose Object Storage media has not been
+	// purged yet. Oldest first; bounded by $1.
+	ListUsersPendingMediaPurge(ctx context.Context, limit int32) ([]uuid.UUID, error)
 	MarkEmailCodeUsed(ctx context.Context, id uuid.UUID) error
 	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
 	MarkUploadUsed(ctx context.Context, storageKey string) error
+	// Marks the user's media prefix as purged so the cleanup job skips it next run.
+	MarkUserMediaPurged(ctx context.Context, id uuid.UUID) error
 	// ARCH §6.4. plant = NULL → no crop filter; universal items (plants IS NULL) always
 	// match. Ranked by priority (highest first), at most 3.
 	RecommendFertilizers(ctx context.Context, arg RecommendFertilizersParams) ([]RecommendFertilizersRow, error)

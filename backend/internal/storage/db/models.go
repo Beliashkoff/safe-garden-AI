@@ -118,4 +118,5 @@ type User struct {
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
 	DeletedAt     pgtype.Timestamptz
+	MediaPurgedAt pgtype.Timestamptz
 }

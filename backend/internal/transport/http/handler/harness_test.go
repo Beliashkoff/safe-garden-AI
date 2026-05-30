@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -162,9 +163,10 @@ type chatMsgLimiter interface {
 // returns a deterministic URL (the real PUT to storage is MinIO's job, not
 // ours); Get serves objects seeded via put and records reads.
 type fakeObjStore struct {
-	mu      sync.Mutex
-	objects map[string]fakeObject
-	gets    []string
+	mu              sync.Mutex
+	objects         map[string]fakeObject
+	gets            []string
+	deletedPrefixes []string
 }
 
 type fakeObject struct {
@@ -195,6 +197,40 @@ func (f *fakeObjStore) put(key string, data []byte, contentType string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.objects[key] = fakeObject{data: data, contentType: contentType}
+}
+
+func (f *fakeObjStore) DeletePrefix(_ context.Context, prefix string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deletedPrefixes = append(f.deletedPrefixes, prefix)
+	n := 0
+	for k := range f.objects {
+		if strings.HasPrefix(k, prefix) {
+			delete(f.objects, k)
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeObjStore) DeleteKeys(_ context.Context, keys []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, k := range keys {
+		delete(f.objects, k)
+	}
+	return nil
+}
+
+func (f *fakeObjStore) prefixDeleted(prefix string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, p := range f.deletedPrefixes {
+		if p == prefix {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *fakeObjStore) getCount(key string) int {

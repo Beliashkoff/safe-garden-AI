@@ -15,7 +15,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, email_verified, apple_sub, google_sub, display_name, locale)
 VALUES ($1, $2, $3, $4, $5, COALESCE(NULLIF($6, ''), 'ru'))
-RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at
+RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at
 `
 
 type CreateUserParams struct {
@@ -48,12 +48,35 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.MediaPurgedAt,
 	)
 	return i, err
 }
 
+const deleteUserConversations = `-- name: DeleteUserConversations :exec
+DELETE FROM conversations WHERE user_id = $1
+`
+
+// Hard-deletes the user's conversation; cascades to messages and message_blocks
+// (ARCH §6.3 / SPEC F9). Called inside DeleteAccount's transaction.
+func (q *Queries) DeleteUserConversations(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserConversations, userID)
+	return err
+}
+
+const deleteUserUploads = `-- name: DeleteUserUploads :exec
+DELETE FROM uploads WHERE user_id = $1
+`
+
+// Hard-deletes the user's upload rows. The objects in Object Storage are removed
+// asynchronously by the cleanup job (prefix u/{user_id}/).
+func (q *Queries) DeleteUserUploads(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserUploads, userID)
+	return err
+}
+
 const getUserByAppleSub = `-- name: GetUserByAppleSub :one
-SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at FROM users WHERE apple_sub = $1 AND deleted_at IS NULL
+SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at FROM users WHERE apple_sub = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetUserByAppleSub(ctx context.Context, appleSub pgtype.Text) (User, error) {
@@ -70,12 +93,13 @@ func (q *Queries) GetUserByAppleSub(ctx context.Context, appleSub pgtype.Text) (
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.MediaPurgedAt,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at FROM users WHERE email = $1 AND deleted_at IS NULL
+SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at FROM users WHERE email = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, error) {
@@ -92,12 +116,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.MediaPurgedAt,
 	)
 	return i, err
 }
 
 const getUserByGoogleSub = `-- name: GetUserByGoogleSub :one
-SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at FROM users WHERE google_sub = $1 AND deleted_at IS NULL
+SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at FROM users WHERE google_sub = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetUserByGoogleSub(ctx context.Context, googleSub pgtype.Text) (User, error) {
@@ -114,12 +139,13 @@ func (q *Queries) GetUserByGoogleSub(ctx context.Context, googleSub pgtype.Text)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.MediaPurgedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at FROM users WHERE id = $1 AND deleted_at IS NULL
+SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at FROM users WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -136,6 +162,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.MediaPurgedAt,
 	)
 	return i, err
 }
@@ -143,7 +170,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 const linkAppleSub = `-- name: LinkAppleSub :one
 UPDATE users SET apple_sub = $2, updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at
+RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at
 `
 
 type LinkAppleSubParams struct {
@@ -165,6 +192,7 @@ func (q *Queries) LinkAppleSub(ctx context.Context, arg LinkAppleSubParams) (Use
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.MediaPurgedAt,
 	)
 	return i, err
 }
@@ -172,7 +200,7 @@ func (q *Queries) LinkAppleSub(ctx context.Context, arg LinkAppleSubParams) (Use
 const linkGoogleSub = `-- name: LinkGoogleSub :one
 UPDATE users SET google_sub = $2, updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at
+RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at
 `
 
 type LinkGoogleSubParams struct {
@@ -194,8 +222,38 @@ func (q *Queries) LinkGoogleSub(ctx context.Context, arg LinkGoogleSubParams) (U
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.MediaPurgedAt,
 	)
 	return i, err
+}
+
+const listUsersPendingMediaPurge = `-- name: ListUsersPendingMediaPurge :many
+SELECT id FROM users
+WHERE deleted_at IS NOT NULL AND media_purged_at IS NULL
+ORDER BY deleted_at
+LIMIT $1
+`
+
+// Cleanup work-list: deleted accounts whose Object Storage media has not been
+// purged yet. Oldest first; bounded by $1.
+func (q *Queries) ListUsersPendingMediaPurge(ctx context.Context, limit int32) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUsersPendingMediaPurge, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markEmailVerified = `-- name: MarkEmailVerified :exec
@@ -208,10 +266,20 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const markUserMediaPurged = `-- name: MarkUserMediaPurged :exec
+UPDATE users SET media_purged_at = NOW() WHERE id = $1
+`
+
+// Marks the user's media prefix as purged so the cleanup job skips it next run.
+func (q *Queries) MarkUserMediaPurged(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markUserMediaPurged, id)
+	return err
+}
+
 const setUserEmail = `-- name: SetUserEmail :one
 UPDATE users SET email = $2, email_verified = $3, updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at
+RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at
 `
 
 type SetUserEmailParams struct {
@@ -234,6 +302,7 @@ func (q *Queries) SetUserEmail(ctx context.Context, arg SetUserEmailParams) (Use
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.MediaPurgedAt,
 	)
 	return i, err
 }

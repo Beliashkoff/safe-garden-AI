@@ -45,6 +45,16 @@ func (q *Queries) CreateUpload(ctx context.Context, arg CreateUploadParams) (Upl
 	return i, err
 }
 
+const deleteUpload = `-- name: DeleteUpload :exec
+DELETE FROM uploads WHERE storage_key = $1
+`
+
+// Removes one upload row after its object has been deleted from storage (GC).
+func (q *Queries) DeleteUpload(ctx context.Context, storageKey string) error {
+	_, err := q.db.Exec(ctx, deleteUpload, storageKey)
+	return err
+}
+
 const getUploadByStorageKey = `-- name: GetUploadByStorageKey :one
 SELECT id, user_id, storage_key, content_type, size_bytes, used, created_at FROM uploads WHERE storage_key = $1
 `

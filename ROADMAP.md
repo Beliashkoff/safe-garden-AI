@@ -199,9 +199,12 @@ _Реальный Claude — через worker (Этап 2.2); локально/
 
 _Тесты: юнит (presign-валидация/ключ, выбор N фото + маркеры, ownership, `imageconv`, worker image-блок) + integration (presign + image_ref → image-block + `used=true` + гидрация, foreign-image → 404). Реальный Claude-vision — после 0.6; локально `LLM_CLIENT_KIND=mock`, фейк-objstore в тестах. OpenAPI обновлён (presign + image_ref)._
 
-### 3.2 Backend: каскадное удаление медиа
-- [ ] При `DELETE /v1/account` → фоновый job удаляет всё под префиксом `u/{user_id}/` в Object Storage.
-- [ ] Фоновый GC: каждые сутки — удаление `uploads` старше 7 дней и `used=false`.
+### 3.2 Backend: каскадное удаление медиа ✅
+- [x] `DELETE /v1/account` теперь полностью стирает контент в одной транзакции: жёстко удаляет `conversations` (каскад → `messages`/`message_blocks`) и строки `uploads`, анонимизирует `users`-строку (для повторной регистрации + аудита), `usage_log` сохраняется для биллинга (SPEC F9, ARCH §6.3). _Ранее soft-delete оставлял переписку и аплоады в БД — каскад не срабатывал._
+- [x] Объекты в Object Storage удаляются асинхронно: бинарь `cmd/cleanup` чистит префикс `u/{user_id}/` для удалённых-непочищенных юзеров (durable-ретрай через новую колонку `users.media_purged_at`, миграция `0012`). `internal/objstore.DeletePrefix` (пагинация `ListObjectsV2` + батч `DeleteObjects` по 1000), audit `account_media_purged`.
+- [x] Фоновый GC: `cmd/cleanup` удаляет `uploads` старше 7 дней с `used=false` (объект → строка; идемпотентно). `internal/usecase/cleanup`.
+
+_Запуск — оператором: system cron / `docker compose run --rm cleanup` (рекомендуется ежечасно — быстрый purge медиа + дешёвый GC). Тесты: юнит (`cleanup` фейки, `objstore` пагинация/батч) + integration (account-delete стирает контент + `cleanup.RunOnce` ставит `media_purged_at` и вызывает `DeletePrefix`; GC удаляет просроченные). OpenAPI без изменений (новых эндпоинтов нет)._
 
 ### 3.3 Mobile
 - [ ] Кнопка-скрепка с выбором: «Камера» / «Галерея».
