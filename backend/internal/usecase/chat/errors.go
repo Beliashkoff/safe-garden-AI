@@ -15,4 +15,7 @@ var (
 	ErrMessageNotFound = errors.New("chat: message not found")
 	// ErrBadCursor — pagination cursor is malformed.
 	ErrBadCursor = errors.New("chat: bad cursor")
+	// ErrUploadNotFound — referenced image_ref upload is missing or not owned by
+	// the caller (or its key is malformed).
+	ErrUploadNotFound = errors.New("chat: upload not found")
 )

@@ -65,6 +65,16 @@ type Config struct {
 	// the only user identifier sent to the worker/Anthropic (ARCH §11.4, §8.6).
 	// Required in prod.
 	UIDHashPepper string `envconfig:"UID_HASH_PEPPER" default:""`
+
+	// Object Storage (S3-compatible): MinIO in dev, Yandex Object Storage in
+	// prod. Used for presigned photo uploads (ARCH §4.3, §5). Required in prod.
+	// Path-style addressing works for both MinIO and Yandex OS.
+	S3Endpoint     string `envconfig:"S3_ENDPOINT" default:""`
+	S3Region       string `envconfig:"S3_REGION" default:"ru-central1"`
+	S3AccessKey    string `envconfig:"S3_ACCESS_KEY" default:""`
+	S3SecretKey    string `envconfig:"S3_SECRET_KEY" default:""`
+	S3Bucket       string `envconfig:"S3_BUCKET" default:""`
+	S3UsePathStyle bool   `envconfig:"S3_USE_PATH_STYLE" default:"true"`
 }
 
 func Load() (*Config, error) {
@@ -94,6 +104,10 @@ func (c *Config) validateProd() error {
 	require(c.SMTPFrom, "SMTP_FROM")
 	require(c.RedisAddr, "REDIS_ADDR")
 	require(c.UIDHashPepper, "UID_HASH_PEPPER")
+	require(c.S3Endpoint, "S3_ENDPOINT")
+	require(c.S3AccessKey, "S3_ACCESS_KEY")
+	require(c.S3SecretKey, "S3_SECRET_KEY")
+	require(c.S3Bucket, "S3_BUCKET")
 
 	if c.GoogleClientIOS == "" && c.GoogleClientAndr == "" && c.GoogleClientWeb == "" {
 		missing = append(missing, "GOOGLE_CLIENT_ID_IOS or GOOGLE_CLIENT_ID_ANDROID or GOOGLE_CLIENT_ID_WEB")

@@ -115,10 +115,14 @@ func toAnthropicMessages(items []messageItem) []anthropic.MessageParam {
 	for _, m := range items {
 		blocks := make([]anthropic.ContentBlockParamUnion, 0, len(m.Content))
 		for _, b := range m.Content {
-			// Stage 2.2 is text-only; image/audio/tool_result blocks land in
-			// Stage 3+ (the wire schema already carries them).
-			if b.Type == "text" && b.Text != "" {
+			// Stage 3.1 adds base64 image blocks. The RU backend has already
+			// converted HEIC→JPEG and validated the media type; the worker only
+			// forwards. audio/tool_result blocks land in Stage 4+.
+			switch {
+			case b.Type == "text" && b.Text != "":
 				blocks = append(blocks, anthropic.NewTextBlock(b.Text))
+			case b.Type == "image" && b.MediaB64 != "" && b.MediaType != "":
+				blocks = append(blocks, anthropic.NewImageBlockBase64(b.MediaType, b.MediaB64))
 			}
 		}
 		if len(blocks) == 0 {

@@ -18,8 +18,10 @@ import (
 
 	authpkg "github.com/Beliashkoff/safe-garden-AI/backend/internal/auth"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/config"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/imageconv"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/mailer"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/objstore"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/observability"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/ratelimit"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage"
@@ -27,7 +29,39 @@ import (
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/handler"
 	authuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/auth"
 	chatuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/chat"
+	uploaduc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/upload"
 )
+
+// objStore is the subset of object-storage operations the usecases need
+// (presigned uploads + server-side reads). Satisfied by *objstore.Client and
+// objstore.Disabled.
+type objStore interface {
+	PresignPut(ctx context.Context, key, contentType string, ttl time.Duration) (string, map[string]string, error)
+	Get(ctx context.Context, key string) ([]byte, string, error)
+}
+
+// buildObjStore returns the configured object store, or a Disabled stub when S3
+// is unconfigured (text-only dev without MinIO). Fatal on a present-but-broken
+// S3 config.
+func buildObjStore(cfg *config.Config) objStore {
+	if cfg.S3Bucket == "" {
+		slog.Warn("S3_BUCKET empty — photo uploads disabled (dev only)")
+		return objstore.Disabled{}
+	}
+	client, err := objstore.New(objstore.Config{
+		Endpoint:     cfg.S3Endpoint,
+		Region:       cfg.S3Region,
+		AccessKey:    cfg.S3AccessKey,
+		SecretKey:    cfg.S3SecretKey,
+		Bucket:       cfg.S3Bucket,
+		UsePathStyle: cfg.S3UsePathStyle,
+	})
+	if err != nil {
+		slog.Error("object storage init failed", "err", err)
+		os.Exit(1)
+	}
+	return client
+}
 
 func main() {
 	cfg, err := config.Load()
@@ -125,7 +159,13 @@ func main() {
 		msgLimiter = ratelimit.NewNoopMessage()
 	}
 
-	chatService := chatuc.NewService(store, llmClient, msgLimiter, cfg.UIDHashPepper, llm.DefaultModel, logger)
+	// Object storage for presigned photo uploads (ARCH §4.3, §5).
+	objs := buildObjStore(cfg)
+	uploadService := uploaduc.NewService(store, objs)
+	chatService := chatuc.NewService(
+		store, llmClient, msgLimiter, objs, imageconv.New(),
+		cfg.UIDHashPepper, llm.DefaultModel, logger,
+	)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -134,7 +174,7 @@ func main() {
 	r.Use(observability.AccessLog(logger))
 
 	r.Mount("/v1", httptransport.NewRouter(httptransport.Deps{
-		Handler:     handler.New(authService, chatService),
+		Handler:     handler.New(authService, chatService, uploadService),
 		TokenParser: issuer,
 		DocsEnabled: cfg.DocsEnabled,
 	}))

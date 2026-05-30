@@ -23,7 +23,7 @@ func (s *Service) loadHistory(ctx context.Context, convID uuid.UUID) ([]llm.Mess
 	if err != nil {
 		return nil, err
 	}
-	return buildLLMMessages(rows, blocksByMsg), nil
+	return s.buildLLMHistory(ctx, rows, blocksByMsg), nil
 }
 
 // GetConversation returns the conversation id + the most recent page of messages

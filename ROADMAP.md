@@ -189,13 +189,15 @@ _Реальный Claude — через worker (Этап 2.2); локально/
 
 **Цель:** пользователь отправляет фото вместе с текстом, Claude его анализирует.
 
-### 3.1 Backend
-- [ ] Миграция: `uploads`.
-- [ ] `POST /v1/uploads/presign` — генерация presigned PUT (Yandex Object Storage / minio в dev).
-- [ ] Валидация content-type/size до выдачи presigned.
-- [ ] Расширение `POST /v1/messages`: блок `image_ref { storage_key }`. Проверка ownership через `uploads.user_id`.
-- [ ] Загрузка фото из Object Storage, передача в Claude как `image` block (base64).
-- [ ] Конвертация HEIC → JPEG на стороне сервера (`disintegration/imaging` или `chai2010/webp`), если необходимо.
+### 3.1 Backend ✅
+- [x] Миграция: `uploads` (сделана в §2.1: `migrations/0009_uploads.sql` + sqlc).
+- [x] `POST /v1/uploads/presign` — presigned PUT через `aws-sdk-go-v2` (`internal/objstore`, `internal/usecase/upload`); Yandex Object Storage в prod, MinIO в dev. Ключ `u/{user_id}/img/{uuid}.{ext}`, TTL 5 мин, `used=false`.
+- [x] Валидация content-type (whitelist jpeg/png/webp/heic) и size (≤10 МБ) до выдачи presigned.
+- [x] Расширение `POST /v1/messages`: блок `image_ref { storage_key }`; ownership через префикс ключа + `GetUploadByStorageKey` (`uploads.user_id`), `MarkUploadUsed`, ≤4 фото/сообщение.
+- [x] Загрузка фото из Object Storage, передача в Claude как base64-`image` block (worker `toAnthropicMessages`). Фото из истории ре-отправляются с лимитом N=4 (старше → маркер «[фото]»).
+- [x] Конвертация HEIC → JPEG на сервере (`internal/imageconv`, `gen2brain/heic` — libheif через WASM, без CGO).
+
+_Тесты: юнит (presign-валидация/ключ, выбор N фото + маркеры, ownership, `imageconv`, worker image-блок) + integration (presign + image_ref → image-block + `used=true` + гидрация, foreign-image → 404). Реальный Claude-vision — после 0.6; локально `LLM_CLIENT_KIND=mock`, фейк-objstore в тестах. OpenAPI обновлён (presign + image_ref)._
 
 ### 3.2 Backend: каскадное удаление медиа
 - [ ] При `DELETE /v1/account` → фоновый job удаляет всё под префиксом `u/{user_id}/` в Object Storage.

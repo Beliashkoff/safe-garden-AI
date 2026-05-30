@@ -28,8 +28,9 @@ type contentBlockReq struct {
 }
 
 type blockDTO struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	Type       string `json:"type"`
+	Text       string `json:"text,omitempty"`
+	StorageKey string `json:"storage_key,omitempty"`
 }
 
 type messageDTO struct {
@@ -143,7 +144,7 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 func toInputBlocks(in []contentBlockReq) []chatuc.InputBlock {
 	out := make([]chatuc.InputBlock, len(in))
 	for i, b := range in {
-		out[i] = chatuc.InputBlock{Type: b.Type, Text: b.Text}
+		out[i] = chatuc.InputBlock{Type: b.Type, Text: b.Text, StorageKey: b.StorageKey}
 	}
 	return out
 }
@@ -153,7 +154,7 @@ func toMessageDTOs(views []chatuc.MessageView) []messageDTO {
 	for i, v := range views {
 		blocks := make([]blockDTO, len(v.Content))
 		for j, b := range v.Content {
-			blocks[j] = blockDTO{Type: b.Type, Text: b.Text}
+			blocks[j] = blockDTO{Type: b.Type, Text: b.Text, StorageKey: b.StorageKey}
 		}
 		out[i] = messageDTO{ID: v.ID, Role: v.Role, Status: v.Status, CreatedAt: v.CreatedAt, Content: blocks}
 	}

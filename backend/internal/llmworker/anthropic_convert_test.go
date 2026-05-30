@@ -63,11 +63,28 @@ func TestBuildParams_SkipsEmptyContentMessages(t *testing.T) {
 		Messages: []messageItem{
 			{Role: "user", Content: []contentBlock{{Type: "text", Text: "hi"}}},
 			{Role: "assistant", Content: []contentBlock{{Type: "text", Text: "ok"}}},
-			{Role: "user", Content: []contentBlock{{Type: "image", MediaB64: "..."}}}, // no text → skipped in 2.2
+			{Role: "user", Content: []contentBlock{{Type: "image", MediaB64: "..."}}}, // no media_type → skipped
 		},
 	}
 	out := marshalParams(t, testProvider(2048, ""), req)
-	assert.Equal(t, 2, strings.Count(out, `"role":`), "only the two text messages are sent")
+	assert.Equal(t, 2, strings.Count(out, `"role":`), "only the two usable messages are sent")
+}
+
+func TestBuildParams_ImageBlockIncluded(t *testing.T) {
+	req := messageRequest{
+		Messages: []messageItem{{
+			Role: "user",
+			Content: []contentBlock{
+				{Type: "text", Text: "What is wrong with this plant?"},
+				{Type: "image", MediaType: "image/jpeg", MediaB64: "QQ=="},
+			},
+		}},
+	}
+	out := marshalParams(t, testProvider(2048, ""), req)
+	assert.Contains(t, out, `"type":"image"`)
+	assert.Contains(t, out, `"media_type":"image/jpeg"`)
+	assert.Contains(t, out, `"data":"QQ=="`)
+	assert.Contains(t, out, "What is wrong")
 }
 
 func TestBuildParams_ToolsConverted(t *testing.T) {

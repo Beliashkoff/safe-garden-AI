@@ -37,6 +37,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	authpkg "github.com/Beliashkoff/safe-garden-AI/backend/internal/auth"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/imageconv"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/ratelimit"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage"
@@ -44,6 +45,7 @@ import (
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/handler"
 	authuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/auth"
 	chatuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/chat"
+	uploaduc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/upload"
 )
 
 const (
@@ -156,6 +158,57 @@ type chatMsgLimiter interface {
 	AllowMessage(ctx context.Context, userID uuid.UUID) (bool, error)
 }
 
+// fakeObjStore is an in-memory object store for chat/upload tests. PresignPut
+// returns a deterministic URL (the real PUT to storage is MinIO's job, not
+// ours); Get serves objects seeded via put and records reads.
+type fakeObjStore struct {
+	mu      sync.Mutex
+	objects map[string]fakeObject
+	gets    []string
+}
+
+type fakeObject struct {
+	data        []byte
+	contentType string
+}
+
+func newFakeObjStore() *fakeObjStore {
+	return &fakeObjStore{objects: make(map[string]fakeObject)}
+}
+
+func (f *fakeObjStore) PresignPut(_ context.Context, key, contentType string, _ time.Duration) (string, map[string]string, error) {
+	return "http://fake-storage.local/" + key, map[string]string{"Content-Type": contentType}, nil
+}
+
+func (f *fakeObjStore) Get(_ context.Context, key string) ([]byte, string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.gets = append(f.gets, key)
+	o, ok := f.objects[key]
+	if !ok {
+		return nil, "", fmt.Errorf("fake objstore: not found: %s", key)
+	}
+	return o.data, o.contentType, nil
+}
+
+func (f *fakeObjStore) put(key string, data []byte, contentType string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.objects[key] = fakeObject{data: data, contentType: contentType}
+}
+
+func (f *fakeObjStore) getCount(key string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, g := range f.gets {
+		if g == key {
+			n++
+		}
+	}
+	return n
+}
+
 // harness is a full HTTP stack wired against the shared test Postgres, a fresh
 // fake IdP, a recording mailer, and a mock LLM client (mutable by chat tests).
 type harness struct {
@@ -164,6 +217,7 @@ type harness struct {
 	idp    *fakeIDP
 	issuer *authpkg.Issuer
 	mock   *llm.MockClient
+	objs   *fakeObjStore
 }
 
 type harnessConfig struct {
@@ -203,14 +257,19 @@ func newHarness(t *testing.T, opts ...harnessOpt) *harness {
 		ratelimit.NewDB(testStore), 720*time.Hour, testLogger)
 
 	mock := llm.NewMockClient()
-	chatService := chatuc.NewService(testStore, mock, cfg.limiter, "test-pepper", llm.DefaultModel, testLogger)
+	objs := newFakeObjStore()
+	uploadService := uploaduc.NewService(testStore, objs)
+	chatService := chatuc.NewService(
+		testStore, mock, cfg.limiter, objs, imageconv.New(),
+		"test-pepper", llm.DefaultModel, testLogger,
+	)
 
 	root := chi.NewRouter()
 	root.Use(chimw.RequestID)
 	root.Use(chimw.RealIP)
 	root.Use(chimw.Recoverer)
 	root.Mount("/v1", httptransport.NewRouter(httptransport.Deps{
-		Handler:     handler.New(authService, chatService),
+		Handler:     handler.New(authService, chatService, uploadService),
 		TokenParser: issuer,
 		DocsEnabled: true,
 	}))
@@ -218,7 +277,7 @@ func newHarness(t *testing.T, opts ...harnessOpt) *harness {
 	srv := httptest.NewServer(root)
 	t.Cleanup(srv.Close)
 
-	return &harness{srv: srv, mailer: rec, idp: idp, issuer: issuer, mock: mock}
+	return &harness{srv: srv, mailer: rec, idp: idp, issuer: issuer, mock: mock, objs: objs}
 }
 
 func newTestIssuer(t *testing.T) *authpkg.Issuer {

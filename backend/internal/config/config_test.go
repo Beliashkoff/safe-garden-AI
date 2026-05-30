@@ -21,6 +21,8 @@ var allConfigEnvKeys = []string{
 	"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD",
 	"SMTP_FROM", "SMTP_FROM_NAME", "SMTP_TLS", "DOCS_ENABLED",
 	"REDIS_ADDR", "REDIS_PASSWORD", "UID_HASH_PEPPER",
+	"S3_ENDPOINT", "S3_REGION", "S3_ACCESS_KEY", "S3_SECRET_KEY",
+	"S3_BUCKET", "S3_USE_PATH_STYLE",
 }
 
 // setProdSecrets sets the non-OIDC/JWT vars required by validateProd (SMTP,
@@ -33,6 +35,10 @@ func setProdSecrets(t *testing.T) {
 	t.Setenv("SMTP_FROM", "noreply@example.com")
 	t.Setenv("REDIS_ADDR", "localhost:6379")
 	t.Setenv("UID_HASH_PEPPER", "pepper-123")
+	t.Setenv("S3_ENDPOINT", "http://minio:9000")
+	t.Setenv("S3_ACCESS_KEY", "key")
+	t.Setenv("S3_SECRET_KEY", "secret")
+	t.Setenv("S3_BUCKET", "media")
 }
 
 // isolateEnv unsets every config-related variable and restores the prior value
@@ -178,6 +184,27 @@ func TestLoad_Prod_RequiresRedisAndPepper(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "REDIS_ADDR")
 	assert.Contains(t, err.Error(), "UID_HASH_PEPPER")
+}
+
+func TestLoad_Prod_RequiresS3(t *testing.T) {
+	isolateEnv(t)
+	t.Setenv("ENV", "prod")
+	t.Setenv("POSTGRES_DSN", "postgres://x")
+	t.Setenv("APPLE_BUNDLE_ID", "com.example.app")
+	t.Setenv("GOOGLE_CLIENT_ID_IOS", "ios.apps.googleusercontent.com")
+	t.Setenv("JWT_PRIVATE_KEY_PATH", "/secrets/jwt.pem")
+	t.Setenv("JWT_KID", "dev1")
+	t.Setenv("SMTP_USERNAME", "noreply@example.com")
+	t.Setenv("SMTP_PASSWORD", "pw")
+	t.Setenv("SMTP_FROM", "noreply@example.com")
+	t.Setenv("REDIS_ADDR", "localhost:6379")
+	t.Setenv("UID_HASH_PEPPER", "pepper-123")
+	// S3_* intentionally unset.
+
+	_, err := Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "S3_ENDPOINT")
+	assert.Contains(t, err.Error(), "S3_BUCKET")
 }
 
 func TestLoad_Defaults_SMTPTargetsMailHog(t *testing.T) {

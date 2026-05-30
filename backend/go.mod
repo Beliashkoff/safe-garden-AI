@@ -3,15 +3,22 @@ module github.com/Beliashkoff/safe-garden-AI/backend
 go 1.25.7
 
 require (
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/anthropics/anthropic-sdk-go v1.45.0
+	github.com/aws/aws-sdk-go-v2 v1.41.9
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.19
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.102.2
 	github.com/coreos/go-oidc/v3 v3.14.1
+	github.com/gen2brain/heic v0.4.9
 	github.com/getsentry/sentry-go v0.32.0
 	github.com/go-chi/chi/v5 v5.2.5
+	github.com/go-redis/redis_rate/v10 v10.0.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pressly/goose/v3 v3.27.1
+	github.com/redis/go-redis/v9 v9.20.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.42.0
@@ -22,7 +29,15 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/alicebob/miniredis/v2 v2.38.0 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.11 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.25 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.25 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.26 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.10 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.18 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.25 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.25 // indirect
+	github.com/aws/smithy-go v1.26.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -42,7 +57,6 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
-	github.com/go-redis/redis_rate/v10 v10.0.1 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -65,11 +79,11 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/redis/go-redis/v9 v9.20.0 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.3 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
+	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect

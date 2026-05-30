@@ -42,6 +42,9 @@ func NewRouter(d Deps) chi.Router {
 		r.Delete("/messages/{id}", d.Handler.DeleteMessage)
 		r.Get("/conversation", d.Handler.GetConversation)
 		r.Get("/conversation/messages", d.Handler.ListMessages)
+
+		// Uploads (stage 3.1) — presigned photo upload.
+		r.Post("/uploads/presign", d.Handler.PostPresign)
 	})
 
 	if d.DocsEnabled {

@@ -103,11 +103,12 @@ func TestChat_PostMessage_HappyPath(t *testing.T) {
 	assert.Equal(t, 1, usageCount)
 }
 
-func TestChat_PostMessage_RejectsNonText(t *testing.T) {
+func TestChat_PostMessage_RejectsAudioRef(t *testing.T) {
 	h := newHarness(t)
-	res := h.signInEmail(t, "img@example.com")
+	res := h.signInEmail(t, "audio@example.com")
 
-	body := map[string]any{"content": []map[string]string{{"type": "image_ref", "storage_key": "u/x/img.jpg"}}}
+	// audio_ref is Stage 4 → still unsupported.
+	body := map[string]any{"content": []map[string]string{{"type": "audio_ref", "storage_key": "u/x/a.m4a"}}}
 	resp, data := h.do(t, http.MethodPost, "/v1/messages", body, bearer(res.AccessToken))
 	require.Equal(t, http.StatusUnsupportedMediaType, resp.StatusCode)
 	assert.Contains(t, string(data), "unsupported_media_type")

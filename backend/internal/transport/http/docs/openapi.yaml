@@ -19,6 +19,8 @@ tags:
     description: Current user profile
   - name: chat
     description: Single-conversation chat with streamed replies
+  - name: uploads
+    description: Presigned media uploads
 
 paths:
   /auth/apple:
@@ -174,11 +176,14 @@ paths:
       summary: Send a message (streamed reply)
       description: >
         Saves the user message, then streams the assistant reply as
-        Server-Sent Events. Stage 2.3 accepts text content only. Event stream:
+        Server-Sent Events. Stage 3.1 accepts `text` and `image_ref` blocks
+        (≤4 images/message; the backend loads the photo from object storage,
+        converts HEIC→JPEG, and sends it to the model). Event stream:
         `message_started {message_id}` → `delta {text}`* →
         (`tool_use`/`fertilizer_card`)? → `done {message_id, tokens_used:{in,out}}`;
         on failure an `error {code, message}` event is sent. Pre-stream errors
-        (validation, rate limit) are returned as a normal JSON Error instead.
+        (validation, rate limit, unknown/foreign image) are returned as a normal
+        JSON Error instead.
       security:
         - bearerAuth: []
       requestBody:
@@ -256,6 +261,32 @@ paths:
               schema: { $ref: "#/components/schemas/MessagesPage" }
         "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /uploads/presign:
+    post:
+      tags: [uploads]
+      summary: Get a presigned PUT URL for a photo upload
+      description: >
+        Validates content type (jpeg/png/webp/heic) and size (≤10 MB), then
+        returns a presigned PUT URL (TTL 5 min). The client PUTs the file
+        directly to object storage with the returned Content-Type header, then
+        references `key` as an `image_ref` block in POST /messages.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PresignRequest" }
+      responses:
+        "200":
+          description: Presigned upload
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PresignResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413": { $ref: "#/components/responses/ValidationError" }
+        "415": { $ref: "#/components/responses/ValidationError" }
 
 components:
   securitySchemes:
@@ -394,9 +425,9 @@ components:
         type:
           type: string
           enum: [text, image_ref, audio_ref]
-          description: Stage 2.3 accepts only `text`; image_ref/audio_ref → 415.
-        text: { type: string }
-        storage_key: { type: string }
+          description: "Stage 3.1: `text` + `image_ref` (≤4 images); `audio_ref` → 415 (Stage 4)."
+        text: { type: string, description: "for type=text" }
+        storage_key: { type: string, description: "for type=image_ref; key from POST /uploads/presign" }
 
     Message:
       type: object
@@ -411,8 +442,9 @@ components:
           items:
             type: object
             properties:
-              type: { type: string }
+              type: { type: string, enum: [text, image] }
               text: { type: string }
+              storage_key: { type: string, description: "for type=image" }
 
     ConversationResponse:
       type: object
@@ -432,3 +464,22 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Message" }
         next_cursor: { type: string }
+
+    PresignRequest:
+      type: object
+      required: [content_type, size_bytes]
+      properties:
+        content_type: { type: string, enum: [image/jpeg, image/png, image/webp, image/heic] }
+        size_bytes: { type: integer, format: int64, description: "1..10485760 (10 MB)" }
+
+    PresignResponse:
+      type: object
+      required: [url, key, headers, expires_at]
+      properties:
+        url: { type: string, description: presigned PUT URL }
+        key: { type: string, description: owner-scoped storage key for the image_ref block }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+          description: headers the client must send on the PUT (e.g. Content-Type)
+        expires_at: { type: string, format: date-time }

@@ -9,28 +9,63 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage/db"
 )
 
 func TestValidateInput(t *testing.T) {
-	_, err := validateInput(SendInput{})
+	uid := uuid.New()
+	pfx := "u/" + uid.String() + "/"
+
+	_, err := validateInput(uid, SendInput{})
 	assert.ErrorIs(t, err, ErrEmptyContent)
 
-	_, err = validateInput(SendInput{Blocks: []InputBlock{{Type: "text", Text: "   "}}})
+	_, err = validateInput(uid, SendInput{Blocks: []InputBlock{{Type: "text", Text: "   "}}})
 	assert.ErrorIs(t, err, ErrEmptyContent)
 
-	_, err = validateInput(SendInput{Blocks: []InputBlock{{Type: "image_ref", Text: ""}}})
+	// image_ref without a key, or with a foreign-owner prefix → not found.
+	_, err = validateInput(uid, SendInput{Blocks: []InputBlock{{Type: "image_ref"}}})
+	assert.ErrorIs(t, err, ErrUploadNotFound)
+	_, err = validateInput(uid, SendInput{Blocks: []InputBlock{
+		{Type: "image_ref", StorageKey: "u/" + uuid.New().String() + "/img/x.jpg"},
+	}})
+	assert.ErrorIs(t, err, ErrUploadNotFound)
+
+	// audio_ref is Stage 4 → unsupported.
+	_, err = validateInput(uid, SendInput{Blocks: []InputBlock{{Type: "audio_ref", StorageKey: pfx + "a/x.m4a"}}})
 	assert.ErrorIs(t, err, ErrUnsupportedBlock)
 
-	text, err := validateInput(SendInput{Blocks: []InputBlock{{Type: "text", Text: "hello"}, {Type: "text", Text: " world"}}})
+	// text + image → accepted and ordered.
+	blocks, err := validateInput(uid, SendInput{Blocks: []InputBlock{
+		{Type: "text", Text: "hello"},
+		{Type: "image_ref", StorageKey: pfx + "img/a.jpg"},
+	}})
 	require.NoError(t, err)
-	assert.Equal(t, "hello world", text)
+	require.Len(t, blocks, 2)
+	assert.Equal(t, "text", blocks[0].kind)
+	assert.Equal(t, "hello", blocks[0].text)
+	assert.Equal(t, "image", blocks[1].kind)
+	assert.Equal(t, pfx+"img/a.jpg", blocks[1].storageKey)
 
+	// Image-only message is allowed.
+	blocks, err = validateInput(uid, SendInput{Blocks: []InputBlock{{Type: "image_ref", StorageKey: pfx + "img/a.jpg"}}})
+	require.NoError(t, err)
+	require.Len(t, blocks, 1)
+
+	// Too many images.
+	imgs := make([]InputBlock, maxImagesPerMessage+1)
+	for i := range imgs {
+		imgs[i] = InputBlock{Type: "image_ref", StorageKey: pfx + "img/" + string(rune('a'+i)) + ".jpg"}
+	}
+	_, err = validateInput(uid, SendInput{Blocks: imgs})
+	assert.ErrorIs(t, err, ErrUnsupportedBlock)
+
+	// Text over the cap.
 	big := make([]byte, maxTextBytes+1)
 	for i := range big {
 		big[i] = 'a'
 	}
-	_, err = validateInput(SendInput{Blocks: []InputBlock{{Type: "text", Text: string(big)}}})
+	_, err = validateInput(uid, SendInput{Blocks: []InputBlock{{Type: "text", Text: string(big)}}})
 	assert.ErrorIs(t, err, ErrTextTooLarge)
 }
 
@@ -68,24 +103,63 @@ func textBlock(msgID uuid.UUID, text string) db.MessageBlock {
 	return db.MessageBlock{MessageID: msgID, Type: "text", ContentText: pgtype.Text{String: text, Valid: text != ""}}
 }
 
-func TestBuildLLMMessages_FiltersAndMaps(t *testing.T) {
+func imageBlock(msgID uuid.UUID, key string) db.MessageBlock {
+	return db.MessageBlock{MessageID: msgID, Type: "image", StorageKey: pgtype.Text{String: key, Valid: true}}
+}
+
+func TestAssembleMessages_FiltersAndMaps(t *testing.T) {
 	u1, a1, aPending, empty := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	msgs := []db.Message{
 		msg(u1, "user", "complete", time.Now()),
 		msg(a1, "assistant", "complete", time.Now()),
 		msg(aPending, "assistant", "pending", time.Now()), // skipped: not complete
-		msg(empty, "user", "complete", time.Now()),        // skipped: no text block
+		msg(empty, "user", "complete", time.Now()),        // skipped: no usable block
 	}
 	blocks := map[uuid.UUID][]db.MessageBlock{
 		u1: {textBlock(u1, "hi")},
 		a1: {textBlock(a1, "hello")},
 	}
-	out := buildLLMMessages(msgs, blocks)
+	out := assembleMessages(msgs, blocks, nil)
 	require.Len(t, out, 2)
 	assert.Equal(t, "user", out[0].Role)
 	assert.Equal(t, "hi", out[0].Content[0].Text)
 	assert.Equal(t, "assistant", out[1].Role)
 	assert.Equal(t, "hello", out[1].Content[0].Text)
+}
+
+func TestAssembleMessages_ImagesHydratedOrPlaceholder(t *testing.T) {
+	u := uuid.New()
+	msgs := []db.Message{msg(u, "user", "complete", time.Now())}
+	blocks := map[uuid.UUID][]db.MessageBlock{
+		u: {textBlock(u, "look"), imageBlock(u, "u/x/img/a.jpg"), imageBlock(u, "u/x/img/b.jpg")},
+	}
+	hydrated := map[string]llm.MessageBlock{
+		"u/x/img/a.jpg": {Type: "image", MediaB64: "QQ==", MediaType: "image/jpeg"},
+	}
+	out := assembleMessages(msgs, blocks, hydrated)
+	require.Len(t, out, 1)
+	require.Len(t, out[0].Content, 3)
+	assert.Equal(t, "text", out[0].Content[0].Type)
+	assert.Equal(t, "image", out[0].Content[1].Type) // hydrated → base64 image
+	assert.Equal(t, "image/jpeg", out[0].Content[1].MediaType)
+	assert.Equal(t, "text", out[0].Content[2].Type) // beyond cap → placeholder
+	assert.Equal(t, imagePlaceholder, out[0].Content[2].Text)
+}
+
+func TestSelectRecentImages_NewestFirstCapped(t *testing.T) {
+	now := time.Now()
+	m1, m2, m3 := uuid.New(), uuid.New(), uuid.New()
+	msgs := []db.Message{ // chronological
+		msg(m1, "user", "complete", now.Add(1*time.Second)),
+		msg(m2, "user", "complete", now.Add(2*time.Second)),
+		msg(m3, "user", "complete", now.Add(3*time.Second)),
+	}
+	blocks := map[uuid.UUID][]db.MessageBlock{
+		m1: {imageBlock(m1, "k1")},
+		m2: {imageBlock(m2, "k2")},
+		m3: {imageBlock(m3, "k3")},
+	}
+	assert.Equal(t, []string{"k3", "k2"}, selectRecentImages(msgs, blocks, 2))
 }
 
 func TestPaginate(t *testing.T) {

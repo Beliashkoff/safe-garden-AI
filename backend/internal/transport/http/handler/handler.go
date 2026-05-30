@@ -14,20 +14,22 @@ import (
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/httperr"
 	authuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/auth"
 	chatuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/chat"
+	uploaduc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/upload"
 )
 
 // maxAuthBodyBytes caps auth request bodies (ARCH §8.2 text body ≤ 32 KB).
 const maxAuthBodyBytes = 32 * 1024
 
-// Handler serves the auth + account + chat endpoints.
+// Handler serves the auth + account + chat + uploads endpoints.
 type Handler struct {
-	svc  *authuc.Service
-	chat *chatuc.Service
+	svc    *authuc.Service
+	chat   *chatuc.Service
+	upload *uploaduc.Service
 }
 
 // New constructs the handler set.
-func New(svc *authuc.Service, chat *chatuc.Service) *Handler {
-	return &Handler{svc: svc, chat: chat}
+func New(svc *authuc.Service, chat *chatuc.Service, upload *uploaduc.Service) *Handler {
+	return &Handler{svc: svc, chat: chat, upload: upload}
 }
 
 // decodeJSON reads a size-limited JSON body, rejecting unknown fields. It
@@ -76,10 +78,19 @@ func mapErr(err error) error {
 		return httperr.Unauthorized("invalid refresh token")
 	case errors.Is(err, authuc.ErrUserNotFound):
 		return httperr.NotFound("account not found")
+	default:
+		return mapResourceErr(err)
+	}
+}
+
+// mapResourceErr maps chat + upload sentinels. Split from mapErr to keep each
+// function's cyclomatic complexity within the linter budget.
+func mapResourceErr(err error) error {
+	switch {
 	case errors.Is(err, chatuc.ErrEmptyContent):
 		return httperr.ValidationFailed("message content is empty")
 	case errors.Is(err, chatuc.ErrUnsupportedBlock):
-		return httperr.UnsupportedMedia("only text content is supported")
+		return httperr.UnsupportedMedia("only text and images are supported")
 	case errors.Is(err, chatuc.ErrTextTooLarge):
 		return httperr.PayloadTooLarge("message text is too large")
 	case errors.Is(err, chatuc.ErrBadCursor):
@@ -88,6 +99,14 @@ func mapErr(err error) error {
 		return httperr.RateLimited("too many messages, slow down")
 	case errors.Is(err, chatuc.ErrMessageNotFound):
 		return httperr.NotFound("message not found")
+	case errors.Is(err, chatuc.ErrUploadNotFound):
+		return httperr.NotFound("referenced upload not found")
+	case errors.Is(err, uploaduc.ErrUnsupportedType):
+		return httperr.UnsupportedMedia("unsupported content type")
+	case errors.Is(err, uploaduc.ErrTooLarge):
+		return httperr.PayloadTooLarge("file is too large")
+	case errors.Is(err, uploaduc.ErrInvalidSize):
+		return httperr.ValidationFailed("invalid size")
 	default:
 		return err
 	}

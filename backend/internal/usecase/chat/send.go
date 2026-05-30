@@ -3,10 +3,12 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm/prompts"
@@ -19,7 +21,7 @@ import (
 // failures are emitted via sink and the assistant message is finalized
 // (complete / failed / cancelled).
 func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInput, sink Sink) error {
-	userText, err := validateInput(in)
+	blocks, err := validateInput(userID, in)
 	if err != nil {
 		return err
 	}
@@ -32,23 +34,16 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 		return ErrRateLimited
 	}
 
+	if err := s.verifyImageRefs(ctx, userID, blocks); err != nil {
+		return err
+	}
+
 	conv, err := s.store.GetOrCreateConversation(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("chat: conversation: %w", err)
 	}
 
-	if err := s.store.ExecTx(ctx, func(q *db.Queries) error {
-		m, err := q.CreateMessage(ctx, db.CreateMessageParams{
-			ConversationID: conv.ID, UserID: userID, Role: "user", Status: "complete",
-		})
-		if err != nil {
-			return err
-		}
-		_, err = q.CreateMessageBlock(ctx, db.CreateMessageBlockParams{
-			MessageID: m.ID, OrderIndex: 0, Type: "text", ContentText: textVal(userText),
-		})
-		return err
-	}); err != nil {
+	if err := s.saveUserMessage(ctx, conv.ID, userID, blocks); err != nil {
 		return fmt.Errorf("chat: save user message: %w", err)
 	}
 
@@ -217,4 +212,71 @@ func orDefault(s, def string) string {
 		return def
 	}
 	return s
+}
+
+// verifyImageRefs confirms each image_ref points at an upload owned by the
+// caller with an image content type (pre-stream ownership check, ARCH §8.2).
+func (s *Service) verifyImageRefs(ctx context.Context, userID uuid.UUID, blocks []validatedBlock) error {
+	for _, b := range blocks {
+		if b.kind != "image" {
+			continue
+		}
+		up, err := s.store.GetUploadByStorageKey(ctx, b.storageKey)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrUploadNotFound
+			}
+			return fmt.Errorf("chat: lookup upload: %w", err)
+		}
+		if up.UserID != userID {
+			return ErrUploadNotFound
+		}
+		if _, ok := imageContentTypes[up.ContentType]; !ok {
+			return ErrUnsupportedBlock
+		}
+	}
+	return nil
+}
+
+// saveUserMessage persists the user message and its blocks (text + image),
+// marking referenced uploads used, in one transaction.
+func (s *Service) saveUserMessage(ctx context.Context, convID, userID uuid.UUID, blocks []validatedBlock) error {
+	return s.store.ExecTx(ctx, func(q *db.Queries) error {
+		m, err := q.CreateMessage(ctx, db.CreateMessageParams{
+			ConversationID: convID, UserID: userID, Role: "user", Status: "complete",
+		})
+		if err != nil {
+			return err
+		}
+		var order int32
+		for _, b := range blocks {
+			if err := saveBlock(ctx, q, m.ID, order, b); err != nil {
+				return err
+			}
+			order++
+		}
+		return nil
+	})
+}
+
+// saveBlock persists one content block; empty text blocks are skipped.
+func saveBlock(ctx context.Context, q *db.Queries, msgID uuid.UUID, order int32, b validatedBlock) error {
+	switch b.kind {
+	case "text":
+		if strings.TrimSpace(b.text) == "" {
+			return nil
+		}
+		_, err := q.CreateMessageBlock(ctx, db.CreateMessageBlockParams{
+			MessageID: msgID, OrderIndex: order, Type: "text", ContentText: textVal(b.text),
+		})
+		return err
+	case "image":
+		if _, err := q.CreateMessageBlock(ctx, db.CreateMessageBlockParams{
+			MessageID: msgID, OrderIndex: order, Type: "image", StorageKey: textVal(b.storageKey),
+		}); err != nil {
+			return err
+		}
+		return q.MarkUploadUsed(ctx, b.storageKey)
+	}
+	return nil
 }

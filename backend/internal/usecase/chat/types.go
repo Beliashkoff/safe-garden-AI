@@ -5,11 +5,12 @@ package chat
 
 import "time"
 
-// InputBlock is one content block from the client. Stage 2.3 accepts only text;
-// image_ref/audio_ref are rejected (Stage 3).
+// InputBlock is one content block from the client. Stage 3.1 accepts "text" and
+// "image_ref" (with StorageKey); "audio_ref" and others are rejected (Stage 4+).
 type InputBlock struct {
-	Type string
-	Text string
+	Type       string
+	Text       string
+	StorageKey string
 }
 
 // SendInput is the decoded POST /v1/messages body plus request context.
@@ -18,10 +19,12 @@ type SendInput struct {
 	RequestID string
 }
 
-// BlockView is a stored content block projected for reads (no pgtype).
+// BlockView is a stored content block projected for reads (no pgtype). For
+// image blocks Text is empty and StorageKey points at the object.
 type BlockView struct {
-	Type string
-	Text string
+	Type       string
+	Text       string
+	StorageKey string
 }
 
 // MessageView is a stored message projected for reads.
