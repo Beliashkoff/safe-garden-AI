@@ -160,20 +160,20 @@ _Schema-only этап: HTTP/usecase чата — 2.3, llm-worker — 2.2. Тес
 
 _Реальный Claude — через worker (Этап 2.2); локально/в тестах `LLM_CLIENT_KIND=mock`. OpenAPI обновлён (4 эндпоинта). Тесты: юнит (курсор/история/uidHash/валидация) + integration хендлеров (testcontainers + MockClient: happy/cancel/429/pagination/delete/415) под `make test-integration`._
 
-### 2.4 Mobile: чат-UI
-- [ ] Экран чата: список сообщений, инпут, кнопка «Отправить».
-- [ ] Виджет `MessageBubble` (user / assistant), маркдаун-рендер для assistant (`flutter_markdown`).
-- [ ] Загрузка истории при открытии (с индикатором).
-- [ ] Локальный кэш в `drift` (offline-показ).
+### 2.4 Mobile: чат-UI ✅
+- [x] Экран чата: список сообщений (`ListView reverse:true`), инпут, кнопка «Отправить»/«Стоп» (`chat_screen.dart`).
+- [x] Виджет `MessageBubble` (user — `SelectableText`, assistant — маркдаун). Рендер через `flutter_markdown_plus` (оригинальный `flutter_markdown` discontinued — поддерживаемый форк с тем же `MarkdownBody`).
+- [x] Загрузка истории при открытии (cache-first из `drift` → рефреш с сервера; спиннер при пустом кэше).
+- [x] Локальный кэш в `drift` (`chat_database.dart`: таблицы Messages/MessageBlocks, offline-показ; на logout кэш очищается — ownership).
 
-### 2.5 Mobile: SSE-клиент
-- [ ] Парсер SSE поверх `dio` `ResponseType.stream`.
-- [ ] `chat_notifier`: добавляет user-message локально → стримит дельты в pending assistant-message → завершает по `done`.
-- [ ] Отмена через жест (или кнопку «Стоп») → отправляется DELETE на `/messages/:id` или просто закрытие соединения.
+### 2.5 Mobile: SSE-клиент ✅
+- [x] Парсер SSE поверх `dio` `ResponseType.stream` (`ApiClient.openEventStream` + чистый `parseSse`; 401→refresh→retry inline, разбор error-конверта для не-200).
+- [x] `ChatController` (riverpod `AsyncNotifier`): добавляет user-message локально → стримит дельты в pending assistant → завершает по `done`; финал complete/cancelled/failed, reconcile с сервером после хода.
+- [x] Отмена кнопкой «Стоп» → `CancelToken.cancel()` (закрытие соединения; бэкенд сам финализирует `cancelled` + частичный текст). DELETE оставлен для явного удаления сообщения (long-press).
 
 ### 2.6 Тесты
-- [ ] Backend: интеграционные (мок Claude через интерфейс), включая отмену.
-- [ ] Mobile: golden-тесты пузырей сообщений, integration_test «отправить → получить».
+- [x] Backend: интеграционные (мок Claude через `llm.MockClient`), включая отмену — сделано в §2.3 (`chat_endpoints_test.go`, testcontainers).
+- [x] Mobile: тесты пузырей (`message_bubble_test.dart`) + «отправить → стрим → получить» на widget-уровне (`chat_screen_test.dart`); юнит `sse_parser`/`chat_models`/`openEventStream`/`ChatController`. _Device integration_test отложен — Android SDK не установлен (как on-device E2E в §1.4–1.6)._
 
 ### DoD Этапа 2
 - Пользователь отправляет текст, видит стримящийся ответ.

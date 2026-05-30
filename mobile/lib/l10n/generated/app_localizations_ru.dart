@@ -90,6 +90,39 @@ class AppLocalizationsRu extends AppLocalizations {
   String get chatDeleteAccount => 'Удалить аккаунт';
 
   @override
+  String get chatSend => 'Отправить';
+
+  @override
+  String get chatStop => 'Стоп';
+
+  @override
+  String get chatRetry => 'Повторить';
+
+  @override
+  String get chatCancelledNote => 'Ответ остановлен';
+
+  @override
+  String get chatDeleteMessageConfirm => 'Удалить это сообщение?';
+
+  @override
+  String get chatErrorNetwork => 'Нет соединения. Проверьте интернет.';
+
+  @override
+  String get chatErrorRateLimited =>
+      'Слишком много сообщений. Подождите немного.';
+
+  @override
+  String get chatErrorUnsupported =>
+      'Этот тип содержимого пока не поддерживается.';
+
+  @override
+  String get chatErrorTooLarge => 'Сообщение слишком длинное.';
+
+  @override
+  String get chatErrorGeneric =>
+      'Не удалось получить ответ. Попробуйте ещё раз.';
+
+  @override
   String get deleteAccountConfirmTitle => 'Удалить аккаунт?';
 
   @override

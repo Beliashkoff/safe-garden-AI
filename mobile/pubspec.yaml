@@ -23,6 +23,14 @@ dependencies:
   sign_in_with_apple: ^6.0.0
   google_sign_in: ^7.0.0
   crypto: ^3.0.0
+  flutter_markdown_plus: ^1.0.7
+  # drift codegen (drift_dev) shares source_gen with freezed; the project is on
+  # freezed 2.5 (source_gen ^2), so drift is pinned to the last line that uses
+  # source_gen ^2 (drift_dev >=2.28.2 moved to source_gen ^3). drift_flutter is
+  # omitted on purpose — we open the database with NativeDatabase directly.
+  drift: ">=2.24.0 <2.28.2"
+  sqlite3_flutter_libs: ^0.5.0
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
@@ -31,6 +39,7 @@ dev_dependencies:
   build_runner: ^2.4.13
   freezed: ^2.5.7
   json_serializable: ^6.8.0
+  drift_dev: ">=2.24.0 <2.28.2"
   mocktail: ^1.0.4
 
 flutter:

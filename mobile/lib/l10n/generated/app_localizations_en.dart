@@ -91,6 +91,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatDeleteAccount => 'Delete account';
 
   @override
+  String get chatSend => 'Send';
+
+  @override
+  String get chatStop => 'Stop';
+
+  @override
+  String get chatRetry => 'Retry';
+
+  @override
+  String get chatCancelledNote => 'Response stopped';
+
+  @override
+  String get chatDeleteMessageConfirm => 'Delete this message?';
+
+  @override
+  String get chatErrorNetwork => 'No connection. Check your internet.';
+
+  @override
+  String get chatErrorRateLimited => 'Too many messages. Please wait a moment.';
+
+  @override
+  String get chatErrorUnsupported => 'This content type is not supported yet.';
+
+  @override
+  String get chatErrorTooLarge => 'The message is too long.';
+
+  @override
+  String get chatErrorGeneric => 'Couldn\'t get a response. Please try again.';
+
+  @override
   String get deleteAccountConfirmTitle => 'Delete account?';
 
   @override

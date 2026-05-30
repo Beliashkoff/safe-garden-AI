@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
 import '../storage/secure_token_store.dart';
+import 'api_exception.dart';
 
 /// The single HTTP entry point for the app. Wraps a [Dio] configured with:
 ///  - a base URL,
@@ -121,6 +124,88 @@ class ApiClient {
       await _store.clear();
       return false;
     }
+  }
+
+  /// Opens a server-sent-events POST to [path] with JSON [body] and returns the
+  /// raw byte stream of the 200 response; the caller frames the SSE events.
+  ///
+  /// A streaming request uses a permissive validateStatus so Dio never throws —
+  /// which also means the [_onError] refresh-on-401 interceptor does not run for
+  /// it. A 401 at open time is therefore handled here: refresh once and retry.
+  /// Any non-200 response has its body drained and decoded into an
+  /// [ApiException] (the same §4.7 envelope [mapDioException] parses).
+  Future<Stream<List<int>>> openEventStream({
+    required String path,
+    required Object body,
+    CancelToken? cancelToken,
+  }) async {
+    Future<Response<ResponseBody>> open() => _dio.post<ResponseBody>(
+      path,
+      data: body,
+      cancelToken: cancelToken,
+      options: Options(
+        responseType: ResponseType.stream,
+        headers: {'Accept': 'text/event-stream'},
+        validateStatus: (_) => true,
+      ),
+    );
+
+    var response = await open();
+    if (response.statusCode == 401) {
+      final refreshed = await _ensureRefreshed();
+      if (!refreshed) {
+        onSessionExpired?.call();
+        throw const ApiException(
+          code: 'unauthorized',
+          message: 'session expired',
+          statusCode: 401,
+        );
+      }
+      response = await open();
+    }
+
+    final status = response.statusCode ?? 0;
+    if (status != 200) {
+      if (status == 401) {
+        onSessionExpired?.call();
+      }
+      throw await _apiExceptionFromBody(response);
+    }
+    return response.data!.stream;
+  }
+
+  /// Drains a non-200 streamed response and decodes the §4.7 error envelope,
+  /// falling back to a generic error if the body is missing or malformed.
+  Future<ApiException> _apiExceptionFromBody(
+    Response<ResponseBody> response,
+  ) async {
+    final status = response.statusCode;
+    try {
+      final chunks = <int>[];
+      await for (final chunk in response.data!.stream) {
+        chunks.addAll(chunk);
+      }
+      final decoded = jsonDecode(utf8.decode(chunks, allowMalformed: true));
+      if (decoded is Map) {
+        final error = decoded['error'];
+        if (error is Map) {
+          return ApiException(
+            code: (error['code'] as String?) ?? 'internal_error',
+            message: (error['message'] as String?) ?? 'Unexpected error',
+            details: (error['details'] as Map?)?.cast<String, dynamic>(),
+            requestId: decoded['request_id'] as String?,
+            statusCode: status,
+          );
+        }
+      }
+    } on Object {
+      // Malformed / empty body — fall through to the generic error.
+    }
+    return ApiException(
+      code: 'internal_error',
+      message: 'Unexpected error',
+      statusCode: status,
+    );
   }
 
   static bool _isAuthPath(String path) => path.contains('/auth/');

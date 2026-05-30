@@ -254,6 +254,66 @@ abstract class AppLocalizations {
   /// **'Удалить аккаунт'**
   String get chatDeleteAccount;
 
+  /// No description provided for @chatSend.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отправить'**
+  String get chatSend;
+
+  /// No description provided for @chatStop.
+  ///
+  /// In ru, this message translates to:
+  /// **'Стоп'**
+  String get chatStop;
+
+  /// No description provided for @chatRetry.
+  ///
+  /// In ru, this message translates to:
+  /// **'Повторить'**
+  String get chatRetry;
+
+  /// No description provided for @chatCancelledNote.
+  ///
+  /// In ru, this message translates to:
+  /// **'Ответ остановлен'**
+  String get chatCancelledNote;
+
+  /// No description provided for @chatDeleteMessageConfirm.
+  ///
+  /// In ru, this message translates to:
+  /// **'Удалить это сообщение?'**
+  String get chatDeleteMessageConfirm;
+
+  /// No description provided for @chatErrorNetwork.
+  ///
+  /// In ru, this message translates to:
+  /// **'Нет соединения. Проверьте интернет.'**
+  String get chatErrorNetwork;
+
+  /// No description provided for @chatErrorRateLimited.
+  ///
+  /// In ru, this message translates to:
+  /// **'Слишком много сообщений. Подождите немного.'**
+  String get chatErrorRateLimited;
+
+  /// No description provided for @chatErrorUnsupported.
+  ///
+  /// In ru, this message translates to:
+  /// **'Этот тип содержимого пока не поддерживается.'**
+  String get chatErrorUnsupported;
+
+  /// No description provided for @chatErrorTooLarge.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сообщение слишком длинное.'**
+  String get chatErrorTooLarge;
+
+  /// No description provided for @chatErrorGeneric.
+  ///
+  /// In ru, this message translates to:
+  /// **'Не удалось получить ответ. Попробуйте ещё раз.'**
+  String get chatErrorGeneric;
+
   /// No description provided for @deleteAccountConfirmTitle.
   ///
   /// In ru, this message translates to:
