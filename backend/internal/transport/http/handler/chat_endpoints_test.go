@@ -15,6 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/audio"
 )
 
 type sseEvent struct{ event, data string }
@@ -103,15 +105,81 @@ func TestChat_PostMessage_HappyPath(t *testing.T) {
 	assert.Equal(t, 1, usageCount)
 }
 
-func TestChat_PostMessage_RejectsAudioRef(t *testing.T) {
+func TestChat_PostMessage_WithVoice(t *testing.T) {
 	h := newHarness(t)
-	res := h.signInEmail(t, "audio@example.com")
+	res := h.signInEmail(t, "voice@example.com")
+	h.stt.Text = "у меня вянут помидоры"
 
-	// audio_ref is Stage 4 → still unsupported.
-	body := map[string]any{"content": []map[string]string{{"type": "audio_ref", "storage_key": "u/x/a.m4a"}}}
+	// presign audio, then seed the fake store (the client would PUT directly).
+	up := h.presign(t, res.AccessToken, "audio/m4a", 4096)
+	h.objs.put(up.Key, []byte("fake-m4a-bytes"), "audio/m4a")
+
+	body := map[string]any{"content": []map[string]string{{"type": "audio_ref", "storage_key": up.Key}}}
 	resp, data := h.do(t, http.MethodPost, "/v1/messages", body, bearer(res.AccessToken))
-	require.Equal(t, http.StatusUnsupportedMediaType, resp.StatusCode)
-	assert.Contains(t, string(data), "unsupported_media_type")
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "body: %s", data)
+
+	events := readSSE(t, strings.NewReader(string(data)))
+	types := eventTypes(events)
+	require.NotEmpty(t, types)
+	assert.Equal(t, "transcription", types[0], "transcription precedes the assistant reply")
+	assert.Contains(t, types, "message_started")
+	assert.Equal(t, "done", types[len(types)-1])
+
+	// the transcription event carries the recognized text, key, and duration.
+	assert.Contains(t, events[0].data, "у меня вянут помидоры")
+	assert.Contains(t, events[0].data, up.Key)
+	assert.Contains(t, events[0].data, "4200")
+
+	// DB: an audio block + a transcription block were stored for the user msg.
+	var blockCount int
+	require.NoError(t, adminDB.QueryRow(
+		`SELECT count(*) FROM message_blocks b
+		 JOIN messages m ON m.id=b.message_id
+		 WHERE m.user_id=$1::uuid AND m.role='user' AND b.type IN ('audio','transcription')`, res.User.ID,
+	).Scan(&blockCount))
+	assert.Equal(t, 2, blockCount)
+
+	var ttext string
+	var meta []byte
+	require.NoError(t, adminDB.QueryRow(
+		`SELECT b.content_text, b.metadata FROM message_blocks b
+		 JOIN messages m ON m.id=b.message_id
+		 WHERE m.user_id=$1::uuid AND b.type='transcription'`, res.User.ID,
+	).Scan(&ttext, &meta))
+	assert.Equal(t, "у меня вянут помидоры", ttext)
+	assert.Contains(t, string(meta), "duration_ms")
+
+	// the upload is marked used, and the audio was read for transcription.
+	var used bool
+	require.NoError(t, adminDB.QueryRow("SELECT used FROM uploads WHERE storage_key=$1", up.Key).Scan(&used))
+	assert.True(t, used)
+	assert.GreaterOrEqual(t, h.objs.getCount(up.Key), 1)
+}
+
+func TestChat_PostMessage_RejectsForeignAudio(t *testing.T) {
+	h := newHarness(t)
+	owner := h.signInEmail(t, "owner-audio@example.com")
+	up := h.presign(t, owner.AccessToken, "audio/m4a", 1024)
+
+	other := h.signInEmail(t, "other-audio@example.com")
+	body := map[string]any{"content": []map[string]string{{"type": "audio_ref", "storage_key": up.Key}}}
+	resp, data := h.do(t, http.MethodPost, "/v1/messages", body, bearer(other.AccessToken))
+	require.Equalf(t, http.StatusNotFound, resp.StatusCode, "body: %s", data)
+	assert.Contains(t, string(data), "not_found")
+}
+
+func TestChat_PostMessage_AudioTooLong(t *testing.T) {
+	h := newHarness(t)
+	res := h.signInEmail(t, "longaudio@example.com")
+	h.conv.err = audio.ErrTooLong
+
+	up := h.presign(t, res.AccessToken, "audio/m4a", 4096)
+	h.objs.put(up.Key, []byte("fake-m4a-bytes"), "audio/m4a")
+
+	body := map[string]any{"content": []map[string]string{{"type": "audio_ref", "storage_key": up.Key}}}
+	resp, data := h.do(t, http.MethodPost, "/v1/messages", body, bearer(res.AccessToken))
+	require.Equalf(t, http.StatusBadRequest, resp.StatusCode, "body: %s", data)
+	assert.Contains(t, string(data), "validation_failed")
 }
 
 type denyLimiter struct{}

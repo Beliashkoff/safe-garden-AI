@@ -13,15 +13,42 @@ import (
 
 const (
 	maxImageBytes = 10 * 1024 * 1024 // ARCH §8.2: image ≤ 10 MB
+	maxAudioBytes = 25 * 1024 * 1024 // ARCH §8.2: audio ≤ 25 MB
 	presignTTL    = 5 * time.Minute  // ARCH §5: presigned PUT TTL
 )
 
-// imageExt is the allowed image content-type whitelist (ARCH §8.2) → extension.
+// imageExt / audioExt are the accepted content-type whitelists (ARCH §8.2) →
+// stored extension. The content type also selects the key prefix and the size
+// cap (see resolveTarget), so the client does not send a separate "purpose".
 var imageExt = map[string]string{
 	"image/jpeg": "jpg",
 	"image/png":  "png",
 	"image/webp": "webp",
 	"image/heic": "heic",
+}
+
+var audioExt = map[string]string{
+	"audio/m4a":  "m4a",
+	"audio/aac":  "aac",
+	"audio/mp4":  "m4a",
+	"audio/mpeg": "mp3",
+}
+
+// uploadTarget is the resolved destination for a given content type.
+type uploadTarget struct {
+	prefix   string // key segment: "img" | "audio"
+	ext      string
+	maxBytes int64
+}
+
+func resolveTarget(contentType string) (uploadTarget, bool) {
+	if ext, ok := imageExt[contentType]; ok {
+		return uploadTarget{prefix: "img", ext: ext, maxBytes: maxImageBytes}, true
+	}
+	if ext, ok := audioExt[contentType]; ok {
+		return uploadTarget{prefix: "audio", ext: ext, maxBytes: maxAudioBytes}, true
+	}
+	return uploadTarget{}, false
 }
 
 // presigner issues presigned PUT/GET URLs (consumer-side interface; satisfied
@@ -57,22 +84,22 @@ func NewService(store uploadStore, objs presigner) *Service {
 }
 
 // Presign validates the request, records the pending upload (used=false), then
-// presigns a PUT URL. The storage key is owner-scoped (`u/{user_id}/img/...`),
-// which both enables prefix-based deletion on account removal and lets the chat
-// usecase verify ownership later.
+// presigns a PUT URL. The storage key is owner-scoped (`u/{user_id}/img/...` or
+// `.../audio/...`), which both enables prefix-based deletion on account removal
+// and lets the chat usecase verify ownership later.
 func (s *Service) Presign(ctx context.Context, userID uuid.UUID, in PresignInput) (PresignOutput, error) {
-	ext, ok := imageExt[in.ContentType]
+	target, ok := resolveTarget(in.ContentType)
 	if !ok {
 		return PresignOutput{}, ErrUnsupportedType
 	}
 	switch {
 	case in.SizeBytes <= 0:
 		return PresignOutput{}, ErrInvalidSize
-	case in.SizeBytes > maxImageBytes:
+	case in.SizeBytes > target.maxBytes:
 		return PresignOutput{}, ErrTooLarge
 	}
 
-	key := fmt.Sprintf("u/%s/img/%s.%s", userID.String(), s.newKey(), ext)
+	key := fmt.Sprintf("u/%s/%s/%s.%s", userID.String(), target.prefix, s.newKey(), target.ext)
 
 	// Record before presigning: a row with no object is harmless (GC removes it
 	// via ListUnusedUploadsBefore), but a URL with no row would be untrackable.

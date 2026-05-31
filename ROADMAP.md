@@ -240,12 +240,12 @@ _Дополнительно к mobile-скоупу: на бэкенд добав
 - [x] Резервный провайдер: GigaChat (Sber GigaAM-v3) — не реализуем сейчас, держим как запасной интерфейс (`internal/audio/gigachat.go`, заглушка за тем же `Transcriber`).
 
 ### 4.2 Backend
-- [ ] Расширение presign на `audio` (m4a/aac/mp3, ≤ 25 МБ, ≤ 60s — длительность валидируется после конвертации).
+- [x] Расширение presign на `audio` (m4a/aac/mp4/mpeg, ≤ 25 МБ; ≤ 60s валидируется после конвертации). Тип определяется по content-type (без отдельного `purpose`); ключ `u/{user_id}/audio/{uuid}`.
 - [x] `internal/audio/transcriber.go` — интерфейс `Transcriber.Transcribe(ctx, oggOpus, lang) (Result{Text, DurationMs}, error)`. Загрузка из Object Storage и конвертация — на стороне usecase (4.2), не транскрайбера.
 - [x] `internal/audio/speechkit.go` — реализация SpeechKit v3 через gRPC streaming (`Recognizer.RecognizeStreaming`). Метаданные `authorization: Api-Key <KEY>`. Покрыто тестами (in-process gRPC через bufconn).
 - [x] `internal/audio/converter.go` — обёртка над `ffmpeg`/`ffprobe` через `os/exec` (m4a/aac/mp3 → OggOpus 16kHz mono, валидация ≤ 60s).
-- [ ] При обработке `audio_ref` в `/messages`: загрузить аудио из Object Storage → конвертировать → транскрибировать → передать как text-блок в Claude (с пометкой `[голосовое сообщение]: ...`).
-- [ ] Сохранять транскрипцию как `message_blocks.type = 'transcription'` рядом с `audio` блоком — UI показывает плеер и текст.
+- [x] При обработке `audio_ref` в `/messages`: загрузить аудио из Object Storage → конвертировать → транскрибировать (до старта стрима, сбой → JSON-ошибка) → передать в Claude text-блоком с пометкой `[голосовое сообщение]: ...`.
+- [x] Сохранять транскрипцию как `message_blocks.type = 'transcription'` (+`duration_ms` в metadata) рядом с `audio` блоком. Текст транскрипции отдаётся клиенту новым SSE-событием `transcription` и в `GET /conversation` (для плеера + текста в UI).
 
 ### 4.3 Mobile
 - [ ] Кнопка-микрофон (long-press to record, как в Telegram, или tap-to-toggle).

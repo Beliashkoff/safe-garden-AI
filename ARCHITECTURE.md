@@ -278,6 +278,7 @@ POST /v1/messages
     ]
   }
   resp: text/event-stream (SSE), события:
+    event: transcription     data: { message_id, storage_key, text, duration_ms }   # перед ответом, если был audio_ref
     event: message_started   data: { message_id }
     event: delta             data: { text: "..." }
     event: tool_use          data: { tool: "recommend_fertilizer", args: {...} }
@@ -325,7 +326,7 @@ POST /v1/audio/transcribe
 }
 ```
 
-Коды: `unauthorized`, `forbidden`, `validation_failed`, `not_found`, `rate_limited`, `payload_too_large`, `unsupported_media_type`, `internal_error`.
+Коды: `unauthorized`, `forbidden`, `validation_failed`, `not_found`, `rate_limited`, `payload_too_large`, `unsupported_media_type`, `service_unavailable`, `internal_error`.
 
 ---
 

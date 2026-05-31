@@ -20,11 +20,14 @@ type SendInput struct {
 }
 
 // BlockView is a stored content block projected for reads (no pgtype). For
-// image blocks Text is empty and StorageKey points at the object.
+// image/audio blocks Text is empty and StorageKey points at the object; for
+// transcription blocks Text holds the transcript and DurationMs the audio
+// length (so the client can render the voice player).
 type BlockView struct {
 	Type       string
 	Text       string
 	StorageKey string
+	DurationMs int64
 }
 
 // MessageView is a stored message projected for reads.

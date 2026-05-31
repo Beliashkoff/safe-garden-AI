@@ -8,6 +8,10 @@ import "encoding/json"
 // Failed is best-effort and never propagates.
 type Sink interface {
 	MessageStarted(messageID string) error
+	// Transcription reports the server-side transcript of a user voice message,
+	// emitted before the assistant reply starts so the client can render the
+	// recognized text under the player.
+	Transcription(messageID, storageKey, text string, durationMs int64) error
 	Delta(text string) error
 	ToolUse(name string, args json.RawMessage) error
 	FertilizerCard(data json.RawMessage) error

@@ -37,6 +37,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/audio"
 	authpkg "github.com/Beliashkoff/safe-garden-AI/backend/internal/auth"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/imageconv"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
@@ -197,6 +198,25 @@ func (f *fakeObjStore) Get(_ context.Context, key string) ([]byte, string, error
 	return o.data, o.contentType, nil
 }
 
+func (f *fakeObjStore) GetLimited(ctx context.Context, key string, _ int64) ([]byte, string, error) {
+	return f.Get(ctx, key)
+}
+
+// fakeConverter stands in for the ffmpeg converter so integration tests need no
+// ffmpeg binary. It returns fixed OggOpus bytes + duration, or err when set.
+type fakeConverter struct {
+	ogg        []byte
+	durationMs int64
+	err        error
+}
+
+func (f *fakeConverter) ToOggOpus(context.Context, []byte, string) ([]byte, int64, error) {
+	if f.err != nil {
+		return nil, 0, f.err
+	}
+	return f.ogg, f.durationMs, nil
+}
+
 func (f *fakeObjStore) put(key string, data []byte, contentType string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -258,6 +278,8 @@ type harness struct {
 	issuer *authpkg.Issuer
 	mock   *llm.MockClient
 	objs   *fakeObjStore
+	stt    *audio.MockTranscriber
+	conv   *fakeConverter
 }
 
 type harnessConfig struct {
@@ -298,10 +320,12 @@ func newHarness(t *testing.T, opts ...harnessOpt) *harness {
 
 	mock := llm.NewMockClient()
 	objs := newFakeObjStore()
+	stt := audio.NewMockTranscriber()
+	conv := &fakeConverter{ogg: []byte("ogg-bytes"), durationMs: 4200}
 	uploadService := uploaduc.NewService(testStore, objs)
 	chatService := chatuc.NewService(
 		testStore, mock, cfg.limiter, objs, imageconv.New(),
-		"test-pepper", llm.DefaultModel, testLogger,
+		stt, conv, "test-pepper", llm.DefaultModel, "ru-RU", testLogger,
 	)
 
 	root := chi.NewRouter()
@@ -317,7 +341,7 @@ func newHarness(t *testing.T, opts ...harnessOpt) *harness {
 	srv := httptest.NewServer(root)
 	t.Cleanup(srv.Close)
 
-	return &harness{srv: srv, mailer: rec, idp: idp, issuer: issuer, mock: mock, objs: objs}
+	return &harness{srv: srv, mailer: rec, idp: idp, issuer: issuer, mock: mock, objs: objs, stt: stt, conv: conv}
 }
 
 func newTestIssuer(t *testing.T) *authpkg.Issuer {

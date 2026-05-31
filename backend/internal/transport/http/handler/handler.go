@@ -90,7 +90,7 @@ func mapResourceErr(err error) error {
 	case errors.Is(err, chatuc.ErrEmptyContent):
 		return httperr.ValidationFailed("message content is empty")
 	case errors.Is(err, chatuc.ErrUnsupportedBlock):
-		return httperr.UnsupportedMedia("only text and images are supported")
+		return httperr.UnsupportedMedia("only text, images and audio are supported")
 	case errors.Is(err, chatuc.ErrTextTooLarge):
 		return httperr.PayloadTooLarge("message text is too large")
 	case errors.Is(err, chatuc.ErrBadCursor):
@@ -101,6 +101,12 @@ func mapResourceErr(err error) error {
 		return httperr.NotFound("message not found")
 	case errors.Is(err, chatuc.ErrUploadNotFound):
 		return httperr.NotFound("referenced upload not found")
+	case errors.Is(err, chatuc.ErrAudioTooLong):
+		return httperr.ValidationFailed("voice message is too long (max 60s)")
+	case errors.Is(err, chatuc.ErrTranscriptionEmpty):
+		return httperr.ValidationFailed("speech was not recognized, please type your message")
+	case errors.Is(err, chatuc.ErrTranscriptionFailed):
+		return httperr.ServiceUnavailable("transcription is temporarily unavailable")
 	case errors.Is(err, uploaduc.ErrUnsupportedType):
 		return httperr.UnsupportedMedia("unsupported content type")
 	case errors.Is(err, uploaduc.ErrTooLarge):

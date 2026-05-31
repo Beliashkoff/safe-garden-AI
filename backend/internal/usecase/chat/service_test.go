@@ -31,8 +31,22 @@ func TestValidateInput(t *testing.T) {
 	}})
 	assert.ErrorIs(t, err, ErrUploadNotFound)
 
-	// audio_ref is Stage 4 → unsupported.
-	_, err = validateInput(uid, SendInput{Blocks: []InputBlock{{Type: "audio_ref", StorageKey: pfx + "a/x.m4a"}}})
+	// audio_ref with a valid owner prefix is accepted (Stage 4.2).
+	ab, err := validateInput(uid, SendInput{Blocks: []InputBlock{{Type: "audio_ref", StorageKey: pfx + "audio/x.m4a"}}})
+	require.NoError(t, err)
+	require.Len(t, ab, 1)
+	assert.Equal(t, "audio", ab[0].kind)
+	assert.Equal(t, pfx+"audio/x.m4a", ab[0].storageKey)
+
+	// audio_ref without a key → not found.
+	_, err = validateInput(uid, SendInput{Blocks: []InputBlock{{Type: "audio_ref"}}})
+	assert.ErrorIs(t, err, ErrUploadNotFound)
+
+	// More than one voice note → unsupported.
+	_, err = validateInput(uid, SendInput{Blocks: []InputBlock{
+		{Type: "audio_ref", StorageKey: pfx + "audio/x.m4a"},
+		{Type: "audio_ref", StorageKey: pfx + "audio/y.m4a"},
+	}})
 	assert.ErrorIs(t, err, ErrUnsupportedBlock)
 
 	// text + image → accepted and ordered.

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -16,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/audio"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage/db"
@@ -30,11 +32,21 @@ const (
 	maxImagesPerMessage = 4        // images allowed in one user message
 	maxImagesPerRequest = 4        // images hydrated (base64) into one model request
 	imagePlaceholder    = "[фото]" // marker for history images beyond the cap
+
+	maxAudioPerMessage = 1                         // voice notes allowed in one user message
+	maxAudioReadBytes  = 26 * 1024 * 1024          // 25 MB cap + slack (ARCH §8.2)
+	transcribeTimeout  = 45 * time.Second          // bound a single STT call
+	voicePrefix        = "[голосовое сообщение]: " // marker prepended to the transcript for the model
 )
 
 // imageContentTypes is the whitelist accepted for image_ref blocks (ARCH §8.2).
 var imageContentTypes = map[string]struct{}{
 	"image/jpeg": {}, "image/png": {}, "image/webp": {}, "image/heic": {}, "image/heif": {},
+}
+
+// audioContentTypes is the whitelist accepted for audio_ref blocks (ARCH §8.2).
+var audioContentTypes = map[string]struct{}{
+	"audio/m4a": {}, "audio/aac": {}, "audio/mp4": {}, "audio/mpeg": {},
 }
 
 // messageLimiter is the per-user rate gate (consumer-side interface; satisfied
@@ -44,9 +56,23 @@ type messageLimiter interface {
 }
 
 // imageStore reads uploaded objects back from storage (consumer-side interface;
-// satisfied by *objstore.Client).
+// satisfied by *objstore.Client). GetLimited reads with an explicit size cap,
+// used for audio, which exceeds the default image cap.
 type imageStore interface {
 	Get(ctx context.Context, key string) (data []byte, contentType string, err error)
+	GetLimited(ctx context.Context, key string, maxBytes int64) (data []byte, contentType string, err error)
+}
+
+// transcriber recognizes speech from converted OggOpus audio (consumer-side
+// interface; satisfied by audio.Transcriber implementations).
+type transcriber interface {
+	Transcribe(ctx context.Context, oggOpus []byte, lang string) (audio.Result, error)
+}
+
+// audioConverter transcodes recorded audio (m4a/aac/mp3) to OggOpus and reports
+// its duration (satisfied by *audio.FFmpegConverter).
+type audioConverter interface {
+	ToOggOpus(ctx context.Context, input []byte, contentType string) (oggOpus []byte, durationMs int64, err error)
 }
 
 // imageConverter detects HEIC and normalizes it to JPEG, which Claude (unlike
@@ -58,15 +84,18 @@ type imageConverter interface {
 
 // Service orchestrates chat persistence + the LLM client.
 type Service struct {
-	store   *storage.Store
-	llm     llm.Client
-	limiter messageLimiter
-	images  imageStore
-	conv    imageConverter
-	pepper  string
-	model   string
-	logger  *slog.Logger
-	now     func() time.Time
+	store     *storage.Store
+	llm       llm.Client
+	limiter   messageLimiter
+	images    imageStore
+	conv      imageConverter
+	stt       transcriber
+	audioConv audioConverter
+	pepper    string
+	model     string
+	lang      string
+	logger    *slog.Logger
+	now       func() time.Time
 }
 
 func NewService(
@@ -75,27 +104,35 @@ func NewService(
 	limiter messageLimiter,
 	images imageStore,
 	conv imageConverter,
-	pepper, model string,
+	stt transcriber,
+	audioConv audioConverter,
+	pepper, model, lang string,
 	logger *slog.Logger,
 ) *Service {
 	return &Service{
-		store:   store,
-		llm:     client,
-		limiter: limiter,
-		images:  images,
-		conv:    conv,
-		pepper:  pepper,
-		model:   model,
-		logger:  logger,
-		now:     time.Now,
+		store:     store,
+		llm:       client,
+		limiter:   limiter,
+		images:    images,
+		conv:      conv,
+		stt:       stt,
+		audioConv: audioConv,
+		pepper:    pepper,
+		model:     model,
+		lang:      lang,
+		logger:    logger,
+		now:       time.Now,
 	}
 }
 
-// validatedBlock is one accepted input block (kind: "text" | "image").
+// validatedBlock is one accepted input block (kind: "text" | "image" | "audio").
 type validatedBlock struct {
 	kind       string
 	text       string
 	storageKey string
+	// transcriptText/durationMs are filled by transcribeAudio for kind=="audio".
+	transcriptText string
+	durationMs     int64
 }
 
 // validateInput checks the request blocks (stage 3.1: text + image_ref) and
@@ -107,7 +144,7 @@ func validateInput(userID uuid.UUID, in SendInput) ([]validatedBlock, error) {
 	}
 	prefix := "u/" + userID.String() + "/"
 	out := make([]validatedBlock, 0, len(in.Blocks))
-	var textLen, images int
+	var textLen, images, audios int
 	hasText := false
 	for _, blk := range in.Blocks {
 		switch blk.Type {
@@ -123,6 +160,12 @@ func validateInput(userID uuid.UUID, in SendInput) ([]validatedBlock, error) {
 			}
 			images++
 			out = append(out, validatedBlock{kind: "image", storageKey: blk.StorageKey})
+		case "audio_ref":
+			if blk.StorageKey == "" || !strings.HasPrefix(blk.StorageKey, prefix) {
+				return nil, ErrUploadNotFound
+			}
+			audios++
+			out = append(out, validatedBlock{kind: "audio", storageKey: blk.StorageKey})
 		default:
 			return nil, ErrUnsupportedBlock
 		}
@@ -130,10 +173,10 @@ func validateInput(userID uuid.UUID, in SendInput) ([]validatedBlock, error) {
 	if textLen > maxTextBytes {
 		return nil, ErrTextTooLarge
 	}
-	if images > maxImagesPerMessage {
+	if images > maxImagesPerMessage || audios > maxAudioPerMessage {
 		return nil, ErrUnsupportedBlock
 	}
-	if !hasText && images == 0 {
+	if !hasText && images == 0 && audios == 0 {
 		return nil, ErrEmptyContent
 	}
 	return out, nil
@@ -167,6 +210,14 @@ func assembleMessages(
 				if blk.ContentText.String != "" {
 					content = append(content, llm.MessageBlock{Type: "text", Text: blk.ContentText.String})
 				}
+			case "transcription":
+				// The model receives the voice message as marked text; the audio
+				// itself is never sent.
+				if blk.ContentText.String != "" {
+					content = append(content, llm.MessageBlock{Type: "text", Text: voicePrefix + blk.ContentText.String})
+				}
+			case "audio":
+				// Content is carried by the sibling transcription block.
 			case "image":
 				key := blk.StorageKey.String
 				if hb, ok := hydrated[key]; ok {
@@ -276,6 +327,14 @@ func toMessageView(m db.Message, blocks []db.MessageBlock) MessageView {
 			content = append(content, BlockView{Type: "text", Text: b.ContentText.String})
 		case "image":
 			content = append(content, BlockView{Type: "image", StorageKey: b.StorageKey.String})
+		case "audio":
+			content = append(content, BlockView{Type: "audio", StorageKey: b.StorageKey.String})
+		case "transcription":
+			content = append(content, BlockView{
+				Type:       "transcription",
+				Text:       b.ContentText.String,
+				DurationMs: durationFromMeta(b.Metadata),
+			})
 		}
 	}
 	return MessageView{
@@ -339,4 +398,25 @@ func int4(n int64) pgtype.Int4 {
 		n = math.MaxInt32
 	}
 	return pgtype.Int4{Int32: int32(n), Valid: true}
+}
+
+// durationMeta builds the JSONB metadata stored on a transcription block.
+func durationMeta(durationMs int64) []byte {
+	b, _ := json.Marshal(map[string]int64{"duration_ms": durationMs})
+	return b
+}
+
+// durationFromMeta extracts duration_ms from a transcription block's JSONB
+// metadata; returns 0 if absent or malformed.
+func durationFromMeta(meta []byte) int64 {
+	if len(meta) == 0 {
+		return 0
+	}
+	var m struct {
+		DurationMs int64 `json:"duration_ms"`
+	}
+	if err := json.Unmarshal(meta, &m); err != nil {
+		return 0
+	}
+	return m.DurationMs
 }

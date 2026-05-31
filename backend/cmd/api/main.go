@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/audio"
 	authpkg "github.com/Beliashkoff/safe-garden-AI/backend/internal/auth"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/config"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/imageconv"
@@ -39,6 +40,7 @@ type objStore interface {
 	PresignPut(ctx context.Context, key, contentType string, ttl time.Duration) (string, map[string]string, error)
 	PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error)
 	Get(ctx context.Context, key string) ([]byte, string, error)
+	GetLimited(ctx context.Context, key string, maxBytes int64) ([]byte, string, error)
 }
 
 // buildObjStore returns the configured object store, or a Disabled stub when S3
@@ -160,12 +162,31 @@ func main() {
 		msgLimiter = ratelimit.NewNoopMessage()
 	}
 
-	// Object storage for presigned photo uploads (ARCH §4.3, §5).
+	// Transcription provider (Yandex SpeechKit v3 streaming, or mock) + ffmpeg
+	// converter for voice messages (ARCH §4.5). Yandex Cloud is reachable from
+	// the RU backend directly, so this does not go through the worker.
+	audioCfg, err := audio.LoadConfig()
+	if err != nil {
+		slog.Error("audio config load failed", "err", err)
+		os.Exit(1)
+	}
+	transcriber, err := audio.New(audioCfg)
+	if err != nil {
+		slog.Error("transcriber init failed", "err", err)
+		os.Exit(1)
+	}
+	if c, ok := transcriber.(interface{ Close() error }); ok {
+		defer func() { _ = c.Close() }()
+	}
+	converter := audio.NewConverter(audioCfg.FFmpegPath, audioCfg.FFprobePath)
+
+	// Object storage for presigned photo/audio uploads (ARCH §4.3, §5).
 	objs := buildObjStore(cfg)
 	uploadService := uploaduc.NewService(store, objs)
 	chatService := chatuc.NewService(
 		store, llmClient, msgLimiter, objs, imageconv.New(),
-		cfg.UIDHashPepper, llm.DefaultModel, logger,
+		transcriber, converter,
+		cfg.UIDHashPepper, llm.DefaultModel, audioCfg.Language, logger,
 	)
 
 	r := chi.NewRouter()

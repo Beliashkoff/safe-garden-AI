@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/audio"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm/prompts"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage/db"
@@ -34,7 +35,13 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 		return ErrRateLimited
 	}
 
-	if err := s.verifyImageRefs(ctx, userID, blocks); err != nil {
+	if err := s.verifyMediaRefs(ctx, userID, blocks); err != nil {
+		return err
+	}
+
+	// Transcribe voice messages before anything is persisted or streamed, so a
+	// failure surfaces as a pre-stream JSON error and nothing is saved.
+	if err := s.transcribeAudio(ctx, blocks); err != nil {
 		return err
 	}
 
@@ -43,7 +50,8 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 		return fmt.Errorf("chat: conversation: %w", err)
 	}
 
-	if err := s.saveUserMessage(ctx, conv.ID, userID, blocks); err != nil {
+	userMsgID, err := s.saveUserMessage(ctx, conv.ID, userID, blocks)
+	if err != nil {
 		return fmt.Errorf("chat: save user message: %w", err)
 	}
 
@@ -59,6 +67,18 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 		return fmt.Errorf("chat: create assistant message: %w", err)
 	}
 	assistantID := assistant.ID
+
+	// First sink writes: surface each voice transcription to the client before
+	// the assistant reply begins. A write error means the client disconnected.
+	for _, b := range blocks {
+		if b.kind != "audio" {
+			continue
+		}
+		if err := sink.Transcription(userMsgID.String(), b.storageKey, b.transcriptText, b.durationMs); err != nil {
+			s.finalizeIncomplete(assistantID, "cancelled", "")
+			return err
+		}
+	}
 
 	if err := sink.MessageStarted(assistantID.String()); err != nil {
 		s.finalizeIncomplete(assistantID, "cancelled", "")
@@ -214,11 +234,17 @@ func orDefault(s, def string) string {
 	return s
 }
 
-// verifyImageRefs confirms each image_ref points at an upload owned by the
-// caller with an image content type (pre-stream ownership check, ARCH §8.2).
-func (s *Service) verifyImageRefs(ctx context.Context, userID uuid.UUID, blocks []validatedBlock) error {
+// verifyMediaRefs confirms each image_ref/audio_ref points at an upload owned by
+// the caller with an allowed content type (pre-stream ownership check, ARCH §8.2).
+func (s *Service) verifyMediaRefs(ctx context.Context, userID uuid.UUID, blocks []validatedBlock) error {
 	for _, b := range blocks {
-		if b.kind != "image" {
+		var whitelist map[string]struct{}
+		switch b.kind {
+		case "image":
+			whitelist = imageContentTypes
+		case "audio":
+			whitelist = audioContentTypes
+		default:
 			continue
 		}
 		up, err := s.store.GetUploadByStorageKey(ctx, b.storageKey)
@@ -231,52 +257,114 @@ func (s *Service) verifyImageRefs(ctx context.Context, userID uuid.UUID, blocks 
 		if up.UserID != userID {
 			return ErrUploadNotFound
 		}
-		if _, ok := imageContentTypes[up.ContentType]; !ok {
+		if _, ok := whitelist[up.ContentType]; !ok {
 			return ErrUnsupportedBlock
 		}
 	}
 	return nil
 }
 
-// saveUserMessage persists the user message and its blocks (text + image),
-// marking referenced uploads used, in one transaction.
-func (s *Service) saveUserMessage(ctx context.Context, convID, userID uuid.UUID, blocks []validatedBlock) error {
-	return s.store.ExecTx(ctx, func(q *db.Queries) error {
+// transcribeAudio downloads, converts (ffmpeg → OggOpus), and transcribes each
+// audio block, enriching it in place with the transcript and duration. Called
+// before any persistence/streaming so failures return as pre-stream errors.
+func (s *Service) transcribeAudio(ctx context.Context, blocks []validatedBlock) error {
+	for i := range blocks {
+		if blocks[i].kind != "audio" {
+			continue
+		}
+		data, contentType, err := s.images.GetLimited(ctx, blocks[i].storageKey, maxAudioReadBytes)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "chat: audio fetch failed", "err", err.Error())
+			return ErrTranscriptionFailed
+		}
+		ogg, durationMs, err := s.audioConv.ToOggOpus(ctx, data, contentType)
+		if err != nil {
+			if errors.Is(err, audio.ErrTooLong) {
+				return ErrAudioTooLong
+			}
+			s.logger.ErrorContext(ctx, "chat: audio convert failed", "err", err.Error())
+			return ErrTranscriptionFailed
+		}
+
+		tctx, cancel := context.WithTimeout(ctx, transcribeTimeout)
+		res, err := s.stt.Transcribe(tctx, ogg, s.lang)
+		cancel()
+		if err != nil {
+			if errors.Is(err, audio.ErrEmptyResult) {
+				return ErrTranscriptionEmpty
+			}
+			s.logger.ErrorContext(ctx, "chat: transcription failed", "err", err.Error())
+			return ErrTranscriptionFailed
+		}
+
+		blocks[i].transcriptText = res.Text
+		blocks[i].durationMs = durationMs // converter duration is authoritative
+	}
+	return nil
+}
+
+// saveUserMessage persists the user message and its blocks (text + image +
+// audio/transcription), marking referenced uploads used, in one transaction. It
+// returns the new user message id (for the transcription SSE event).
+func (s *Service) saveUserMessage(ctx context.Context, convID, userID uuid.UUID, blocks []validatedBlock) (uuid.UUID, error) {
+	var msgID uuid.UUID
+	err := s.store.ExecTx(ctx, func(q *db.Queries) error {
 		m, err := q.CreateMessage(ctx, db.CreateMessageParams{
 			ConversationID: convID, UserID: userID, Role: "user", Status: "complete",
 		})
 		if err != nil {
 			return err
 		}
+		msgID = m.ID
 		var order int32
 		for _, b := range blocks {
-			if err := saveBlock(ctx, q, m.ID, order, b); err != nil {
+			n, err := saveBlock(ctx, q, m.ID, order, b)
+			if err != nil {
 				return err
 			}
-			order++
+			order += n
 		}
 		return nil
 	})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return msgID, nil
 }
 
-// saveBlock persists one content block; empty text blocks are skipped.
-func saveBlock(ctx context.Context, q *db.Queries, msgID uuid.UUID, order int32, b validatedBlock) error {
+// saveBlock persists one input block and returns how many message_blocks rows it
+// wrote, so the caller advances order_index. An empty text block writes nothing;
+// an audio block writes two rows (the original audio + its transcription).
+func saveBlock(ctx context.Context, q *db.Queries, msgID uuid.UUID, order int32, b validatedBlock) (int32, error) {
 	switch b.kind {
 	case "text":
 		if strings.TrimSpace(b.text) == "" {
-			return nil
+			return 0, nil
 		}
 		_, err := q.CreateMessageBlock(ctx, db.CreateMessageBlockParams{
 			MessageID: msgID, OrderIndex: order, Type: "text", ContentText: textVal(b.text),
 		})
-		return err
+		return 1, err
 	case "image":
 		if _, err := q.CreateMessageBlock(ctx, db.CreateMessageBlockParams{
 			MessageID: msgID, OrderIndex: order, Type: "image", StorageKey: textVal(b.storageKey),
 		}); err != nil {
-			return err
+			return 0, err
 		}
-		return q.MarkUploadUsed(ctx, b.storageKey)
+		return 1, q.MarkUploadUsed(ctx, b.storageKey)
+	case "audio":
+		if _, err := q.CreateMessageBlock(ctx, db.CreateMessageBlockParams{
+			MessageID: msgID, OrderIndex: order, Type: "audio", StorageKey: textVal(b.storageKey),
+		}); err != nil {
+			return 0, err
+		}
+		if _, err := q.CreateMessageBlock(ctx, db.CreateMessageBlockParams{
+			MessageID: msgID, OrderIndex: order + 1, Type: "transcription",
+			ContentText: textVal(b.transcriptText), Metadata: durationMeta(b.durationMs),
+		}); err != nil {
+			return 0, err
+		}
+		return 2, q.MarkUploadUsed(ctx, b.storageKey)
 	}
-	return nil
+	return 0, nil
 }

@@ -176,14 +176,17 @@ paths:
       summary: Send a message (streamed reply)
       description: >
         Saves the user message, then streams the assistant reply as
-        Server-Sent Events. Stage 3.1 accepts `text` and `image_ref` blocks
-        (≤4 images/message; the backend loads the photo from object storage,
-        converts HEIC→JPEG, and sends it to the model). Event stream:
+        Server-Sent Events. Accepts `text`, `image_ref` (≤4 images/message;
+        backend loads the photo, converts HEIC→JPEG, sends it to the model), and
+        `audio_ref` (≤1 voice note ≤60s; backend downloads the audio, converts it
+        to OggOpus and transcribes it via Yandex SpeechKit). Event stream:
+        (`transcription {message_id, storage_key, text, duration_ms}`)? →
         `message_started {message_id}` → `delta {text}`* →
         (`tool_use`/`fertilizer_card`)? → `done {message_id, tokens_used:{in,out}}`;
         on failure an `error {code, message}` event is sent. Pre-stream errors
-        (validation, rate limit, unknown/foreign image) are returned as a normal
-        JSON Error instead.
+        (validation, rate limit, unknown/foreign upload, audio too long /
+        unrecognized / transcription unavailable) are returned as a normal JSON
+        Error instead.
       security:
         - bearerAuth: []
       requestBody:
@@ -201,6 +204,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "413": { $ref: "#/components/responses/ValidationError" }
         "415": { $ref: "#/components/responses/ValidationError" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
   /messages/{id}:
@@ -265,12 +269,14 @@ paths:
   /uploads/presign:
     post:
       tags: [uploads]
-      summary: Get a presigned PUT URL for a photo upload
+      summary: Get a presigned PUT URL for a photo or voice upload
       description: >
-        Validates content type (jpeg/png/webp/heic) and size (≤10 MB), then
-        returns a presigned PUT URL (TTL 5 min). The client PUTs the file
-        directly to object storage with the returned Content-Type header, then
-        references `key` as an `image_ref` block in POST /messages.
+        Validates content type (image jpeg/png/webp/heic ≤10 MB, or audio
+        m4a/aac/mp4/mpeg ≤25 MB) and size, then returns a presigned PUT URL
+        (TTL 5 min). The content type selects the destination (img/ vs audio/).
+        The client PUTs the file directly to object storage with the returned
+        Content-Type header, then references `key` as an `image_ref`/`audio_ref`
+        block in POST /messages.
       security:
         - bearerAuth: []
       requestBody:
@@ -328,6 +334,11 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     Unauthorized:
       description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ServiceUnavailable:
+      description: Transient downstream failure (e.g. transcription unavailable)
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -430,6 +441,7 @@ components:
                 - rate_limited
                 - payload_too_large
                 - unsupported_media_type
+                - service_unavailable
                 - internal_error
             message: { type: string }
             details: { type: object, additionalProperties: true }
@@ -450,9 +462,9 @@ components:
         type:
           type: string
           enum: [text, image_ref, audio_ref]
-          description: "Stage 3.1: `text` + `image_ref` (≤4 images); `audio_ref` → 415 (Stage 4)."
+          description: "`text`; `image_ref` (≤4 images); `audio_ref` (≤1 voice note, transcribed server-side)."
         text: { type: string, description: "for type=text" }
-        storage_key: { type: string, description: "for type=image_ref; key from POST /uploads/presign" }
+        storage_key: { type: string, description: "for type=image_ref/audio_ref; key from POST /uploads/presign" }
 
     Message:
       type: object
@@ -467,9 +479,10 @@ components:
           items:
             type: object
             properties:
-              type: { type: string, enum: [text, image] }
-              text: { type: string }
-              storage_key: { type: string, description: "for type=image" }
+              type: { type: string, enum: [text, image, audio, transcription] }
+              text: { type: string, description: "for type=text/transcription" }
+              storage_key: { type: string, description: "for type=image/audio" }
+              duration_ms: { type: integer, format: int64, description: "for type=transcription: audio length" }
 
     ConversationResponse:
       type: object
@@ -494,15 +507,15 @@ components:
       type: object
       required: [content_type, size_bytes]
       properties:
-        content_type: { type: string, enum: [image/jpeg, image/png, image/webp, image/heic] }
-        size_bytes: { type: integer, format: int64, description: "1..10485760 (10 MB)" }
+        content_type: { type: string, enum: [image/jpeg, image/png, image/webp, image/heic, audio/m4a, audio/aac, audio/mp4, audio/mpeg] }
+        size_bytes: { type: integer, format: int64, description: "image ≤ 10485760 (10 MB); audio ≤ 26214400 (25 MB)" }
 
     PresignResponse:
       type: object
       required: [url, key, headers, expires_at]
       properties:
         url: { type: string, description: presigned PUT URL }
-        key: { type: string, description: owner-scoped storage key for the image_ref block }
+        key: { type: string, description: owner-scoped storage key for the image_ref/audio_ref block }
         headers:
           type: object
           additionalProperties: { type: string }

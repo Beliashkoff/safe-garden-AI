@@ -11,14 +11,15 @@ import "fmt"
 type Code string
 
 const (
-	CodeUnauthorized     Code = "unauthorized"
-	CodeForbidden        Code = "forbidden"
-	CodeValidationFailed Code = "validation_failed"
-	CodeNotFound         Code = "not_found"
-	CodeRateLimited      Code = "rate_limited"
-	CodePayloadTooLarge  Code = "payload_too_large"
-	CodeUnsupportedMedia Code = "unsupported_media_type"
-	CodeInternalError    Code = "internal_error"
+	CodeUnauthorized       Code = "unauthorized"
+	CodeForbidden          Code = "forbidden"
+	CodeValidationFailed   Code = "validation_failed"
+	CodeNotFound           Code = "not_found"
+	CodeRateLimited        Code = "rate_limited"
+	CodePayloadTooLarge    Code = "payload_too_large"
+	CodeUnsupportedMedia   Code = "unsupported_media_type"
+	CodeServiceUnavailable Code = "service_unavailable"
+	CodeInternalError      Code = "internal_error"
 )
 
 // Error is a transport-level error carrying the HTTP status plus the §4.7 body
@@ -72,6 +73,12 @@ func PayloadTooLarge(msg string) *Error {
 
 func UnsupportedMedia(msg string) *Error {
 	return &Error{HTTPStatus: 415, Code: CodeUnsupportedMedia, Message: msg}
+}
+
+// ServiceUnavailable signals a transient downstream failure (e.g. the
+// transcription provider is unreachable) — the client may retry.
+func ServiceUnavailable(msg string) *Error {
+	return &Error{HTTPStatus: 503, Code: CodeServiceUnavailable, Message: msg}
 }
 
 func Internal(msg string) *Error {

@@ -31,6 +31,7 @@ type blockDTO struct {
 	Type       string `json:"type"`
 	Text       string `json:"text,omitempty"`
 	StorageKey string `json:"storage_key,omitempty"`
+	DurationMs int64  `json:"duration_ms,omitempty"`
 }
 
 type messageDTO struct {
@@ -154,7 +155,7 @@ func toMessageDTOs(views []chatuc.MessageView) []messageDTO {
 	for i, v := range views {
 		blocks := make([]blockDTO, len(v.Content))
 		for j, b := range v.Content {
-			blocks[j] = blockDTO{Type: b.Type, Text: b.Text, StorageKey: b.StorageKey}
+			blocks[j] = blockDTO{Type: b.Type, Text: b.Text, StorageKey: b.StorageKey, DurationMs: b.DurationMs}
 		}
 		out[i] = messageDTO{ID: v.ID, Role: v.Role, Status: v.Status, CreatedAt: v.CreatedAt, Content: blocks}
 	}
@@ -188,6 +189,16 @@ func (s *sseSink) ensure() {
 func (s *sseSink) MessageStarted(messageID string) error {
 	s.ensure()
 	return writeSSE(s.w, "message_started", map[string]string{"message_id": messageID})
+}
+
+func (s *sseSink) Transcription(messageID, storageKey, text string, durationMs int64) error {
+	s.ensure()
+	return writeSSE(s.w, "transcription", map[string]any{
+		"message_id":  messageID,
+		"storage_key": storageKey,
+		"text":        text,
+		"duration_ms": durationMs,
+	})
 }
 
 func (s *sseSink) Delta(text string) error {

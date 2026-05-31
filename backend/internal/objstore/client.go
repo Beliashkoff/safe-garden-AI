@@ -49,6 +49,10 @@ func (Disabled) Get(context.Context, string) ([]byte, string, error) {
 	return nil, "", ErrDisabled
 }
 
+func (Disabled) GetLimited(context.Context, string, int64) ([]byte, string, error) {
+	return nil, "", ErrDisabled
+}
+
 func (Disabled) DeletePrefix(context.Context, string) (int, error) {
 	return 0, ErrDisabled
 }
@@ -126,8 +130,16 @@ func (c *Client) PresignGet(ctx context.Context, key string, ttl time.Duration) 
 }
 
 // Get reads an object, returning its bytes and stored Content-Type. Refuses
-// objects larger than maxObjectBytes.
+// objects larger than maxObjectBytes (the image cap). For larger media (audio),
+// use GetLimited with an explicit cap.
 func (c *Client) Get(ctx context.Context, key string) (data []byte, contentType string, err error) {
+	return c.GetLimited(ctx, key, maxObjectBytes)
+}
+
+// GetLimited reads an object, refusing bodies larger than maxBytes
+// (ErrObjectTooLarge). The presigned PUT does not enforce a size policy on its
+// own, so this is the server-side safety net.
+func (c *Client) GetLimited(ctx context.Context, key string, maxBytes int64) (data []byte, contentType string, err error) {
 	out, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(c.bucket),
 		Key:    aws.String(key),
@@ -137,11 +149,11 @@ func (c *Client) Get(ctx context.Context, key string) (data []byte, contentType 
 	}
 	defer func() { _ = out.Body.Close() }()
 
-	body, err := io.ReadAll(io.LimitReader(out.Body, maxObjectBytes+1))
+	body, err := io.ReadAll(io.LimitReader(out.Body, maxBytes+1))
 	if err != nil {
 		return nil, "", fmt.Errorf("objstore: read object: %w", err)
 	}
-	if len(body) > maxObjectBytes {
+	if int64(len(body)) > maxBytes {
 		return nil, "", ErrObjectTooLarge
 	}
 	if out.ContentType != nil {
