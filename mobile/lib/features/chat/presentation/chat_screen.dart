@@ -6,11 +6,13 @@ import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/auth_error_message.dart';
 import '../application/chat_controller.dart';
 import '../application/message_composer.dart';
+import '../application/voice_recorder_controller.dart';
 import '../data/media_ports.dart';
 import '../domain/chat_models.dart';
 import 'chat_error_message.dart';
 import 'message_bubble.dart';
 import 'widgets/attachment_strip.dart';
+import 'widgets/voice_recorder_bar.dart';
 
 enum _ChatMenuAction { logout, deleteAccount }
 
@@ -334,56 +336,172 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget _inputBar(AppLocalizations l10n, bool sending) {
     final composer = ref.watch(messageComposerProvider);
     final uploading = composer.uploading;
+    final voicePhase = ref.watch(voiceRecorderProvider).phase;
+
+    // A recorded voice note awaiting confirmation (or being sent) takes over the
+    // whole input row.
+    if (voicePhase == VoicePhase.preview || voicePhase == VoicePhase.uploading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: VoiceRecorderBar(),
+      );
+    }
+
+    final recording = voicePhase == VoicePhase.recording;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          IconButton(
-            onPressed: (sending || uploading || !composer.canAddMore)
-                ? null
-                : _showAttachSheet,
-            icon: const Icon(Icons.attach_file_rounded),
-            tooltip: l10n.chatAttach,
-          ),
-          Expanded(
-            child: TextField(
-              controller: _input,
-              minLines: 1,
-              maxLines: 5,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _send(),
-              decoration: InputDecoration(
-                hintText: l10n.chatInputPlaceholder,
-                border: const OutlineInputBorder(),
-              ),
+          if (!recording)
+            IconButton(
+              onPressed: (sending || uploading || !composer.canAddMore)
+                  ? null
+                  : _showAttachSheet,
+              icon: const Icon(Icons.attach_file_rounded),
+              tooltip: l10n.chatAttach,
             ),
+          Expanded(
+            child: recording
+                ? const VoiceRecorderBar()
+                : TextField(
+                    controller: _input,
+                    minLines: 1,
+                    maxLines: 5,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _send(),
+                    decoration: InputDecoration(
+                      hintText: l10n.chatInputPlaceholder,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
           ),
           const SizedBox(width: 8),
-          if (sending)
-            IconButton.filledTonal(
-              onPressed: () =>
-                  ref.read(chatControllerProvider.notifier).cancel(),
-              icon: const Icon(Icons.stop_rounded),
-              tooltip: l10n.chatStop,
-            )
-          else if (uploading)
-            IconButton.filled(
-              onPressed: null,
-              icon: const SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              tooltip: l10n.chatSend,
-            )
-          else
-            IconButton.filled(
-              onPressed: _send,
-              icon: const Icon(Icons.send_rounded),
-              tooltip: l10n.chatSend,
-            ),
+          _trailingButton(l10n, sending, uploading, recording),
         ],
       ),
     );
+  }
+
+  Widget _trailingButton(
+    AppLocalizations l10n,
+    bool sending,
+    bool uploading,
+    bool recording,
+  ) {
+    if (sending) {
+      return IconButton.filledTonal(
+        onPressed: () => ref.read(chatControllerProvider.notifier).cancel(),
+        icon: const Icon(Icons.stop_rounded),
+        tooltip: l10n.chatStop,
+      );
+    }
+    if (uploading) {
+      return IconButton.filled(
+        onPressed: null,
+        icon: const SizedBox(
+          height: 18,
+          width: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        tooltip: l10n.chatSend,
+      );
+    }
+    // Mic while recording or when the text field is empty; send otherwise.
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _input,
+      builder: (context, value, _) {
+        if (!recording && value.text.trim().isNotEmpty) {
+          return IconButton.filled(
+            onPressed: _send,
+            icon: const Icon(Icons.send_rounded),
+            tooltip: l10n.chatSend,
+          );
+        }
+        return _micButton(l10n, recording);
+      },
+    );
+  }
+
+  Widget _micButton(AppLocalizations l10n, bool recording) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.voiceHoldToRecord),
+          duration: const Duration(seconds: 1),
+        ),
+      ),
+      onLongPressStart: (_) => _startVoice(),
+      onLongPressMoveUpdate: (d) => ref
+          .read(voiceRecorderProvider.notifier)
+          .updateDrag(d.offsetFromOrigin.dx),
+      onLongPressEnd: (_) => _endVoice(),
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: recording
+              ? theme.colorScheme.error
+              : theme.colorScheme.primary,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          recording ? Icons.mic : Icons.mic_none_rounded,
+          color: recording
+              ? theme.colorScheme.onError
+              : theme.colorScheme.onPrimary,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startVoice() async {
+    final result = await ref
+        .read(voiceRecorderProvider.notifier)
+        .startRecording();
+    if (!mounted) {
+      return;
+    }
+    switch (result) {
+      case VoiceStartResult.started:
+      case VoiceStartResult.failed:
+        break;
+      case VoiceStartResult.permissionDenied:
+      case VoiceStartResult.permissionPermanentlyDenied:
+        await _showMicPermissionDialog();
+    }
+  }
+
+  Future<void> _endVoice() async {
+    final notifier = ref.read(voiceRecorderProvider.notifier);
+    if (ref.read(voiceRecorderProvider).cancelArmed) {
+      await notifier.cancelRecording();
+    } else {
+      await notifier.stopToPreview();
+    }
+  }
+
+  Future<void> _showMicPermissionDialog() async {
+    final l10n = AppLocalizations.of(context)!;
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.voicePermissionTitle),
+        content: Text(l10n.voicePermissionBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.chatOpenSettings),
+          ),
+        ],
+      ),
+    );
+    if (open == true) {
+      await ref.read(permissionPortProvider).openSettings();
+    }
   }
 }

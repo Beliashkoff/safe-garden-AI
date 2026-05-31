@@ -161,6 +161,29 @@ class AppLocalizationsRu extends AppLocalizations {
   String get chatRemovePhoto => 'Удалить фото';
 
   @override
+  String get voiceHoldToRecord => 'Удерживайте кнопку для записи';
+
+  @override
+  String get voiceSlideToCancel => 'Влево — отмена';
+
+  @override
+  String get voiceReleaseToCancel => 'Отпустите для отмены';
+
+  @override
+  String get voiceTranscribing => 'Расшифровка…';
+
+  @override
+  String get voicePermissionTitle => 'Нужен доступ к микрофону';
+
+  @override
+  String get voicePermissionBody =>
+      'Разрешите доступ к микрофону в настройках, чтобы записать голосовое сообщение.';
+
+  @override
+  String get voiceUploadFailed =>
+      'Не удалось отправить голосовое. Попробуйте ещё раз.';
+
+  @override
   String get deleteAccountConfirmTitle => 'Удалить аккаунт?';
 
   @override

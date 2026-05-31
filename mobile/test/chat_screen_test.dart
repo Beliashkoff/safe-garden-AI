@@ -64,6 +64,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'привет');
+    await tester.pump(); // let the trailing button switch from mic to send
     await tester.tap(find.byIcon(Icons.send_rounded));
     await tester.pumpAndSettle();
 

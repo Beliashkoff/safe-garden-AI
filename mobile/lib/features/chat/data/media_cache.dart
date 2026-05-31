@@ -51,7 +51,15 @@ class FileMediaCache implements MediaCache {
   Future<File> _pathFor(String storageKey) async {
     final dir = await _mediaDir();
     final name = sha256.convert(utf8.encode(storageKey)).toString();
-    return File('${dir.path}/$name.jpg');
+    return File('${dir.path}/$name${_extOf(storageKey)}');
+  }
+
+  /// The file extension of [storageKey] (e.g. `.jpg`, `.m4a`), so cached media
+  /// keeps a type the OS/players recognise. Falls back to `.bin`.
+  String _extOf(String storageKey) {
+    final slash = storageKey.lastIndexOf('/');
+    final dot = storageKey.lastIndexOf('.');
+    return dot > slash && dot != -1 ? storageKey.substring(dot) : '.bin';
   }
 
   @override

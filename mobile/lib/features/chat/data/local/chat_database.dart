@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
@@ -73,9 +74,7 @@ class ChatDatabase extends _$ChatDatabase {
           r.createdAtMs,
           isUtc: true,
         ),
-        content: blocks
-            .map((b) => ContentBlock(type: b.type, text: b.content))
-            .toList(),
+        content: blocks.map(_decodeBlock).toList(),
       );
     }).toList();
   }
@@ -102,7 +101,7 @@ class ChatDatabase extends _$ChatDatabase {
               messageId: m.id,
               orderIndex: i,
               type: m.content[i].type,
-              content: m.content[i].text,
+              content: _encodeBlock(m.content[i]),
             ),
           );
         }
@@ -125,6 +124,34 @@ class ChatDatabase extends _$ChatDatabase {
       await delete(messages).go();
     });
   }
+}
+
+/// Serialises a content block to the row's `content` column as JSON, so media
+/// keys and durations survive offline (a single text column otherwise loses
+/// everything but `text`).
+String _encodeBlock(ContentBlock b) => jsonEncode({
+  'text': b.text,
+  'storage_key': b.storageKey,
+  'duration_ms': b.durationMs,
+});
+
+/// Rebuilds a content block from a cached row. New rows hold a JSON payload;
+/// legacy rows held plain text — both are tolerated.
+ContentBlock _decodeBlock(MessageBlock b) {
+  try {
+    final dynamic decoded = jsonDecode(b.content);
+    if (decoded is Map) {
+      return ContentBlock(
+        type: b.type,
+        text: (decoded['text'] as String?) ?? '',
+        storageKey: (decoded['storage_key'] as String?) ?? '',
+        durationMs: (decoded['duration_ms'] as num?)?.toInt() ?? 0,
+      );
+    }
+  } on FormatException {
+    // legacy plain-text row — fall through
+  }
+  return ContentBlock(type: b.type, text: b.content);
 }
 
 final chatDatabaseProvider = Provider<ChatDatabase>((ref) {

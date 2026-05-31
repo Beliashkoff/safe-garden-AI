@@ -380,6 +380,48 @@ abstract class AppLocalizations {
   /// **'Удалить фото'**
   String get chatRemovePhoto;
 
+  /// No description provided for @voiceHoldToRecord.
+  ///
+  /// In ru, this message translates to:
+  /// **'Удерживайте кнопку для записи'**
+  String get voiceHoldToRecord;
+
+  /// No description provided for @voiceSlideToCancel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Влево — отмена'**
+  String get voiceSlideToCancel;
+
+  /// No description provided for @voiceReleaseToCancel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отпустите для отмены'**
+  String get voiceReleaseToCancel;
+
+  /// No description provided for @voiceTranscribing.
+  ///
+  /// In ru, this message translates to:
+  /// **'Расшифровка…'**
+  String get voiceTranscribing;
+
+  /// No description provided for @voicePermissionTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Нужен доступ к микрофону'**
+  String get voicePermissionTitle;
+
+  /// No description provided for @voicePermissionBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Разрешите доступ к микрофону в настройках, чтобы записать голосовое сообщение.'**
+  String get voicePermissionBody;
+
+  /// No description provided for @voiceUploadFailed.
+  ///
+  /// In ru, this message translates to:
+  /// **'Не удалось отправить голосовое. Попробуйте ещё раз.'**
+  String get voiceUploadFailed;
+
   /// No description provided for @deleteAccountConfirmTitle.
   ///
   /// In ru, this message translates to:

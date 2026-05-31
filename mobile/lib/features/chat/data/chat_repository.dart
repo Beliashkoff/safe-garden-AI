@@ -36,14 +36,17 @@ class ChatRepository {
   Future<void> cache(List<ChatMessage> messages) =>
       _db.upsertMessages(messages);
 
-  /// Streams the assistant reply to a message of text and/or image refs.
+  /// Streams the assistant reply to a message of text and/or image refs and/or a
+  /// voice note (audio ref).
   Stream<SseEvent> sendMessage({
     required String text,
     List<String> imageStorageKeys = const [],
+    String? audioStorageKey,
     CancelToken? cancelToken,
   }) => _api.sendMessage(
     text: text,
     imageStorageKeys: imageStorageKeys,
+    audioStorageKey: audioStorageKey,
     cancelToken: cancelToken,
   );
 

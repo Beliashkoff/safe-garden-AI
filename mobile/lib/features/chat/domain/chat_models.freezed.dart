@@ -25,6 +25,8 @@ mixin _$ContentBlock {
   String get text => throw _privateConstructorUsedError;
   @JsonKey(name: 'storage_key')
   String get storageKey => throw _privateConstructorUsedError;
+  @JsonKey(name: 'duration_ms')
+  int get durationMs => throw _privateConstructorUsedError;
 
   /// Serializes this ContentBlock to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -47,6 +49,7 @@ abstract class $ContentBlockCopyWith<$Res> {
     String type,
     String text,
     @JsonKey(name: 'storage_key') String storageKey,
+    @JsonKey(name: 'duration_ms') int durationMs,
   });
 }
 
@@ -68,6 +71,7 @@ class _$ContentBlockCopyWithImpl<$Res, $Val extends ContentBlock>
     Object? type = null,
     Object? text = null,
     Object? storageKey = null,
+    Object? durationMs = null,
   }) {
     return _then(
       _value.copyWith(
@@ -83,6 +87,10 @@ class _$ContentBlockCopyWithImpl<$Res, $Val extends ContentBlock>
                 ? _value.storageKey
                 : storageKey // ignore: cast_nullable_to_non_nullable
                       as String,
+            durationMs: null == durationMs
+                ? _value.durationMs
+                : durationMs // ignore: cast_nullable_to_non_nullable
+                      as int,
           )
           as $Val,
     );
@@ -102,6 +110,7 @@ abstract class _$$ContentBlockImplCopyWith<$Res>
     String type,
     String text,
     @JsonKey(name: 'storage_key') String storageKey,
+    @JsonKey(name: 'duration_ms') int durationMs,
   });
 }
 
@@ -122,6 +131,7 @@ class __$$ContentBlockImplCopyWithImpl<$Res>
     Object? type = null,
     Object? text = null,
     Object? storageKey = null,
+    Object? durationMs = null,
   }) {
     return _then(
       _$ContentBlockImpl(
@@ -137,6 +147,10 @@ class __$$ContentBlockImplCopyWithImpl<$Res>
             ? _value.storageKey
             : storageKey // ignore: cast_nullable_to_non_nullable
                   as String,
+        durationMs: null == durationMs
+            ? _value.durationMs
+            : durationMs // ignore: cast_nullable_to_non_nullable
+                  as int,
       ),
     );
   }
@@ -149,6 +163,7 @@ class _$ContentBlockImpl implements _ContentBlock {
     required this.type,
     this.text = '',
     @JsonKey(name: 'storage_key') this.storageKey = '',
+    @JsonKey(name: 'duration_ms') this.durationMs = 0,
   });
 
   factory _$ContentBlockImpl.fromJson(Map<String, dynamic> json) =>
@@ -162,10 +177,13 @@ class _$ContentBlockImpl implements _ContentBlock {
   @override
   @JsonKey(name: 'storage_key')
   final String storageKey;
+  @override
+  @JsonKey(name: 'duration_ms')
+  final int durationMs;
 
   @override
   String toString() {
-    return 'ContentBlock(type: $type, text: $text, storageKey: $storageKey)';
+    return 'ContentBlock(type: $type, text: $text, storageKey: $storageKey, durationMs: $durationMs)';
   }
 
   @override
@@ -176,12 +194,15 @@ class _$ContentBlockImpl implements _ContentBlock {
             (identical(other.type, type) || other.type == type) &&
             (identical(other.text, text) || other.text == text) &&
             (identical(other.storageKey, storageKey) ||
-                other.storageKey == storageKey));
+                other.storageKey == storageKey) &&
+            (identical(other.durationMs, durationMs) ||
+                other.durationMs == durationMs));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, type, text, storageKey);
+  int get hashCode =>
+      Object.hash(runtimeType, type, text, storageKey, durationMs);
 
   /// Create a copy of ContentBlock
   /// with the given fields replaced by the non-null parameter values.
@@ -202,6 +223,7 @@ abstract class _ContentBlock implements ContentBlock {
     required final String type,
     final String text,
     @JsonKey(name: 'storage_key') final String storageKey,
+    @JsonKey(name: 'duration_ms') final int durationMs,
   }) = _$ContentBlockImpl;
 
   factory _ContentBlock.fromJson(Map<String, dynamic> json) =
@@ -214,6 +236,9 @@ abstract class _ContentBlock implements ContentBlock {
   @override
   @JsonKey(name: 'storage_key')
   String get storageKey;
+  @override
+  @JsonKey(name: 'duration_ms')
+  int get durationMs;
 
   /// Create a copy of ContentBlock
   /// with the given fields replaced by the non-null parameter values.

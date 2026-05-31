@@ -23,6 +23,7 @@ class FakeChatRepository implements ChatRepository {
   /// Records the arguments of the last [sendMessage] call.
   String? lastSendText;
   List<String> lastSendImageKeys = const [];
+  String? lastSendAudioKey;
 
   final List<String> deleted = [];
   int clearCacheCount = 0;
@@ -58,10 +59,12 @@ class FakeChatRepository implements ChatRepository {
   Stream<SseEvent> sendMessage({
     required String text,
     List<String> imageStorageKeys = const [],
+    String? audioStorageKey,
     CancelToken? cancelToken,
   }) {
     lastSendText = text;
     lastSendImageKeys = imageStorageKeys;
+    lastSendAudioKey = audioStorageKey;
     final build = scriptedStream;
     return build == null ? const Stream<SseEvent>.empty() : build();
   }

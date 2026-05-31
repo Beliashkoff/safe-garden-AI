@@ -37,6 +37,25 @@ void main() {
     expect(parseStatus('failed').status, MessageStatus.failed);
   });
 
+  test('ContentBlock.fromJson reads audio and transcription fields', () {
+    final audio = ContentBlock.fromJson({
+      'type': 'audio',
+      'storage_key': 'u/a/audio/x.m4a',
+    });
+    expect(audio.type, 'audio');
+    expect(audio.storageKey, 'u/a/audio/x.m4a');
+    expect(audio.durationMs, 0);
+
+    final tr = ContentBlock.fromJson({
+      'type': 'transcription',
+      'text': 'привет',
+      'duration_ms': 4200,
+    });
+    expect(tr.type, 'transcription');
+    expect(tr.text, 'привет');
+    expect(tr.durationMs, 4200);
+  });
+
   test('ConversationPage.fromJson reads messages and next_cursor', () {
     final page = ConversationPage.fromJson({
       'messages': [

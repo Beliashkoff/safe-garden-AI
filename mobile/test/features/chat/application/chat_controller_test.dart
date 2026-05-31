@@ -175,6 +175,42 @@ void main() {
     expect(_state(container).messages, hasLength(2));
   });
 
+  test('a voice message forwards the audio key and attaches the transcription', () async {
+    final repo = FakeChatRepository()
+      ..scriptedStream = () => Stream.fromIterable([
+        const SseTranscription(
+          messageId: 's-user',
+          storageKey: 'u/a/audio/x.m4a',
+          text: 'вянут помидоры',
+          durationMs: 4200,
+        ),
+        const SseMessageStarted('s1'),
+        const SseDelta('ответ'),
+        const SseDone(messageId: 's1', tokensIn: 1, tokensOut: 1),
+      ]);
+    final container = ProviderContainer(overrides: chatTestOverrides(repo));
+    addTearDown(container.dispose);
+    final notifier = await _boot(container);
+
+    await notifier.sendMessage(
+      '',
+      audioStorageKey: 'u/a/audio/x.m4a',
+      audioDurationMs: 4200,
+    );
+    await pumpEventQueue();
+
+    expect(repo.lastSendAudioKey, 'u/a/audio/x.m4a');
+    final user = _state(container).messages.first;
+    expect(user.role, MessageRole.user);
+    expect(
+      user.content.where((b) => b.type == 'audio').single.storageKey,
+      'u/a/audio/x.m4a',
+    );
+    final tr = user.content.where((b) => b.type == 'transcription').single;
+    expect(tr.text, 'вянут помидоры');
+    expect(tr.durationMs, 4200);
+  });
+
   test('retry resends the text and photos of the last user message', () async {
     final repo = FakeChatRepository()
       ..scriptedStream = () async* {

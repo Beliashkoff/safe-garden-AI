@@ -159,6 +159,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatRemovePhoto => 'Remove photo';
 
   @override
+  String get voiceHoldToRecord => 'Hold to record';
+
+  @override
+  String get voiceSlideToCancel => 'Slide left to cancel';
+
+  @override
+  String get voiceReleaseToCancel => 'Release to cancel';
+
+  @override
+  String get voiceTranscribing => 'Transcribing…';
+
+  @override
+  String get voicePermissionTitle => 'Microphone access needed';
+
+  @override
+  String get voicePermissionBody =>
+      'Allow microphone access in settings to record a voice message.';
+
+  @override
+  String get voiceUploadFailed =>
+      'Couldn\'t send the voice message. Please try again.';
+
+  @override
   String get deleteAccountConfirmTitle => 'Delete account?';
 
   @override

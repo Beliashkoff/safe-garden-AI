@@ -48,6 +48,21 @@ void main() {
     expect(err.message, 'down');
   });
 
+  test('maps a transcription event', () async {
+    final events = await parseSse(
+      _bytes([
+        'event: transcription\n'
+            'data: {"message_id":"u1","storage_key":"u/a/audio/x.m4a","text":"вянут помидоры","duration_ms":4200}\n\n',
+      ]),
+    ).toList();
+
+    final t = events.single as SseTranscription;
+    expect(t.messageId, 'u1');
+    expect(t.storageKey, 'u/a/audio/x.m4a');
+    expect(t.text, 'вянут помидоры');
+    expect(t.durationMs, 4200);
+  });
+
   test('skips unknown events and malformed data', () async {
     final events = await parseSse(
       _bytes([

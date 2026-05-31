@@ -30,6 +30,7 @@ abstract interface class ImageCompressorPort {
 abstract interface class PermissionPort {
   Future<PermissionOutcome> ensureCamera();
   Future<PermissionOutcome> ensurePhotos();
+  Future<PermissionOutcome> ensureMicrophone();
   Future<void> openSettings();
 }
 
@@ -99,6 +100,10 @@ class SystemPermissions implements PermissionPort {
     }
     return _request(Permission.photos);
   }
+
+  @override
+  Future<PermissionOutcome> ensureMicrophone() =>
+      _request(Permission.microphone);
 
   @override
   Future<void> openSettings() => openAppSettings();

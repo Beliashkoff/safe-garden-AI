@@ -30,6 +30,8 @@
 	<string>Доступ к камере нужен, чтобы сфотографировать растение для диагностики.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Доступ к фото нужен, чтобы прикрепить снимок растения для диагностики.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Доступ к микрофону нужен, чтобы записать голосовое сообщение.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

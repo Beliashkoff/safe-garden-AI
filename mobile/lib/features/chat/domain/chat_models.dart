@@ -27,16 +27,18 @@ enum MessageStatus {
   failed,
 }
 
-/// A single content block of a message. `type` is `text` or `image` (stage 3.3;
-/// `audio` follows in stage 4). For an image block, [storageKey] is the
-/// owner-scoped object key the bubble resolves to a file via the media cache;
-/// [text] carries the text body otherwise.
+/// A single content block of a message. `type` is `text`, `image`, `audio` or
+/// `transcription`. For an image/audio block, [storageKey] is the owner-scoped
+/// object key the bubble resolves to a file via the media cache; for a
+/// text/transcription block [text] carries the body. [durationMs] is the audio
+/// length on a `transcription` block (and on the optimistic `audio` block).
 @freezed
 class ContentBlock with _$ContentBlock {
   const factory ContentBlock({
     required String type,
     @Default('') String text,
     @JsonKey(name: 'storage_key') @Default('') String storageKey,
+    @JsonKey(name: 'duration_ms') @Default(0) int durationMs,
   }) = _ContentBlock;
 
   factory ContentBlock.fromJson(Map<String, dynamic> json) =>
@@ -97,6 +99,22 @@ class SseDelta extends SseEvent {
   const SseDelta(this.text);
 
   final String text;
+}
+
+/// The server-side transcript of the user's voice message, emitted before the
+/// assistant reply so the client can show the recognized text under the player.
+class SseTranscription extends SseEvent {
+  const SseTranscription({
+    required this.messageId,
+    required this.storageKey,
+    required this.text,
+    required this.durationMs,
+  });
+
+  final String messageId;
+  final String storageKey;
+  final String text;
+  final int durationMs;
 }
 
 /// A tool invocation passed through from the worker (stage 5; ignored for now).

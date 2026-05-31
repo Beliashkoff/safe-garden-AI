@@ -48,6 +48,9 @@ class _FakePermissions implements PermissionPort {
   Future<PermissionOutcome> ensurePhotos() async => outcome;
 
   @override
+  Future<PermissionOutcome> ensureMicrophone() async => outcome;
+
+  @override
   Future<void> openSettings() async => openSettingsCalls++;
 }
 

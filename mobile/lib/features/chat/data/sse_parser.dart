@@ -64,6 +64,13 @@ SseEvent? _dispatch(String? eventName, String data) {
       return SseMessageStarted((json['message_id'] as String?) ?? '');
     case 'delta':
       return SseDelta((json['text'] as String?) ?? '');
+    case 'transcription':
+      return SseTranscription(
+        messageId: (json['message_id'] as String?) ?? '',
+        storageKey: (json['storage_key'] as String?) ?? '',
+        text: (json['text'] as String?) ?? '',
+        durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
+      );
     case 'tool_use':
       return SseToolUse(
         tool: (json['tool'] as String?) ?? '',

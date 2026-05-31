@@ -5,6 +5,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../domain/chat_models.dart';
 import 'chat_error_message.dart';
 import 'widgets/message_photos.dart';
+import 'widgets/voice_message_player.dart';
 
 /// A single chat bubble. User messages render photos (if any) and plain
 /// selectable text on the right; assistant messages render markdown on the
@@ -59,6 +60,9 @@ class MessageBubble extends StatelessWidget {
     final hasText = message.content.any(
       (b) => b.type == 'text' && b.text.isNotEmpty,
     );
+    final hasTranscription = message.content.any(
+      (b) => b.type == 'transcription' && b.text.isNotEmpty,
+    );
 
     // Render blocks in order, grouping consecutive image blocks into one grid.
     final imageRun = <String>[];
@@ -80,6 +84,37 @@ class MessageBubble extends StatelessWidget {
         if (block.storageKey.isNotEmpty) {
           imageRun.add(block.storageKey);
         }
+        continue;
+      }
+      if (block.type == 'audio') {
+        if (block.storageKey.isNotEmpty) {
+          flushImages();
+          children.add(
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: VoiceMessagePlayer(
+                storageKey: block.storageKey,
+                hintDurationMs: block.durationMs,
+              ),
+            ),
+          );
+          if (!hasTranscription) {
+            children.add(_mutedNote(theme, l10n.voiceTranscribing, foreground));
+          }
+        }
+        continue;
+      }
+      if (block.type == 'transcription' && block.text.isNotEmpty) {
+        flushImages();
+        children.add(
+          SelectableText(
+            block.text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: foreground,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        );
         continue;
       }
       if (block.type == 'text' && block.text.isNotEmpty) {
@@ -135,6 +170,18 @@ class MessageBubble extends StatelessWidget {
     }
 
     return children;
+  }
+
+  Widget _mutedNote(ThemeData theme, String text, Color foreground) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Text(
+        text,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: foreground.withValues(alpha: 0.7),
+        ),
+      ),
+    );
   }
 
   Widget _note(ThemeData theme, String text) {

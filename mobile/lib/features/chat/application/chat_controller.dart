@@ -82,19 +82,24 @@ class ChatController extends AsyncNotifier<ChatState> {
   Future<void> sendMessage(
     String text, {
     List<String> imageStorageKeys = const [],
+    String? audioStorageKey,
+    int audioDurationMs = 0,
   }) async {
     final trimmed = text.trim();
     final current = state.valueOrNull;
-    if ((trimmed.isEmpty && imageStorageKeys.isEmpty) ||
+    if ((trimmed.isEmpty &&
+            imageStorageKeys.isEmpty &&
+            audioStorageKey == null) ||
         current == null ||
         current.sending) {
       return;
     }
 
     final now = DateTime.now().toUtc();
+    final localUserId = _localId('user');
     final localAssistantId = _localId('assistant');
     final userMsg = ChatMessage(
-      id: _localId('user'),
+      id: localUserId,
       role: MessageRole.user,
       status: MessageStatus.complete,
       createdAt: now,
@@ -102,6 +107,12 @@ class ChatController extends AsyncNotifier<ChatState> {
         if (trimmed.isNotEmpty) ContentBlock(type: 'text', text: trimmed),
         for (final key in imageStorageKeys)
           ContentBlock(type: 'image', storageKey: key),
+        if (audioStorageKey != null)
+          ContentBlock(
+            type: 'audio',
+            storageKey: audioStorageKey,
+            durationMs: audioDurationMs,
+          ),
       ],
     );
     final assistantMsg = ChatMessage(
@@ -129,6 +140,7 @@ class ChatController extends AsyncNotifier<ChatState> {
       await for (final event in _repo.sendMessage(
         text: trimmed,
         imageStorageKeys: imageStorageKeys,
+        audioStorageKey: audioStorageKey,
         cancelToken: cancelToken,
       )) {
         switch (event) {
@@ -140,6 +152,22 @@ class ChatController extends AsyncNotifier<ChatState> {
                 status: MessageStatus.pending,
                 streaming: true,
                 content: [ContentBlock(type: 'text', text: buffer.toString())],
+              ),
+            );
+          case SseTranscription(:final text, :final durationMs):
+            // The user's voice transcription, emitted before the reply: attach
+            // it to the optimistic user message so it shows under the player.
+            _patchUser(
+              localUserId,
+              (m) => m.copyWith(
+                content: [
+                  ...m.content.where((b) => b.type != 'transcription'),
+                  ContentBlock(
+                    type: 'transcription',
+                    text: text,
+                    durationMs: durationMs,
+                  ),
+                ],
               ),
             );
           case SseError(:final code):
@@ -343,6 +371,24 @@ class ChatController extends AsyncNotifier<ChatState> {
         messages: [
           for (final m in current.messages)
             if (m.id == localAssistantId) update(m) else m,
+        ],
+      ),
+    );
+  }
+
+  void _patchUser(
+    String localUserId,
+    ChatMessage Function(ChatMessage) update,
+  ) {
+    final current = state.valueOrNull;
+    if (current == null) {
+      return;
+    }
+    state = AsyncData(
+      current.copyWith(
+        messages: [
+          for (final m in current.messages)
+            if (m.id == localUserId) update(m) else m,
         ],
       ),
     );

@@ -63,12 +63,15 @@ class ChatApi {
   Stream<SseEvent> sendMessage({
     required String text,
     List<String> imageStorageKeys = const [],
+    String? audioStorageKey,
     CancelToken? cancelToken,
   }) async* {
     final content = <Map<String, String>>[
       if (text.isNotEmpty) {'type': 'text', 'text': text},
       for (final key in imageStorageKeys)
         {'type': 'image_ref', 'storage_key': key},
+      if (audioStorageKey != null && audioStorageKey.isNotEmpty)
+        {'type': 'audio_ref', 'storage_key': audioStorageKey},
     ];
     final bytes = await _client.openEventStream(
       path: '/messages',
