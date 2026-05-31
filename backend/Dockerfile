@@ -9,8 +9,15 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w" \
     -o /out/api ./cmd/api
 
-FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=builder /out/api /api
-USER nonroot:nonroot
+# debian-slim (not distroless/static) because the API converts uploaded voice
+# messages with ffmpeg (m4a/aac -> OggOpus for SpeechKit); ffmpeg needs a base
+# with a package manager. The Go binary is still static (CGO disabled).
+FROM debian:12-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system app && useradd --system --gid app --no-create-home app
+COPY --from=builder /out/api /usr/local/bin/api
+USER app:app
 EXPOSE 8080
-ENTRYPOINT ["/api"]
+ENTRYPOINT ["/usr/local/bin/api"]

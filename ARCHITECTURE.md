@@ -109,7 +109,7 @@
 | Secrets                  | Yandex Lockbox + переменные окружения                |
 | IaC                      | Terraform (`infra/terraform/`)                       |
 | Email (OTP)              | **Yandex 360 SMTP** (рабочий ящик `noreply@<domain>`)|
-| Транскрипция             | **Yandex SpeechKit v3** (sync recognize)             |
+| Транскрипция             | **Yandex SpeechKit v3** (streaming recognition, gRPC)|
 | LLM-worker (вне РФ)      | **HostKey Frankfurt** (vm.v2-nano, Ubuntu 24.04, ~830 ₽/мес). Оплата рублями, юрлицо провайдера — ООО «АЙТИБ» (РФ); принятые риски — см. §11.7. |
 | Конвертация аудио        | `ffmpeg` (m4a/AAC → OggOpus 16kHz mono для SpeechKit)|
 
@@ -827,6 +827,6 @@ services:
 - **Этап 1:** `sign_in_with_apple`, `google_sign_in`, `golang-jwt/jwt/v5`, `coreos/go-oidc`, `gomail` (или альтернатива) для SMTP через Yandex 360.
 - **Этап 2:** `anthropic-sdk-go` (актуальный модельный ID Opus, формат streaming, prompt caching API). mTLS-конфигурация в Go (`crypto/tls`).
 - **Этап 3:** `image_picker`, `flutter_image_compress`, S3 presigned PUT (Yandex Object Storage).
-- **Этап 4:** `record` (Flutter), Yandex SpeechKit v3 API (sync recognize, форматы, ошибки), `ffmpeg` для конвертации m4a→OggOpus.
+- **Этап 4:** `record` (Flutter), Yandex SpeechKit v3 API (streaming recognition gRPC, форматы, ошибки), `ffmpeg` для конвертации m4a→OggOpus.
 - **Этап 5:** Anthropic Tool Use — последний формат `tool_use` / `tool_result` событий в стриме.
 - **Этап 7:** Apple App Store Review Guidelines, Google Play Data Safety form.

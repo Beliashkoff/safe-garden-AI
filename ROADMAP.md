@@ -232,15 +232,18 @@ _Дополнительно к mobile-скоупу: на бэкенд добав
 **Цель:** пользователь записывает голосовое, получает ответ.
 
 ### 4.1 Провайдер: Yandex SpeechKit v3 (закрыто Q4)
+
+> Распознавание идёт через **streaming gRPC** (`Recognizer.RecognizeStreaming`, v3), а не sync recognize: синхронный режим ограничен 30с/1МБ, а голосовое — до 60с (SPEC F5). РФ-бэкенд вызывает SpeechKit напрямую (Yandex Cloud в РФ), не через llm-worker. Пакет `internal/audio` реализован и покрыт тестами; вклейка в `/messages` — в 4.2.
+
 - [ ] Сервис-аккаунт + API-ключ из Yandex Cloud (создан в Этапе 0).
-- [ ] **Конвертация аудио:** SpeechKit не принимает m4a/AAC напрямую. Перед отправкой бэкенд конвертирует через `ffmpeg` (`-i in.m4a -c:a libopus -ar 16000 -ac 1 out.ogg`). `ffmpeg` устанавливается в Docker-образ бэкенда.
-- [ ] Резервный провайдер: GigaChat (Sber GigaAM-v3) — не реализуем сейчас, держим как запасной интерфейс.
+- [x] **Конвертация аудио:** SpeechKit не принимает m4a/AAC напрямую. Перед отправкой бэкенд конвертирует через `ffmpeg` (`-i in.m4a -c:a libopus -ar 16000 -ac 1 out.ogg`). `ffmpeg` устанавливается в Docker-образ бэкенда (`debian:12-slim`).
+- [x] Резервный провайдер: GigaChat (Sber GigaAM-v3) — не реализуем сейчас, держим как запасной интерфейс (`internal/audio/gigachat.go`, заглушка за тем же `Transcriber`).
 
 ### 4.2 Backend
 - [ ] Расширение presign на `audio` (m4a/aac/mp3, ≤ 25 МБ, ≤ 60s — длительность валидируется после конвертации).
-- [ ] `internal/audio/transcriber.go` — интерфейс `Transcriber.Transcribe(ctx, key, lang) (text, durationMs, error)`.
-- [ ] `internal/audio/speechkit.go` — реализация SpeechKit v3 через REST (sync recognize). Заголовок `Authorization: Api-Key <KEY>`.
-- [ ] `internal/audio/converter.go` — обёртка над `ffmpeg` через `os/exec`.
+- [x] `internal/audio/transcriber.go` — интерфейс `Transcriber.Transcribe(ctx, oggOpus, lang) (Result{Text, DurationMs}, error)`. Загрузка из Object Storage и конвертация — на стороне usecase (4.2), не транскрайбера.
+- [x] `internal/audio/speechkit.go` — реализация SpeechKit v3 через gRPC streaming (`Recognizer.RecognizeStreaming`). Метаданные `authorization: Api-Key <KEY>`. Покрыто тестами (in-process gRPC через bufconn).
+- [x] `internal/audio/converter.go` — обёртка над `ffmpeg`/`ffprobe` через `os/exec` (m4a/aac/mp3 → OggOpus 16kHz mono, валидация ≤ 60s).
 - [ ] При обработке `audio_ref` в `/messages`: загрузить аудио из Object Storage → конвертировать → транскрибировать → передать как text-блок в Claude (с пометкой `[голосовое сообщение]: ...`).
 - [ ] Сохранять транскрипцию как `message_blocks.type = 'transcription'` рядом с `audio` блоком — UI показывает плеер и текст.
 

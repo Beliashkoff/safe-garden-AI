@@ -21,6 +21,8 @@ var redactedKeys = map[string]struct{}{
 	"text":          {},
 	"transcription": {},
 	"message_text":  {},
+	"audio":         {}, // voice message bytes — never log
+	"audio_b64":     {},
 	// Stage 1.1 additions:
 	"apple_sub":    {}, // stable external identifier — usable to correlate accounts across services
 	"google_sub":   {}, // same as above
