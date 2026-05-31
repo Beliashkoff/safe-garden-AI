@@ -3,7 +3,11 @@
 // transport layer adapts the Sink to SSE. No transport types leak here.
 package chat
 
-import "time"
+import (
+	"time"
+
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
+)
 
 // InputBlock is one content block from the client. Stage 3.1 accepts "text" and
 // "image_ref" (with StorageKey); "audio_ref" and others are rejected (Stage 4+).
@@ -22,12 +26,14 @@ type SendInput struct {
 // BlockView is a stored content block projected for reads (no pgtype). For
 // image/audio blocks Text is empty and StorageKey points at the object; for
 // transcription blocks Text holds the transcript and DurationMs the audio
-// length (so the client can render the voice player).
+// length (so the client can render the voice player); for fertilizer_card blocks
+// Products carries the recommended catalog items.
 type BlockView struct {
 	Type       string
 	Text       string
 	StorageKey string
 	DurationMs int64
+	Products   []llm.FertilizerProduct
 }
 
 // MessageView is a stored message projected for reads.

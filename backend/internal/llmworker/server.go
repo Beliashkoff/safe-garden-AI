@@ -24,12 +24,30 @@ type Server struct {
 func New(cfg *Config, logger *slog.Logger) *Server {
 	var p provider
 	if cfg.AnthropicAPIKey != "" {
-		p = newAnthropicProvider(cfg.AnthropicAPIKey, cfg.MaxTokens, cfg.ModelOverride, logger)
+		p = newAnthropicProvider(cfg.AnthropicAPIKey, cfg.MaxTokens, cfg.ModelOverride, buildFertilizerClient(cfg, logger), logger)
 	} else {
 		logger.Warn("ANTHROPIC_API_KEY empty — using echo provider (dev only)")
 		p = newEchoProvider()
 	}
 	return &Server{cfg: cfg, logger: logger, provider: p}
+}
+
+// buildFertilizerClient wires the worker→backend tool callback (ARCH §11). When
+// BACKEND_CALLBACK_URL is unset (dev), it returns nil — the provider then
+// reports "catalog unavailable" for recommend_fertilizer and Claude answers in
+// text. A build error (URL set but cert load fails) is logged and degrades to
+// nil; prod refuses to start without the callback via LoadConfig.
+func buildFertilizerClient(cfg *Config, logger *slog.Logger) fertilizerRecommender {
+	if cfg.BackendCallbackURL == "" {
+		logger.Warn("BACKEND_CALLBACK_URL empty — recommend_fertilizer disabled (dev only)")
+		return nil
+	}
+	fc, err := newFertilizerClient(cfg)
+	if err != nil {
+		logger.Error("fertilizer callback client init failed — recommend_fertilizer disabled", "err", err.Error())
+		return nil
+	}
+	return fc
 }
 
 // Routes возвращает chi-роутер с применёнными middleware. Выделено отдельно,

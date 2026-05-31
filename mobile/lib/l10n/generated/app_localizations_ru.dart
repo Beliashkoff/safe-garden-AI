@@ -184,6 +184,9 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось отправить голосовое. Попробуйте ещё раз.';
 
   @override
+  String get fertilizerCardMore => 'Подробнее';
+
+  @override
   String get deleteAccountConfirmTitle => 'Удалить аккаунт?';
 
   @override

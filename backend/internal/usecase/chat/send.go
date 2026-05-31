@@ -89,6 +89,7 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 		Model:    s.model,
 		System:   prompts.SystemV1(),
 		Messages: history,
+		Tools:    llm.FertilizerTools(),
 		Metadata: llm.Metadata{UIDHash: uidHash(userID, s.pepper), RequestID: in.RequestID},
 	}
 	ch, err := s.llm.Send(ctx, req)
@@ -110,7 +111,7 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 		s.finalizeIncomplete(assistantID, "failed", res.text)
 		return nil
 	default:
-		s.finalizeComplete(assistantID, userID, res.text, res.tokensIn, res.tokensOut)
+		s.finalizeComplete(assistantID, userID, res.text, res.fertilizerCards, res.tokensIn, res.tokensOut)
 		return sink.Done(assistantID.String(), res.tokensIn, res.tokensOut)
 	}
 }
@@ -119,6 +120,9 @@ type relayResult struct {
 	text                string
 	tokensIn, tokensOut int64
 	failed              bool
+	// fertilizerCards holds the raw {"products":[...]} payloads emitted during
+	// the turn, in order, so they can be persisted as fertilizer_card blocks.
+	fertilizerCards []json.RawMessage
 }
 
 // relay forwards worker stream events to the sink and accumulates the assistant
@@ -150,7 +154,11 @@ func relay(ch <-chan llm.StreamEvent, sink Sink) (relayResult, error) {
 			_ = json.Unmarshal(ev.Data, &t)
 			_ = sink.ToolUse(t.Tool, t.Args)
 		case llm.EventFertilizerCard:
-			_ = sink.FertilizerCard(ev.Data)
+			// Copy: ev.Data is backed by the stream buffer, reused on the next read.
+			data := make(json.RawMessage, len(ev.Data))
+			copy(data, ev.Data)
+			res.fertilizerCards = append(res.fertilizerCards, data)
+			_ = sink.FertilizerCard(data)
 		case llm.EventUsage:
 			var u struct {
 				In  int64 `json:"tokens_in"`
@@ -173,8 +181,10 @@ func relay(ch <-chan llm.StreamEvent, sink Sink) (relayResult, error) {
 }
 
 // finalizeComplete persists the finished assistant message + usage on a detached
-// context (so the writes land even if the request context is done).
-func (s *Service) finalizeComplete(assistantID, userID uuid.UUID, text string, in, out int64) {
+// context (so the writes land even if the request context is done). Any
+// fertilizer cards emitted during the turn are stored as fertilizer_card blocks
+// after the text block, so reloading history restores them (ARCH §6.1).
+func (s *Service) finalizeComplete(assistantID, userID uuid.UUID, text string, cards []json.RawMessage, in, out int64) {
 	fctx, cancel := context.WithTimeout(context.Background(), finalizeTimeout)
 	defer cancel()
 
@@ -184,12 +194,22 @@ func (s *Service) finalizeComplete(assistantID, userID uuid.UUID, text string, i
 		}); err != nil {
 			return err
 		}
+		var order int32
 		if text != "" {
 			if _, err := q.CreateMessageBlock(fctx, db.CreateMessageBlockParams{
-				MessageID: assistantID, OrderIndex: 0, Type: "text", ContentText: textVal(text),
+				MessageID: assistantID, OrderIndex: order, Type: "text", ContentText: textVal(text),
 			}); err != nil {
 				return err
 			}
+			order++
+		}
+		for _, card := range cards {
+			if _, err := q.CreateMessageBlock(fctx, db.CreateMessageBlockParams{
+				MessageID: assistantID, OrderIndex: order, Type: "fertilizer_card", Metadata: card,
+			}); err != nil {
+				return err
+			}
+			order++
 		}
 		return nil
 	})

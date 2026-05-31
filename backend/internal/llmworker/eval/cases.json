@@ -1,0 +1,25 @@
+{
+  "description": "Eval set for the agronomist + recommend_fertilizer flow (ROADMAP 5.4/5.5). Each case is a typical user message; expectTool marks whether Claude should call recommend_fertilizer, and expectProblem is the enum value it should map the diagnosis onto. Run through the prod worker (live Anthropic) and score quality + cost by hand.",
+  "cases": [
+    { "id": "tomato_yellow_lower", "message": "Помidor в теплице, нижние листья желтеют и сохнут от краёв. Что это?", "expectTool": true, "expectProblem": "potassium_deficiency" },
+    { "id": "tomato_yellow_general", "message": "У томатов желтеют листья, начиная со старых. Подкормить чем?", "expectTool": true, "expectProblem": "nitrogen_deficiency" },
+    { "id": "cucumber_wilting", "message": "Огурцы вянут днём даже при поливе, к вечеру немного оживают.", "expectTool": true, "expectProblem": "wilting" },
+    { "id": "pepper_poor_fruiting", "message": "Перец цветёт, но завязей почти нет, плодов мало.", "expectTool": true, "expectProblem": "poor_fruiting" },
+    { "id": "leaf_spots_brown", "message": "На листьях появились коричневые пятна с жёлтой каймой, их всё больше.", "expectTool": true, "expectProblem": "leaf_spots" },
+    { "id": "stunted_seedlings", "message": "Рассада почти не растёт уже две недели, стоит на месте.", "expectTool": true, "expectProblem": "stunted_growth" },
+    { "id": "interveinal_chlorosis", "message": "У молодых листьев светлеет всё между жилками, сами жилки зелёные.", "expectTool": true, "expectProblem": "iron_deficiency" },
+    { "id": "purple_leaves", "message": "Нижняя сторона листьев у томатов стала фиолетовой.", "expectTool": true, "expectProblem": "phosphorus_deficiency" },
+    { "id": "blossom_end_rot", "message": "На томатах снизу плода тёмное вдавленное пятно, как гниль.", "expectTool": true, "expectProblem": "calcium_deficiency" },
+    { "id": "magnesium_old_leaves", "message": "На старых листьях желтеет между жилками, жилки остаются зелёными.", "expectTool": true, "expectProblem": "magnesium_deficiency" },
+    { "id": "aphids", "message": "На верхушках побегов куча мелкой зелёной тли, листья скручиваются.", "expectTool": true, "expectProblem": "pest_aphid" },
+    { "id": "spider_mite", "message": "Листья в мелкую жёлтую крапинку и тонкая паутинка снизу.", "expectTool": true, "expectProblem": "pest_mite" },
+    { "id": "root_rot", "message": "Растение вянет, у основания стебель мягкий и тёмный, земля всё время мокрая.", "expectTool": true, "expectProblem": "root_rot" },
+    { "id": "general_weak", "message": "Растение в целом слабое и бледное после пересадки, чем поддержать?", "expectTool": true, "expectProblem": "general_stress" },
+    { "id": "leaf_yellowing_houseplant", "message": "У фикуса дома желтеют и опадают листья.", "expectTool": true, "expectProblem": "leaf_yellowing" },
+    { "id": "tomato_potassium_with_plant", "message": "У томата по краям листьев жёлто-коричневая кайма, как ожог. Сорт черри.", "expectTool": true, "expectProblem": "potassium_deficiency" },
+    { "id": "nitrogen_pale_whole", "message": "Вся ботва картофеля бледно-зелёная, рост слабый.", "expectTool": true, "expectProblem": "nitrogen_deficiency" },
+    { "id": "mechanical_damage", "message": "Кот сломал ветку у фикуса, что делать с обломом?", "expectTool": false, "expectProblem": "" },
+    { "id": "non_plant_question", "message": "А какая земля лучше для рассады — покупная или своя?", "expectTool": false, "expectProblem": "" },
+    { "id": "watering_only", "message": "Как часто поливать орхидею зимой?", "expectTool": false, "expectProblem": "" }
+  ]
+}

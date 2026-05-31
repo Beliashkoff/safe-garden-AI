@@ -64,6 +64,7 @@
   "voicePermissionTitle": "Нужен доступ к микрофону",
   "voicePermissionBody": "Разрешите доступ к микрофону в настройках, чтобы записать голосовое сообщение.",
   "voiceUploadFailed": "Не удалось отправить голосовое. Попробуйте ещё раз.",
+  "fertilizerCardMore": "Подробнее",
   "deleteAccountConfirmTitle": "Удалить аккаунт?",
   "deleteAccountConfirmBody": "Это действие необратимо. Все данные будут удалены.",
   "commonCancel": "Отмена",

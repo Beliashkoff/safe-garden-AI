@@ -77,7 +77,12 @@ SseEvent? _dispatch(String? eventName, String data) {
         args: (json['args'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
     case 'fertilizer_card':
-      return SseFertilizerCard(json);
+      final raw = (json['products'] as List?) ?? const [];
+      final products = raw
+          .whereType<Map<String, dynamic>>()
+          .map(FertilizerProduct.fromJson)
+          .toList();
+      return SseFertilizerCard(products);
     case 'error':
       return SseError(
         code: (json['code'] as String?) ?? 'upstream_error',

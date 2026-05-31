@@ -335,6 +335,11 @@ func toMessageView(m db.Message, blocks []db.MessageBlock) MessageView {
 				Text:       b.ContentText.String,
 				DurationMs: durationFromMeta(b.Metadata),
 			})
+		case "fertilizer_card":
+			content = append(content, BlockView{
+				Type:     "fertilizer_card",
+				Products: productsFromMeta(b.Metadata),
+			})
 		}
 	}
 	return MessageView{
@@ -419,4 +424,17 @@ func durationFromMeta(meta []byte) int64 {
 		return 0
 	}
 	return m.DurationMs
+}
+
+// productsFromMeta extracts the product list from a fertilizer_card block's JSONB
+// metadata ({"products":[...]}); returns nil if absent or malformed.
+func productsFromMeta(meta []byte) []llm.FertilizerProduct {
+	if len(meta) == 0 {
+		return nil
+	}
+	var ev llm.FertilizerCardEvent
+	if err := json.Unmarshal(meta, &ev); err != nil {
+		return nil
+	}
+	return ev.Products
 }

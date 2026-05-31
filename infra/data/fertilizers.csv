@@ -1,0 +1,2 @@
+slug,name,short_desc,long_desc,image_url,deeplink_url,category,problems,plants,priority,active
+demo-potassium-boost,Калий-Буст Премиум,Калийная подкормка для устранения дефицита калия и пожелтения листьев,Водорастворимое калийное удобрение с микроэлементами. Применяется при первых признаках калийного голодания: краевой ожог и пожелтение старых листьев.,https://cdn.agronomai.site/fertilizers/demo-potassium-boost.jpg,https://agronomai.site/catalog/demo-potassium-boost,Минеральные удобрения,potassium_deficiency;leaf_yellowing,,100,true

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,8 +30,10 @@ import (
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage"
 	httptransport "github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/handler"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/internalapi"
 	authuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/auth"
 	chatuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/chat"
+	fertilizeruc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/fertilizer"
 	uploaduc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/upload"
 )
 
@@ -224,10 +228,41 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	// Internal API — mTLS-only callback surface for the llm-worker (ARCH §11,
+	// recommend_fertilizer). Separate listener, no user auth.
+	fertilizerService := fertilizeruc.NewService(store)
+	internalSrv := &http.Server{
+		Addr:              fmt.Sprintf("%s:%d", cfg.InternalHTTPHost, cfg.InternalHTTPPort),
+		Handler:           internalapi.New(fertilizerService, logger).Routes(),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
 	go func() {
 		slog.Info("server starting", "addr", srv.Addr, "env", cfg.Env)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("server failed", "err", err)
+			stop()
+		}
+	}()
+
+	go func() {
+		slog.Info("internal server starting", "addr", internalSrv.Addr, "mtls", cfg.InternalMTLSEnabled)
+		var serveErr error
+		if cfg.InternalMTLSEnabled {
+			tlsCfg, err := internalTLSConfig(cfg)
+			if err != nil {
+				slog.Error("internal mTLS config failed", "err", err)
+				stop()
+				return
+			}
+			internalSrv.TLSConfig = tlsCfg
+			serveErr = internalSrv.ListenAndServeTLS("", "")
+		} else {
+			slog.Warn("internal server running without mTLS (dev only)")
+			serveErr = internalSrv.ListenAndServe()
+		}
+		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			slog.Error("internal server failed", "err", serveErr)
 			stop()
 		}
 	}()
@@ -240,4 +275,31 @@ func main() {
 	if err := srv.Shutdown(shutCtx); err != nil {
 		slog.Error("server shutdown error", "err", err)
 	}
+	if err := internalSrv.Shutdown(shutCtx); err != nil {
+		slog.Error("internal server shutdown error", "err", err)
+	}
+}
+
+// internalTLSConfig builds the mTLS server config for the internal listener: it
+// presents the server cert and REQUIRES a client cert signed by the worker CA
+// (ARCH §11). Mirrors the client-side config in internal/llm/worker_client.go.
+func internalTLSConfig(cfg *config.Config) (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(cfg.InternalMTLSCertPath, cfg.InternalMTLSKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("load internal server cert: %w", err)
+	}
+	caPEM, err := os.ReadFile(cfg.InternalMTLSClientCAPath)
+	if err != nil {
+		return nil, fmt.Errorf("read internal client CA: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("internal client CA %s contains no certificates", cfg.InternalMTLSClientCAPath)
+	}
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    pool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion:   tls.VersionTLS12,
+	}, nil
 }

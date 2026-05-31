@@ -30,8 +30,17 @@ type Config struct {
 	// (метрики антифрода — Этап 2.3). На 0.7 — placeholder.
 	UIDHashPepper string `envconfig:"UID_HASH_PEPPER" default:""`
 
-	// BackendCallbackURL — куда worker делает tool-callback (Этап 5.2).
+	// BackendCallbackURL — база РФ-бэкенда для tool-callback (Этап 5.2),
+	// например https://internal.agronomai.site:8090. Worker дописывает путь
+	// /internal/v1/tools/fertilizer.
 	BackendCallbackURL string `envconfig:"BACKEND_CALLBACK_URL" default:""`
+
+	// mTLS для обратного канала worker→backend (Этап 5.2). В prod обязателен:
+	// внутренний эндпоинт бэкенда аутентифицирует worker по клиентскому серту.
+	BackendCallbackMTLSEnabled    bool   `envconfig:"BACKEND_CALLBACK_MTLS_ENABLED" default:"false"`
+	BackendCallbackClientCertPath string `envconfig:"BACKEND_CALLBACK_CLIENT_CERT_PATH" default:""`
+	BackendCallbackClientKeyPath  string `envconfig:"BACKEND_CALLBACK_CLIENT_KEY_PATH" default:""`
+	BackendCallbackCAPath         string `envconfig:"BACKEND_CALLBACK_CA_PATH" default:""`
 
 	// MaxTokens — потолок output-токенов на ответ Claude.
 	MaxTokens int `envconfig:"WORKER_MAX_TOKENS" default:"2048"`
@@ -49,8 +58,17 @@ func LoadConfig() (*Config, error) {
 	}
 	// В prod worker без ключа бессмысленен — лучше упасть на старте, чем тихо
 	// уйти в echo и слать пользователям эхо вместо ответов Claude.
-	if c.Env == "prod" && c.AnthropicAPIKey == "" {
-		return nil, fmt.Errorf("llmworker: ANTHROPIC_API_KEY is required when ENV=prod")
+	if c.Env == "prod" {
+		if c.AnthropicAPIKey == "" {
+			return nil, fmt.Errorf("llmworker: ANTHROPIC_API_KEY is required when ENV=prod")
+		}
+		// Tool use (recommend_fertilizer) needs the backend callback over mTLS.
+		if c.BackendCallbackURL == "" {
+			return nil, fmt.Errorf("llmworker: BACKEND_CALLBACK_URL is required when ENV=prod")
+		}
+		if !c.BackendCallbackMTLSEnabled {
+			return nil, fmt.Errorf("llmworker: BACKEND_CALLBACK_MTLS_ENABLED must be true when ENV=prod")
+		}
 	}
 	return &c, nil
 }

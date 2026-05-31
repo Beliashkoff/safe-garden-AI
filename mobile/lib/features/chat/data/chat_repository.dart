@@ -56,6 +56,10 @@ class ChatRepository {
     await _db.deleteMessage(id);
   }
 
+  /// Records a fertilizer card tap (internal analytics).
+  Future<void> recordFertilizerTap(String slug) =>
+      _api.recordFertilizerTap(slug);
+
   /// Drops the local cache (logout / account deletion): both the message cache
   /// and the on-device photo files.
   Future<void> clearCache() async {

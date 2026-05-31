@@ -4,6 +4,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../domain/chat_models.dart';
 import 'chat_error_message.dart';
+import 'widgets/fertilizer_card.dart';
 import 'widgets/message_photos.dart';
 import 'widgets/voice_message_player.dart';
 
@@ -11,10 +12,16 @@ import 'widgets/voice_message_player.dart';
 /// selectable text on the right; assistant messages render markdown on the
 /// left, with status notes (streaming spinner, cancelled, failed + retry).
 class MessageBubble extends StatelessWidget {
-  const MessageBubble({required this.message, this.onRetry, super.key});
+  const MessageBubble({
+    required this.message,
+    this.onRetry,
+    this.onFertilizerTap,
+    super.key,
+  });
 
   final ChatMessage message;
   final VoidCallback? onRetry;
+  final void Function(FertilizerProduct product)? onFertilizerTap;
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +119,19 @@ class MessageBubble extends StatelessWidget {
             style: theme.textTheme.bodyMedium?.copyWith(
               color: foreground,
               fontStyle: FontStyle.italic,
+            ),
+          ),
+        );
+        continue;
+      }
+      if (block.type == 'fertilizer_card' && block.products.isNotEmpty) {
+        flushImages();
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 6),
+            child: FertilizerCardList(
+              products: block.products,
+              onOpen: onFertilizerTap,
             ),
           ),
         );

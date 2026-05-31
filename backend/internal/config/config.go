@@ -75,6 +75,18 @@ type Config struct {
 	S3SecretKey    string `envconfig:"S3_SECRET_KEY" default:""`
 	S3Bucket       string `envconfig:"S3_BUCKET" default:""`
 	S3UsePathStyle bool   `envconfig:"S3_USE_PATH_STYLE" default:"true"`
+
+	// Internal API — the mTLS-only listener the llm-worker calls back into during
+	// a tool-use turn (ARCH §11, recommend_fertilizer). Runs on a separate port
+	// from the public API, never behind RequireAuth. In prod mTLS is mandatory
+	// (the client cert is the authentication); in dev it serves plain HTTP on
+	// localhost. Required mTLS vars enforced in validateProd.
+	InternalHTTPHost         string `envconfig:"INTERNAL_HTTP_HOST" default:""`
+	InternalHTTPPort         int    `envconfig:"INTERNAL_HTTP_PORT" default:"8090"`
+	InternalMTLSEnabled      bool   `envconfig:"INTERNAL_MTLS_ENABLED" default:"false"`
+	InternalMTLSCertPath     string `envconfig:"INTERNAL_MTLS_CERT_PATH" default:""`
+	InternalMTLSKeyPath      string `envconfig:"INTERNAL_MTLS_KEY_PATH" default:""`
+	InternalMTLSClientCAPath string `envconfig:"INTERNAL_MTLS_CLIENT_CA_PATH" default:""`
 }
 
 func Load() (*Config, error) {
@@ -108,6 +120,15 @@ func (c *Config) validateProd() error {
 	require(c.S3AccessKey, "S3_ACCESS_KEY")
 	require(c.S3SecretKey, "S3_SECRET_KEY")
 	require(c.S3Bucket, "S3_BUCKET")
+
+	// The worker→backend tool callback must be mTLS-protected in prod.
+	if !c.InternalMTLSEnabled {
+		missing = append(missing, "INTERNAL_MTLS_ENABLED (must be true in prod)")
+	} else {
+		require(c.InternalMTLSCertPath, "INTERNAL_MTLS_CERT_PATH")
+		require(c.InternalMTLSKeyPath, "INTERNAL_MTLS_KEY_PATH")
+		require(c.InternalMTLSClientCAPath, "INTERNAL_MTLS_CLIENT_CA_PATH")
+	}
 
 	if c.GoogleClientIOS == "" && c.GoogleClientAndr == "" && c.GoogleClientWeb == "" {
 		missing = append(missing, "GOOGLE_CLIENT_ID_IOS or GOOGLE_CLIENT_ID_ANDROID or GOOGLE_CLIENT_ID_WEB")

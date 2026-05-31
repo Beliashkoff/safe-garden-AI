@@ -327,6 +327,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onRetry: message.status == MessageStatus.failed
                 ? () => ref.read(chatControllerProvider.notifier).retry()
                 : null,
+            onFertilizerTap: (product) => ref
+                .read(chatControllerProvider.notifier)
+                .recordFertilizerTap(product.slug),
           ),
         );
       },

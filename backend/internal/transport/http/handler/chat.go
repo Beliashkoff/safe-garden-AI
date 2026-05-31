@@ -10,6 +10,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/ctxkey"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/httperr"
 	chatuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/chat"
@@ -28,10 +29,11 @@ type contentBlockReq struct {
 }
 
 type blockDTO struct {
-	Type       string `json:"type"`
-	Text       string `json:"text,omitempty"`
-	StorageKey string `json:"storage_key,omitempty"`
-	DurationMs int64  `json:"duration_ms,omitempty"`
+	Type       string                  `json:"type"`
+	Text       string                  `json:"text,omitempty"`
+	StorageKey string                  `json:"storage_key,omitempty"`
+	DurationMs int64                   `json:"duration_ms,omitempty"`
+	Products   []llm.FertilizerProduct `json:"products,omitempty"`
 }
 
 type messageDTO struct {
@@ -142,6 +144,30 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+type fertilizerTapRequest struct {
+	Slug string `json:"slug"`
+}
+
+// PostFertilizerTap handles POST /v1/analytics/fertilizer_tap — records a tap on
+// a fertilizer card for internal analytics (ROADMAP §5.3).
+func (h *Handler) PostFertilizerTap(w http.ResponseWriter, r *http.Request) {
+	userID, ok := ctxkey.UserID(r.Context())
+	if !ok {
+		httperr.Write(w, r, httperr.Unauthorized("authentication required"))
+		return
+	}
+	var req fertilizerTapRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		httperr.Write(w, r, err)
+		return
+	}
+	if err := h.chat.RecordFertilizerTap(r.Context(), userID, req.Slug); err != nil {
+		respondError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func toInputBlocks(in []contentBlockReq) []chatuc.InputBlock {
 	out := make([]chatuc.InputBlock, len(in))
 	for i, b := range in {
@@ -155,7 +181,7 @@ func toMessageDTOs(views []chatuc.MessageView) []messageDTO {
 	for i, v := range views {
 		blocks := make([]blockDTO, len(v.Content))
 		for j, b := range v.Content {
-			blocks[j] = blockDTO{Type: b.Type, Text: b.Text, StorageKey: b.StorageKey, DurationMs: b.DurationMs}
+			blocks[j] = blockDTO{Type: b.Type, Text: b.Text, StorageKey: b.StorageKey, DurationMs: b.DurationMs, Products: b.Products}
 		}
 		out[i] = messageDTO{ID: v.ID, Role: v.Role, Status: v.Status, CreatedAt: v.CreatedAt, Content: blocks}
 	}

@@ -16,6 +16,9 @@ type eventSink interface {
 	started(messageID string) error
 	delta(text string) error
 	toolUse(name string, args json.RawMessage) error
+	// fertilizerCard streams a recommend_fertilizer result card alongside the
+	// text deltas (ARCH §4.3). data is the raw {"products":[...]} payload.
+	fertilizerCard(data json.RawMessage) error
 	usage(tokensIn, tokensOut int64) error
 	done() error
 	failed(code, msg string)
@@ -47,6 +50,11 @@ func (s *sseSink) delta(text string) error {
 
 func (s *sseSink) toolUse(name string, args json.RawMessage) error {
 	return writeSSE(s.w, string(llm.EventToolUse), map[string]any{"tool": name, "args": args})
+}
+
+func (s *sseSink) fertilizerCard(data json.RawMessage) error {
+	// data is already {"products":[...]} JSON; json.RawMessage marshals verbatim.
+	return writeSSE(s.w, string(llm.EventFertilizerCard), data)
 }
 
 func (s *sseSink) usage(tokensIn, tokensOut int64) error {

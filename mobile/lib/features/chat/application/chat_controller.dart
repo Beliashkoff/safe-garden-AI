@@ -133,6 +133,10 @@ class ChatController extends AsyncNotifier<ChatState> {
     final cancelToken = CancelToken();
     _cancelToken = cancelToken;
     final buffer = StringBuffer();
+    // Fertilizer cards stream in alongside text deltas; collect them so each
+    // delta patch (which rebuilds content) keeps the cards instead of wiping
+    // them, and so they persist into the finished message.
+    final cards = <ContentBlock>[];
     var failed = false;
     String? errorCode;
 
@@ -151,7 +155,7 @@ class ChatController extends AsyncNotifier<ChatState> {
               (m) => m.copyWith(
                 status: MessageStatus.pending,
                 streaming: true,
-                content: [ContentBlock(type: 'text', text: buffer.toString())],
+                content: _composeContent(buffer.toString(), cards),
               ),
             );
           case SseTranscription(:final text, :final durationMs):
@@ -170,12 +174,25 @@ class ChatController extends AsyncNotifier<ChatState> {
                 ],
               ),
             );
+          case SseFertilizerCard(:final products):
+            if (products.isNotEmpty) {
+              cards.add(
+                ContentBlock(type: 'fertilizer_card', products: products),
+              );
+              _patchAssistant(
+                localAssistantId,
+                (m) => m.copyWith(
+                  status: MessageStatus.pending,
+                  streaming: true,
+                  content: _composeContent(buffer.toString(), cards),
+                ),
+              );
+            }
           case SseError(:final code):
             failed = true;
             errorCode = code;
           case SseMessageStarted():
           case SseToolUse():
-          case SseFertilizerCard():
           case SseDone():
             break;
         }
@@ -183,6 +200,7 @@ class ChatController extends AsyncNotifier<ChatState> {
       _finishStream(
         localAssistantId,
         buffer.toString(),
+        cards,
         failed ? MessageStatus.failed : MessageStatus.complete,
         errorCode,
       );
@@ -193,6 +211,7 @@ class ChatController extends AsyncNotifier<ChatState> {
         _finishStream(
           localAssistantId,
           buffer.toString(),
+          cards,
           MessageStatus.cancelled,
           null,
         );
@@ -202,6 +221,7 @@ class ChatController extends AsyncNotifier<ChatState> {
         _finishStream(
           localAssistantId,
           buffer.toString(),
+          cards,
           MessageStatus.failed,
           mapped is ApiException ? mapped.code : 'network',
         );
@@ -212,12 +232,22 @@ class ChatController extends AsyncNotifier<ChatState> {
       _finishStream(
         localAssistantId,
         buffer.toString(),
+        cards,
         MessageStatus.failed,
         e.code,
       );
     } finally {
       _cancelToken = null;
     }
+  }
+
+  /// Builds the assistant bubble content from the streamed text and any
+  /// fertilizer cards: the text block first (when non-empty), then the cards.
+  List<ContentBlock> _composeContent(String text, List<ContentBlock> cards) {
+    return [
+      if (text.isNotEmpty) ContentBlock(type: 'text', text: text),
+      ...cards,
+    ];
   }
 
   /// Cancels the in-flight stream (closes the connection).
@@ -290,6 +320,15 @@ class ChatController extends AsyncNotifier<ChatState> {
     }
   }
 
+  /// Records a tap on a fertilizer card (internal analytics). Fire-and-forget:
+  /// a failed analytics ping must never disrupt the user opening the product.
+  void recordFertilizerTap(String slug) {
+    if (slug.isEmpty) {
+      return;
+    }
+    unawaited(_repo.recordFertilizerTap(slug).catchError((_) {}));
+  }
+
   /// Deletes a message (server + cache). Throws [AppException] on failure.
   Future<void> deleteMessage(String id) async {
     await _repo.deleteMessage(id);
@@ -329,6 +368,7 @@ class ChatController extends AsyncNotifier<ChatState> {
   void _finishStream(
     String localAssistantId,
     String partial,
+    List<ContentBlock> cards,
     MessageStatus status,
     String? errorCode,
   ) {
@@ -336,9 +376,7 @@ class ChatController extends AsyncNotifier<ChatState> {
     if (current == null) {
       return;
     }
-    final content = partial.isEmpty
-        ? const <ContentBlock>[]
-        : [ContentBlock(type: 'text', text: partial)];
+    final content = _composeContent(partial, cards);
     state = AsyncData(
       current.copyWith(
         sending: false,

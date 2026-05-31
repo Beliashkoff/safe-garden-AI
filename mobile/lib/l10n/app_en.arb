@@ -59,6 +59,7 @@
   "voicePermissionTitle": "Microphone access needed",
   "voicePermissionBody": "Allow microphone access in settings to record a voice message.",
   "voiceUploadFailed": "Couldn't send the voice message. Please try again.",
+  "fertilizerCardMore": "Learn more",
   "deleteAccountConfirmTitle": "Delete account?",
   "deleteAccountConfirmBody": "This cannot be undone. All your data will be deleted.",
   "commonCancel": "Cancel",

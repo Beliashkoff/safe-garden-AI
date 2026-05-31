@@ -182,6 +182,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t send the voice message. Please try again.';
 
   @override
+  String get fertilizerCardMore => 'Learn more';
+
+  @override
   String get deleteAccountConfirmTitle => 'Delete account?';
 
   @override

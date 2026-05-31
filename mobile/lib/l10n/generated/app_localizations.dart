@@ -422,6 +422,12 @@ abstract class AppLocalizations {
   /// **'Не удалось отправить голосовое. Попробуйте ещё раз.'**
   String get voiceUploadFailed;
 
+  /// No description provided for @fertilizerCardMore.
+  ///
+  /// In ru, this message translates to:
+  /// **'Подробнее'**
+  String get fertilizerCardMore;
+
   /// No description provided for @deleteAccountConfirmTitle.
   ///
   /// In ru, this message translates to:

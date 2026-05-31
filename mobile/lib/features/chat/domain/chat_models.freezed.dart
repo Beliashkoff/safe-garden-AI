@@ -15,6 +15,295 @@ final _privateConstructorUsedError = UnsupportedError(
   'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
 );
 
+FertilizerProduct _$FertilizerProductFromJson(Map<String, dynamic> json) {
+  return _FertilizerProduct.fromJson(json);
+}
+
+/// @nodoc
+mixin _$FertilizerProduct {
+  String get id => throw _privateConstructorUsedError;
+  String get slug => throw _privateConstructorUsedError;
+  String get name => throw _privateConstructorUsedError;
+  @JsonKey(name: 'short_desc')
+  String get shortDesc => throw _privateConstructorUsedError;
+  @JsonKey(name: 'image_url')
+  String get imageUrl => throw _privateConstructorUsedError;
+  @JsonKey(name: 'deeplink_url')
+  String get deeplinkUrl => throw _privateConstructorUsedError;
+
+  /// Serializes this FertilizerProduct to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of FertilizerProduct
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $FertilizerProductCopyWith<FertilizerProduct> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $FertilizerProductCopyWith<$Res> {
+  factory $FertilizerProductCopyWith(
+    FertilizerProduct value,
+    $Res Function(FertilizerProduct) then,
+  ) = _$FertilizerProductCopyWithImpl<$Res, FertilizerProduct>;
+  @useResult
+  $Res call({
+    String id,
+    String slug,
+    String name,
+    @JsonKey(name: 'short_desc') String shortDesc,
+    @JsonKey(name: 'image_url') String imageUrl,
+    @JsonKey(name: 'deeplink_url') String deeplinkUrl,
+  });
+}
+
+/// @nodoc
+class _$FertilizerProductCopyWithImpl<$Res, $Val extends FertilizerProduct>
+    implements $FertilizerProductCopyWith<$Res> {
+  _$FertilizerProductCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of FertilizerProduct
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? slug = null,
+    Object? name = null,
+    Object? shortDesc = null,
+    Object? imageUrl = null,
+    Object? deeplinkUrl = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as String,
+            slug: null == slug
+                ? _value.slug
+                : slug // ignore: cast_nullable_to_non_nullable
+                      as String,
+            name: null == name
+                ? _value.name
+                : name // ignore: cast_nullable_to_non_nullable
+                      as String,
+            shortDesc: null == shortDesc
+                ? _value.shortDesc
+                : shortDesc // ignore: cast_nullable_to_non_nullable
+                      as String,
+            imageUrl: null == imageUrl
+                ? _value.imageUrl
+                : imageUrl // ignore: cast_nullable_to_non_nullable
+                      as String,
+            deeplinkUrl: null == deeplinkUrl
+                ? _value.deeplinkUrl
+                : deeplinkUrl // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$FertilizerProductImplCopyWith<$Res>
+    implements $FertilizerProductCopyWith<$Res> {
+  factory _$$FertilizerProductImplCopyWith(
+    _$FertilizerProductImpl value,
+    $Res Function(_$FertilizerProductImpl) then,
+  ) = __$$FertilizerProductImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String id,
+    String slug,
+    String name,
+    @JsonKey(name: 'short_desc') String shortDesc,
+    @JsonKey(name: 'image_url') String imageUrl,
+    @JsonKey(name: 'deeplink_url') String deeplinkUrl,
+  });
+}
+
+/// @nodoc
+class __$$FertilizerProductImplCopyWithImpl<$Res>
+    extends _$FertilizerProductCopyWithImpl<$Res, _$FertilizerProductImpl>
+    implements _$$FertilizerProductImplCopyWith<$Res> {
+  __$$FertilizerProductImplCopyWithImpl(
+    _$FertilizerProductImpl _value,
+    $Res Function(_$FertilizerProductImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of FertilizerProduct
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? slug = null,
+    Object? name = null,
+    Object? shortDesc = null,
+    Object? imageUrl = null,
+    Object? deeplinkUrl = null,
+  }) {
+    return _then(
+      _$FertilizerProductImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as String,
+        slug: null == slug
+            ? _value.slug
+            : slug // ignore: cast_nullable_to_non_nullable
+                  as String,
+        name: null == name
+            ? _value.name
+            : name // ignore: cast_nullable_to_non_nullable
+                  as String,
+        shortDesc: null == shortDesc
+            ? _value.shortDesc
+            : shortDesc // ignore: cast_nullable_to_non_nullable
+                  as String,
+        imageUrl: null == imageUrl
+            ? _value.imageUrl
+            : imageUrl // ignore: cast_nullable_to_non_nullable
+                  as String,
+        deeplinkUrl: null == deeplinkUrl
+            ? _value.deeplinkUrl
+            : deeplinkUrl // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$FertilizerProductImpl implements _FertilizerProduct {
+  const _$FertilizerProductImpl({
+    this.id = '',
+    this.slug = '',
+    this.name = '',
+    @JsonKey(name: 'short_desc') this.shortDesc = '',
+    @JsonKey(name: 'image_url') this.imageUrl = '',
+    @JsonKey(name: 'deeplink_url') this.deeplinkUrl = '',
+  });
+
+  factory _$FertilizerProductImpl.fromJson(Map<String, dynamic> json) =>
+      _$$FertilizerProductImplFromJson(json);
+
+  @override
+  @JsonKey()
+  final String id;
+  @override
+  @JsonKey()
+  final String slug;
+  @override
+  @JsonKey()
+  final String name;
+  @override
+  @JsonKey(name: 'short_desc')
+  final String shortDesc;
+  @override
+  @JsonKey(name: 'image_url')
+  final String imageUrl;
+  @override
+  @JsonKey(name: 'deeplink_url')
+  final String deeplinkUrl;
+
+  @override
+  String toString() {
+    return 'FertilizerProduct(id: $id, slug: $slug, name: $name, shortDesc: $shortDesc, imageUrl: $imageUrl, deeplinkUrl: $deeplinkUrl)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$FertilizerProductImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.slug, slug) || other.slug == slug) &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.shortDesc, shortDesc) ||
+                other.shortDesc == shortDesc) &&
+            (identical(other.imageUrl, imageUrl) ||
+                other.imageUrl == imageUrl) &&
+            (identical(other.deeplinkUrl, deeplinkUrl) ||
+                other.deeplinkUrl == deeplinkUrl));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    slug,
+    name,
+    shortDesc,
+    imageUrl,
+    deeplinkUrl,
+  );
+
+  /// Create a copy of FertilizerProduct
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$FertilizerProductImplCopyWith<_$FertilizerProductImpl> get copyWith =>
+      __$$FertilizerProductImplCopyWithImpl<_$FertilizerProductImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$FertilizerProductImplToJson(this);
+  }
+}
+
+abstract class _FertilizerProduct implements FertilizerProduct {
+  const factory _FertilizerProduct({
+    final String id,
+    final String slug,
+    final String name,
+    @JsonKey(name: 'short_desc') final String shortDesc,
+    @JsonKey(name: 'image_url') final String imageUrl,
+    @JsonKey(name: 'deeplink_url') final String deeplinkUrl,
+  }) = _$FertilizerProductImpl;
+
+  factory _FertilizerProduct.fromJson(Map<String, dynamic> json) =
+      _$FertilizerProductImpl.fromJson;
+
+  @override
+  String get id;
+  @override
+  String get slug;
+  @override
+  String get name;
+  @override
+  @JsonKey(name: 'short_desc')
+  String get shortDesc;
+  @override
+  @JsonKey(name: 'image_url')
+  String get imageUrl;
+  @override
+  @JsonKey(name: 'deeplink_url')
+  String get deeplinkUrl;
+
+  /// Create a copy of FertilizerProduct
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$FertilizerProductImplCopyWith<_$FertilizerProductImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
 ContentBlock _$ContentBlockFromJson(Map<String, dynamic> json) {
   return _ContentBlock.fromJson(json);
 }
@@ -27,6 +316,7 @@ mixin _$ContentBlock {
   String get storageKey => throw _privateConstructorUsedError;
   @JsonKey(name: 'duration_ms')
   int get durationMs => throw _privateConstructorUsedError;
+  List<FertilizerProduct> get products => throw _privateConstructorUsedError;
 
   /// Serializes this ContentBlock to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -50,6 +340,7 @@ abstract class $ContentBlockCopyWith<$Res> {
     String text,
     @JsonKey(name: 'storage_key') String storageKey,
     @JsonKey(name: 'duration_ms') int durationMs,
+    List<FertilizerProduct> products,
   });
 }
 
@@ -72,6 +363,7 @@ class _$ContentBlockCopyWithImpl<$Res, $Val extends ContentBlock>
     Object? text = null,
     Object? storageKey = null,
     Object? durationMs = null,
+    Object? products = null,
   }) {
     return _then(
       _value.copyWith(
@@ -91,6 +383,10 @@ class _$ContentBlockCopyWithImpl<$Res, $Val extends ContentBlock>
                 ? _value.durationMs
                 : durationMs // ignore: cast_nullable_to_non_nullable
                       as int,
+            products: null == products
+                ? _value.products
+                : products // ignore: cast_nullable_to_non_nullable
+                      as List<FertilizerProduct>,
           )
           as $Val,
     );
@@ -111,6 +407,7 @@ abstract class _$$ContentBlockImplCopyWith<$Res>
     String text,
     @JsonKey(name: 'storage_key') String storageKey,
     @JsonKey(name: 'duration_ms') int durationMs,
+    List<FertilizerProduct> products,
   });
 }
 
@@ -132,6 +429,7 @@ class __$$ContentBlockImplCopyWithImpl<$Res>
     Object? text = null,
     Object? storageKey = null,
     Object? durationMs = null,
+    Object? products = null,
   }) {
     return _then(
       _$ContentBlockImpl(
@@ -151,6 +449,10 @@ class __$$ContentBlockImplCopyWithImpl<$Res>
             ? _value.durationMs
             : durationMs // ignore: cast_nullable_to_non_nullable
                   as int,
+        products: null == products
+            ? _value._products
+            : products // ignore: cast_nullable_to_non_nullable
+                  as List<FertilizerProduct>,
       ),
     );
   }
@@ -164,7 +466,8 @@ class _$ContentBlockImpl implements _ContentBlock {
     this.text = '',
     @JsonKey(name: 'storage_key') this.storageKey = '',
     @JsonKey(name: 'duration_ms') this.durationMs = 0,
-  });
+    final List<FertilizerProduct> products = const <FertilizerProduct>[],
+  }) : _products = products;
 
   factory _$ContentBlockImpl.fromJson(Map<String, dynamic> json) =>
       _$$ContentBlockImplFromJson(json);
@@ -180,10 +483,18 @@ class _$ContentBlockImpl implements _ContentBlock {
   @override
   @JsonKey(name: 'duration_ms')
   final int durationMs;
+  final List<FertilizerProduct> _products;
+  @override
+  @JsonKey()
+  List<FertilizerProduct> get products {
+    if (_products is EqualUnmodifiableListView) return _products;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_products);
+  }
 
   @override
   String toString() {
-    return 'ContentBlock(type: $type, text: $text, storageKey: $storageKey, durationMs: $durationMs)';
+    return 'ContentBlock(type: $type, text: $text, storageKey: $storageKey, durationMs: $durationMs, products: $products)';
   }
 
   @override
@@ -196,13 +507,20 @@ class _$ContentBlockImpl implements _ContentBlock {
             (identical(other.storageKey, storageKey) ||
                 other.storageKey == storageKey) &&
             (identical(other.durationMs, durationMs) ||
-                other.durationMs == durationMs));
+                other.durationMs == durationMs) &&
+            const DeepCollectionEquality().equals(other._products, _products));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, type, text, storageKey, durationMs);
+  int get hashCode => Object.hash(
+    runtimeType,
+    type,
+    text,
+    storageKey,
+    durationMs,
+    const DeepCollectionEquality().hash(_products),
+  );
 
   /// Create a copy of ContentBlock
   /// with the given fields replaced by the non-null parameter values.
@@ -224,6 +542,7 @@ abstract class _ContentBlock implements ContentBlock {
     final String text,
     @JsonKey(name: 'storage_key') final String storageKey,
     @JsonKey(name: 'duration_ms') final int durationMs,
+    final List<FertilizerProduct> products,
   }) = _$ContentBlockImpl;
 
   factory _ContentBlock.fromJson(Map<String, dynamic> json) =
@@ -239,6 +558,8 @@ abstract class _ContentBlock implements ContentBlock {
   @override
   @JsonKey(name: 'duration_ms')
   int get durationMs;
+  @override
+  List<FertilizerProduct> get products;
 
   /// Create a copy of ContentBlock
   /// with the given fields replaced by the non-null parameter values.

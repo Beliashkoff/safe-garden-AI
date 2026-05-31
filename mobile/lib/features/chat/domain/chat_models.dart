@@ -27,11 +27,29 @@ enum MessageStatus {
   failed,
 }
 
-/// A single content block of a message. `type` is `text`, `image`, `audio` or
-/// `transcription`. For an image/audio block, [storageKey] is the owner-scoped
-/// object key the bubble resolves to a file via the media cache; for a
-/// text/transcription block [text] carries the body. [durationMs] is the audio
-/// length on a `transcription` block (and on the optimistic `audio` block).
+/// A fertilizer recommendation product, shown as a native card in the chat
+/// (stage 5). Mirrors the backend `fertilizer_card` block payload (ARCH §6.4).
+@freezed
+class FertilizerProduct with _$FertilizerProduct {
+  const factory FertilizerProduct({
+    @Default('') String id,
+    @Default('') String slug,
+    @Default('') String name,
+    @JsonKey(name: 'short_desc') @Default('') String shortDesc,
+    @JsonKey(name: 'image_url') @Default('') String imageUrl,
+    @JsonKey(name: 'deeplink_url') @Default('') String deeplinkUrl,
+  }) = _FertilizerProduct;
+
+  factory FertilizerProduct.fromJson(Map<String, dynamic> json) =>
+      _$FertilizerProductFromJson(json);
+}
+
+/// A single content block of a message. `type` is `text`, `image`, `audio`,
+/// `transcription` or `fertilizer_card`. For an image/audio block, [storageKey]
+/// is the owner-scoped object key the bubble resolves to a file via the media
+/// cache; for a text/transcription block [text] carries the body. [durationMs]
+/// is the audio length on a `transcription` block (and on the optimistic `audio`
+/// block). [products] carries the recommended items on a `fertilizer_card` block.
 @freezed
 class ContentBlock with _$ContentBlock {
   const factory ContentBlock({
@@ -39,6 +57,7 @@ class ContentBlock with _$ContentBlock {
     @Default('') String text,
     @JsonKey(name: 'storage_key') @Default('') String storageKey,
     @JsonKey(name: 'duration_ms') @Default(0) int durationMs,
+    @Default(<FertilizerProduct>[]) List<FertilizerProduct> products,
   }) = _ContentBlock;
 
   factory ContentBlock.fromJson(Map<String, dynamic> json) =>
@@ -125,11 +144,12 @@ class SseToolUse extends SseEvent {
   final Map<String, dynamic> args;
 }
 
-/// A fertilizer recommendation card (stage 5; ignored for now).
+/// A fertilizer recommendation card (stage 5). [products] are the recommended
+/// catalog items parsed from the event's `products` array.
 class SseFertilizerCard extends SseEvent {
-  const SseFertilizerCard(this.data);
+  const SseFertilizerCard(this.products);
 
-  final Map<String, dynamic> data;
+  final List<FertilizerProduct> products;
 }
 
 /// A terminal error event — the assistant turn failed.

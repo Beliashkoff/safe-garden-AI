@@ -72,6 +72,13 @@ class FakeChatRepository implements ChatRepository {
   @override
   Future<void> deleteMessage(String id) async => deleted.add(id);
 
+  /// Slugs whose fertilizer card was tapped (stage 5.3 analytics).
+  final List<String> fertilizerTaps = [];
+
+  @override
+  Future<void> recordFertilizerTap(String slug) async =>
+      fertilizerTaps.add(slug);
+
   @override
   Future<void> clearCache() async => clearCacheCount++;
 }

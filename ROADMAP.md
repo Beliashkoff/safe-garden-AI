@@ -272,28 +272,28 @@ _Дополнительно к mobile-скоупу: на бэкенд добав
 > ⚠️ **Каталог удобрений** заказчик передаст позже (Q2 в SPEC). На этом этапе делаем **архитектуру** (таблица `fertilizers`, tool, callback из worker'а в РФ-бэк, UI-карточка). Если каталог пуст — tool возвращает «нет подходящего удобрения», Claude отвечает текстом без карточки.
 
 ### 5.1 Каталог
-- [ ] Миграция: `fertilizers`.
-- [ ] Сидер `cmd/seed/main.go` принимает CSV из `infra/data/fertilizers.csv`. До получения данных от заказчика — пустой файл-плейсхолдер с заголовком и одной демо-записью для тестов.
-- [ ] Минимальная админка — отдельным шагом v2; в v1 правим SQL/CSV.
+- [x] Миграция: `fertilizers`.
+- [x] Сидер `cmd/seed/main.go` принимает CSV из `infra/data/fertilizers.csv`. До получения данных от заказчика — плейсхолдер с заголовком и одной демо-записью для тестов.
+- [x] Минимальная админка — отдельным шагом v2; в v1 правим SQL/CSV.
 
 ### 5.2 Backend и worker: Tool use
-- [ ] **На worker'е:** добавить `tools: [recommend_fertilizer]` в запросы к Anthropic. При получении `tool_use` — RPC обратно на РФ-бэкенд (`POST /internal/v1/tools/fertilizer` через mTLS), полученный `tool_result` отправляется в Claude, цикл продолжается.
-- [ ] **На РФ-бэкенде:** эндпоинт `/internal/v1/tools/fertilizer` (mTLS only) — выполняет SQL-запрос из ARCH §6.4, возвращает 0–3 продукта.
-- [ ] **На worker'е:** SSE-событие `fertilizer_card` параллельно с дельтами текста.
-- [ ] **На бэкенде:** ретрансляция `fertilizer_card` на mobile, сохранение блока `fertilizer_card` в `message_blocks.metadata`.
+- [x] **На worker'е:** добавить `tools: [recommend_fertilizer]` в запросы к Anthropic. При получении `tool_use` — RPC обратно на РФ-бэкенд (`POST /internal/v1/tools/fertilizer` через mTLS), полученный `tool_result` отправляется в Claude, цикл продолжается.
+- [x] **На РФ-бэкенде:** эндпоинт `/internal/v1/tools/fertilizer` (mTLS only) — выполняет SQL-запрос из ARCH §6.4, возвращает 0–3 продукта.
+- [x] **На worker'е:** SSE-событие `fertilizer_card` параллельно с дельтами текста.
+- [x] **На бэкенде:** ретрансляция `fertilizer_card` на mobile, сохранение блока `fertilizer_card` в `message_blocks.metadata`.
 
 ### 5.3 Mobile
-- [ ] Виджет `FertilizerCard`: фото, название, описание, кнопка «Подробнее» → `url_launcher` на deeplink.
-- [ ] Парсинг `fertilizer_card` event → вставка карточки в bubble.
-- [ ] Аналитика тапов по карточкам (внутренняя — в `usage_log`).
+- [x] Виджет `FertilizerCard`: фото, название, описание, кнопка «Подробнее» → `url_launcher` на deeplink.
+- [x] Парсинг `fertilizer_card` event → вставка карточки в bubble.
+- [x] Аналитика тапов по карточкам (внутренняя — в `usage_log`).
 
 ### 5.4 Промпт-инжиниринг
-- [ ] Финализировать system prompt: формат ответа, обязательность tool call, тон.
-- [ ] Eval-набор: 20 типичных кейсов (томаты желтеют, огурцы вянут, плохо плодоносит и т.д.) — прогон руками, фиксация качества.
-- [ ] Включить prompt caching для system prompt + tool definitions.
+- [x] Финализировать system prompt: формат ответа, обязательность tool call, тон.
+- [x] Eval-набор: 20 типичных кейсов (томаты желтеют, огурцы вянут, плохо плодоносит и т.д.) — фикстура `internal/llmworker/eval/cases.json`; прогон руками, фиксация качества.
+- [x] Включить prompt caching для system prompt + tool definitions.
 
 ### 5.5 Тесты
-- [ ] Backend: тест tool-use цикла с моком Claude.
+- [x] Backend: тест tool-use цикла с моком Claude (`internal/llmworker` — эмит `fertilizer_card`, пустой каталог, ошибка callback; + тесты эндпоинта `/internal/v1/tools/fertilizer` и usecase каталога; mobile — парсинг event + widget-тест карточки).
 - [ ] Eval-скрипт: прогон 20 кейсов через prod-worker (живой Anthropic), ручная оценка качества и стоимости.
 
 ### DoD Этапа 5

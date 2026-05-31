@@ -54,6 +54,18 @@ class ChatApi {
     }
   }
 
+  /// Records a tap on a fertilizer card for internal analytics (ROADMAP §5.3).
+  Future<void> recordFertilizerTap(String slug) async {
+    try {
+      await _dio.post<dynamic>(
+        '/analytics/fertilizer_tap',
+        data: {'slug': slug},
+      );
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
   /// Streams the assistant reply as typed [SseEvent]s. The message body carries
   /// an optional text block followed by one `image_ref` block per uploaded photo
   /// (ARCH §4.3). Errors before the stream opens (validation, rate limit, auth)

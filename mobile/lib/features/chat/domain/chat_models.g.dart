@@ -6,12 +6,41 @@ part of 'chat_models.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_$FertilizerProductImpl _$$FertilizerProductImplFromJson(
+  Map<String, dynamic> json,
+) => _$FertilizerProductImpl(
+  id: json['id'] as String? ?? '',
+  slug: json['slug'] as String? ?? '',
+  name: json['name'] as String? ?? '',
+  shortDesc: json['short_desc'] as String? ?? '',
+  imageUrl: json['image_url'] as String? ?? '',
+  deeplinkUrl: json['deeplink_url'] as String? ?? '',
+);
+
+Map<String, dynamic> _$$FertilizerProductImplToJson(
+  _$FertilizerProductImpl instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'slug': instance.slug,
+  'name': instance.name,
+  'short_desc': instance.shortDesc,
+  'image_url': instance.imageUrl,
+  'deeplink_url': instance.deeplinkUrl,
+};
+
 _$ContentBlockImpl _$$ContentBlockImplFromJson(Map<String, dynamic> json) =>
     _$ContentBlockImpl(
       type: json['type'] as String,
       text: json['text'] as String? ?? '',
       storageKey: json['storage_key'] as String? ?? '',
       durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
+      products:
+          (json['products'] as List<dynamic>?)
+              ?.map(
+                (e) => FertilizerProduct.fromJson(e as Map<String, dynamic>),
+              )
+              .toList() ??
+          const <FertilizerProduct>[],
     );
 
 Map<String, dynamic> _$$ContentBlockImplToJson(_$ContentBlockImpl instance) =>
@@ -20,6 +49,7 @@ Map<String, dynamic> _$$ContentBlockImplToJson(_$ContentBlockImpl instance) =>
       'text': instance.text,
       'storage_key': instance.storageKey,
       'duration_ms': instance.durationMs,
+      'products': instance.products,
     };
 
 _$ChatMessageImpl _$$ChatMessageImplFromJson(Map<String, dynamic> json) =>

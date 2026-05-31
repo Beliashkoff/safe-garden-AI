@@ -39,6 +39,10 @@ func setProdSecrets(t *testing.T) {
 	t.Setenv("S3_ACCESS_KEY", "key")
 	t.Setenv("S3_SECRET_KEY", "secret")
 	t.Setenv("S3_BUCKET", "media")
+	t.Setenv("INTERNAL_MTLS_ENABLED", "true")
+	t.Setenv("INTERNAL_MTLS_CERT_PATH", "/certs/internal.crt")
+	t.Setenv("INTERNAL_MTLS_KEY_PATH", "/certs/internal.key")
+	t.Setenv("INTERNAL_MTLS_CLIENT_CA_PATH", "/certs/worker-ca.crt")
 }
 
 // isolateEnv unsets every config-related variable and restores the prior value

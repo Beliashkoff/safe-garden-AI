@@ -38,6 +38,8 @@ dependencies:
   permission_handler: ^11.3.1
   record: ^6.2.1
   just_audio: ^0.10.5
+  # Fertilizer card deeplink (stage 5.3): open the product page in the browser.
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:
