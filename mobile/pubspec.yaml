@@ -36,7 +36,7 @@ dependencies:
   image_picker: ^1.1.2
   flutter_image_compress: ^2.3.0
   permission_handler: ^11.3.1
-  record: ^6.2.1
+  record: ^7.0.0
   just_audio: ^0.10.5
   # Fertilizer card deeplink (stage 5.3): open the product page in the browser.
   url_launcher: ^6.3.0
