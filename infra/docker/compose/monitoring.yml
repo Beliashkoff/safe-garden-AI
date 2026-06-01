@@ -1,0 +1,91 @@
+name: safegarden-monitoring
+
+# Self-hosted monitoring stack (ARCH §9), deployed on the same Yandex VM as
+# prod-yandex.yml. It attaches to the api's network as an EXTERNAL network so it
+# can scrape api:9100 over the internal bridge; prod-yandex.yml must be up first
+# (it creates the network). Verify the exact name with `docker network ls` — it
+# is "<project>_<network>" = "safegarden-api_internal" for the api compose file.
+#
+# Deploy:  docker compose -f monitoring.yml --env-file /etc/safegarden/monitoring.env up -d
+#
+# Nothing here is published to the public internet: Prometheus/Alertmanager have
+# no host port mapping, and Grafana binds to loopback only (reach it via an SSH
+# tunnel). /metrics on the api is likewise on an internal-only port, never via
+# Caddy.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    networks: [appnet]
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD required}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost:3000
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      # Loopback only — never exposed publicly. Reach via: ssh -L 3000:localhost:3000 vm
+      - "127.0.0.1:3000:3000"
+    depends_on: [prometheus]
+    networks: [appnet]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      # Secret files (telegram bot token, SMTP password) live on the VM, outside
+      # git. Mounted read-only and referenced via *_file keys in alertmanager.yml.
+      - /etc/safegarden/monitoring/secrets:/etc/alertmanager/secrets:ro
+      - alertmanager_data:/alertmanager
+    networks: [appnet]
+
+  # Host metrics for the "disk > 80%" alert (ARCH §9).
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro,rslave
+    networks: [appnet]
+
+  # DB metrics for the "DB connections > 80%" alert (ARCH §9). DATA_SOURCE_NAME
+  # points at Yandex Managed PostgreSQL using a dedicated read-only monitoring
+  # role (member of pg_monitor) — NOT the application DSN. Create it once:
+  #   CREATE ROLE monitoring LOGIN PASSWORD '...'; GRANT pg_monitor TO monitoring;
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: ${PG_EXPORTER_DSN:?PG_EXPORTER_DSN required}
+    networks: [appnet]
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+
+networks:
+  # The network prod-yandex.yml (project "safegarden-api") creates as "internal".
+  appnet:
+    external: true
+    name: safegarden-api_internal

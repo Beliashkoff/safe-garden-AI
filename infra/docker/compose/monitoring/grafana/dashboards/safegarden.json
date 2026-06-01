@@ -1,0 +1,132 @@
+{
+  "uid": "safegarden-overview",
+  "title": "Safe Garden — Overview",
+  "tags": ["safegarden"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request rate (RPS) by route",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total[1m])) by (route)",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Latency p50 / p95 (s)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Errors by status",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total{status=~\"4..|5..\"}[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Claude tokens/s by direction",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(claude_tokens_total[5m])) by (direction)",
+          "legendFormat": "{{direction}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Estimated Claude cost (USD, 24h)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "increase(claude_cost_usd_total[24h])",
+          "legendFormat": "cost 24h"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Messages by terminal status (rate)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(message_total[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Upload presign outcomes (rate)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(upload_status_total[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    }
+  ]
+}

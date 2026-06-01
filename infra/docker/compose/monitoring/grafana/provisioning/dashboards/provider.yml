@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: safegarden
+    orgId: 1
+    folder: Safe Garden
+    type: file
+    disableDeletion: false
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

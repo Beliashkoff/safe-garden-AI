@@ -57,3 +57,24 @@ jobs:
           DOMAIN: worker.agronomai.site
           IMAGE_TAG: ci
         run: docker compose -f infra/docker/compose/prod-llmworker.yml config -q
+
+      - name: validate monitoring
+        env:
+          GRAFANA_ADMIN_PASSWORD: ci
+          PG_EXPORTER_DSN: postgres://ci
+        run: docker compose -f infra/docker/compose/monitoring.yml config -q
+
+  monitoring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: promtool check config + rules
+        run: |
+          docker run --rm -v "${{ github.workspace }}/infra/docker/compose/monitoring:/etc/prometheus" \
+            --entrypoint promtool prom/prometheus:v2.55.1 check config /etc/prometheus/prometheus.yml
+
+      - name: amtool check-config
+        run: |
+          docker run --rm -v "${{ github.workspace }}/infra/docker/compose/monitoring:/cfg" \
+            --entrypoint amtool prom/alertmanager:v0.27.0 check-config /cfg/alertmanager.yml
