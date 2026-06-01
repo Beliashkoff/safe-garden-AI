@@ -307,42 +307,42 @@ _Дополнительно к mobile-скоупу: на бэкенд добав
 **Цель:** прод-готовое качество, прохождение чек-листов сторов, безопасность подтверждена.
 
 ### 6.1 Безопасность (см. ARCH §8)
-- [ ] Полная проверка `RequireAuth` middleware на всех приватных эндпоинтах.
-- [ ] Проверка ownership при доступе к `storage_key`, `message_id`, `conversation_id`.
-- [ ] Penetration-чек-лист OWASP Mobile Top 10.
-- [ ] Логи: убедиться, что ни email, ни OTP, ни id_token не попадают в логи.
-- [ ] Запуск `gosec` и `nancy` на бэкенде в CI.
-- [ ] Запуск `dependabot` для обоих проектов.
+- [x] Полная проверка `RequireAuth` middleware на всех приватных эндпоинтах (регрессионный тест `router_auth_test.go`).
+- [x] Проверка ownership при доступе к `storage_key`, `message_id`, `conversation_id` (тесты на чужой ресурс + изоляцию переписки).
+- [ ] Penetration-чек-лист OWASP Mobile Top 10 (review проведён, формальный sign-off — pending).
+- [x] Логи: убедиться, что ни email, ни OTP, ни id_token не попадают в логи (аудит + `redactPII`).
+- [x] Запуск `gosec` и `nancy` на бэкенде в CI (`gosec` через golangci; `govulncheck` блокирующий + `nancy` nightly).
+- [x] Запуск `dependabot` для обоих проектов (`.github/dependabot.yml`).
 
 ### 6.2 Производительность
-- [ ] Профилирование `/messages` под нагрузкой (k6 или vegeta).
-- [ ] Индексы Postgres проверены через `EXPLAIN ANALYZE`.
-- [ ] Mobile: проверить отсутствие jank на slowest target device (Android 8 low-end).
+- [ ] Профилирование `/messages` под нагрузкой (k6) — скрипт `infra/loadtest/messages.js` + `make loadtest` готовы; прогон — runtime.
+- [ ] Индексы Postgres проверены через `EXPLAIN ANALYZE` — статически подтверждено, что горячие запросы индексированы; прогон на prod-данных — runtime.
+- [ ] Mobile: проверить отсутствие jank на slowest target device (Android 8 low-end) — нужен девайс.
 
 ### 6.3 Юридическое
-- [ ] Privacy Policy — RU + EN, опубликована на сайте.
-- [ ] Terms of Service — RU + EN.
-- [ ] Согласие на обработку ПДн при регистрации.
-- [ ] 152-ФЗ: уведомление в Роскомнадзор (если требуется по объёму).
-- [ ] Apple §5.1.1: data deletion из приложения (✅ уже есть).
-- [ ] Apple §4.8: Apple Sign-In присутствует там, где Google.
-- [ ] Google Play Data Safety form заполнена.
+- [ ] Privacy Policy — RU + EN, опубликована на сайте (юрист/заказчик).
+- [ ] Terms of Service — RU + EN (юрист/заказчик).
+- [x] Согласие на обработку ПДн при регистрации (экран входа: «продолжая, вы принимаете…» + ссылки на Privacy/ToS).
+- [ ] 152-ФЗ: уведомление в Роскомнадзор (если требуется по объёму) — заказчик.
+- [x] Apple §5.1.1: data deletion из приложения.
+- [x] Apple §4.8: Apple Sign-In присутствует там, где Google.
+- [ ] Google Play Data Safety form заполнена (заказчик/PM).
 
 ### 6.4 UX-полировка
-- [ ] Онбординг: 1-3 экрана объяснения возможностей.
-- [ ] Пустое состояние чата: подсказка «Сфотографируйте растение или опишите проблему».
-- [ ] Состояния ошибок: нет сети, ошибка Claude, лимит запросов.
-- [ ] Iconography, app icon, splash screen.
-- [ ] Полная ревизия копирайтинга (RU).
+- [x] Онбординг: 1-3 экрана объяснения возможностей.
+- [x] Пустое состояние чата: подсказка «Сфотографируйте растение или опишите проблему».
+- [x] Состояния ошибок: нет сети, ошибка Claude, лимит запросов.
+- [ ] Iconography, app icon, splash screen — плейсхолдер + конфиг готовы; `dart run flutter_launcher_icons` / `flutter_native_splash:create` и финальный дизайн — pending.
+- [ ] Полная ревизия копирайтинга (RU) — первичная вычитка ARB пройдена; финальный editorial-проход — pending.
 
 ### 6.5 Локализация (только RU в v1, но инфраструктура готова)
-- [ ] Все строки через `intl` ARB.
-- [ ] Бэк: `Accept-Language` → выбор шаблонов писем и сообщений ошибок.
+- [x] Все строки через `intl` ARB.
+- [x] Бэк: `Accept-Language` → выбор шаблонов писем и сообщений ошибок.
 
 ### 6.6 Аналитика и мониторинг
-- [ ] Дашборды в Grafana: RPS, latency, ошибки, токены, стоимость.
-- [ ] Алерты настроены и проверены (тест-алерт на email/Telegram).
-- [ ] Sentry интегрирован, источники подтверждены.
+- [ ] Дашборды в Grafana: RPS, latency, ошибки, токены, стоимость — конфиг-как-код готов и провалидирован; деплой — runtime.
+- [ ] Алерты настроены и проверены (тест-алерт на email/Telegram) — правила (пороги ARCH §9) + Alertmanager провалидированы (`promtool`/`amtool`); деплой и тест-алерт — runtime.
+- [ ] Sentry интегрирован, источники подтверждены — backend + mobile интегрированы; symbol upload и проверка источников — pending.
 
 ### DoD Этапа 6
 - Пройден внутренний security-ревью (см. `agent-skills:security-and-hardening`).
