@@ -1,0 +1,52 @@
+version: 2
+updates:
+  # Backend Go modules. Minor/patch are grouped into a single PR to keep the
+  # large indirect graph from flooding review; majors stay individual so
+  # breaking changes (anthropic-sdk-go, pgx, etc.) get reviewed in isolation.
+  - package-ecosystem: gomod
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      go-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Mobile Dart/Flutter packages. Same grouping rationale; majors of
+  # sign_in_with_apple / google_sign_in are reviewed individually.
+  - package-ecosystem: pub
+    directory: /mobile
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dart-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions used across all workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      ci-actions:
+        patterns:
+          - "*"
+
+  # Third-party container images in the prod compose files (caddy, prom/*,
+  # grafana, exporters). Our own api/llmworker images are built in-repo and
+  # are not bumped here.
+  - package-ecosystem: docker
+    directory: /infra/docker/compose
+    schedule:
+      interval: weekly
+
+  # Dev-stack images (postgres, redis, minio, mailhog) in the backend compose.
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly

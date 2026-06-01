@@ -5,6 +5,10 @@ on:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    # Nightly run so nancy (OSS Index) surfaces transitive advisories without
+    # blocking day-to-day PRs. See the security job below.
+    - cron: '0 3 * * *'
 
 permissions:
   contents: read
@@ -38,6 +42,9 @@ jobs:
             exit 1
           fi
 
+      # gosec runs here as a golangci linter (see backend/.golangci.yml). A
+      # standalone gosec job would re-scan the same code with the same ruleset,
+      # so it is intentionally NOT added — do not re-add one without SARIF needs.
       - uses: golangci/golangci-lint-action@v8
         with:
           version: v2.12.2
@@ -59,3 +66,37 @@ jobs:
       - run: go vet ./...
       - run: go build ./...
       - run: go test -race -shuffle=on -count=1 ./...
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      # govulncheck: official Go scanner with reachability analysis — only flags
+      # vulns in code paths actually called. Blocking on every event: precise,
+      # low false-positive, a reachable known-exploitable vuln must stop merge.
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      # nancy: Sonatype OSS Index over the full transitive graph (ROADMAP §6.1
+      # asks for it verbatim). Non-blocking on PR/push (transitive advisories are
+      # frequently unfixable, e.g. testcontainers sub-deps); blocking only on the
+      # nightly schedule run so they are surfaced without gating unrelated PRs.
+      # Anonymous OSS Index is rate-limited (60 req/h); set OSSI_USERNAME /
+      # OSSI_TOKEN repo secrets if the dependency graph trips the limit.
+      - name: nancy (Sonatype OSS Index)
+        continue-on-error: ${{ github.event_name != 'schedule' }}
+        env:
+          OSSI_USERNAME: ${{ secrets.OSSI_USERNAME }}
+          OSSI_TOKEN: ${{ secrets.OSSI_TOKEN }}
+        run: |
+          go install github.com/sonatype-nexus-community/nancy@latest
+          go list -json -deps ./... | nancy sleuth
