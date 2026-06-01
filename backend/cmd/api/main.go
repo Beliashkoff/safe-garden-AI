@@ -197,6 +197,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+	r.Use(observability.SentryMiddleware)
 	r.Use(observability.AccessLog(logger))
 	r.Use(observability.Metrics)
 

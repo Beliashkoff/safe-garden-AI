@@ -57,6 +57,7 @@ func (s *Server) Routes() http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+	r.Use(observability.SentryMiddleware)
 	r.Use(observability.AccessLog(s.logger))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
