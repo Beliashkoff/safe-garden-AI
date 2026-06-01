@@ -27,6 +27,48 @@ class AppLocalizationsRu extends AppLocalizations {
   String get loginButtonEmail => 'Войти по email';
 
   @override
+  String get consentPrefix => 'Продолжая, вы принимаете';
+
+  @override
+  String get consentPrivacy => 'Политику конфиденциальности';
+
+  @override
+  String get consentAnd => 'и';
+
+  @override
+  String get consentTerms => 'Условия использования';
+
+  @override
+  String get onboardingTitle1 => 'Сфотографируйте растение';
+
+  @override
+  String get onboardingBody1 =>
+      'Сделайте снимок проблемного места — ИИ-агроном определит, что не так.';
+
+  @override
+  String get onboardingTitle2 => 'Опишите голосом или текстом';
+
+  @override
+  String get onboardingBody2 =>
+      'Расскажите о симптомах удобным способом — поддерживаются текст и голос.';
+
+  @override
+  String get onboardingTitle3 => 'Получите рекомендации';
+
+  @override
+  String get onboardingBody3 =>
+      'Точный диагноз и подбор удобрений под ваше растение.';
+
+  @override
+  String get onboardingSkip => 'Пропустить';
+
+  @override
+  String get onboardingNext => 'Далее';
+
+  @override
+  String get onboardingStart => 'Начать';
+
+  @override
   String get emailRequestTitle => 'Вход по email';
 
   @override

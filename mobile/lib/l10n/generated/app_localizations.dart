@@ -134,6 +134,84 @@ abstract class AppLocalizations {
   /// **'Войти по email'**
   String get loginButtonEmail;
 
+  /// No description provided for @consentPrefix.
+  ///
+  /// In ru, this message translates to:
+  /// **'Продолжая, вы принимаете'**
+  String get consentPrefix;
+
+  /// No description provided for @consentPrivacy.
+  ///
+  /// In ru, this message translates to:
+  /// **'Политику конфиденциальности'**
+  String get consentPrivacy;
+
+  /// No description provided for @consentAnd.
+  ///
+  /// In ru, this message translates to:
+  /// **'и'**
+  String get consentAnd;
+
+  /// No description provided for @consentTerms.
+  ///
+  /// In ru, this message translates to:
+  /// **'Условия использования'**
+  String get consentTerms;
+
+  /// No description provided for @onboardingTitle1.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сфотографируйте растение'**
+  String get onboardingTitle1;
+
+  /// No description provided for @onboardingBody1.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сделайте снимок проблемного места — ИИ-агроном определит, что не так.'**
+  String get onboardingBody1;
+
+  /// No description provided for @onboardingTitle2.
+  ///
+  /// In ru, this message translates to:
+  /// **'Опишите голосом или текстом'**
+  String get onboardingTitle2;
+
+  /// No description provided for @onboardingBody2.
+  ///
+  /// In ru, this message translates to:
+  /// **'Расскажите о симптомах удобным способом — поддерживаются текст и голос.'**
+  String get onboardingBody2;
+
+  /// No description provided for @onboardingTitle3.
+  ///
+  /// In ru, this message translates to:
+  /// **'Получите рекомендации'**
+  String get onboardingTitle3;
+
+  /// No description provided for @onboardingBody3.
+  ///
+  /// In ru, this message translates to:
+  /// **'Точный диагноз и подбор удобрений под ваше растение.'**
+  String get onboardingBody3;
+
+  /// No description provided for @onboardingSkip.
+  ///
+  /// In ru, this message translates to:
+  /// **'Пропустить'**
+  String get onboardingSkip;
+
+  /// No description provided for @onboardingNext.
+  ///
+  /// In ru, this message translates to:
+  /// **'Далее'**
+  String get onboardingNext;
+
+  /// No description provided for @onboardingStart.
+  ///
+  /// In ru, this message translates to:
+  /// **'Начать'**
+  String get onboardingStart;
+
   /// No description provided for @emailRequestTitle.
   ///
   /// In ru, this message translates to:

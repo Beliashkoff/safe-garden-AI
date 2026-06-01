@@ -2,6 +2,7 @@ import 'package:agronom_ai/core/network/api_client.dart';
 import 'package:agronom_ai/core/storage/secure_token_store.dart';
 import 'package:agronom_ai/features/auth/data/auth_repository.dart';
 import 'package:agronom_ai/features/auth/data/oauth_providers.dart';
+import 'package:agronom_ai/features/onboarding/data/onboarding_store.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
@@ -58,12 +59,27 @@ class FakeOAuthProvider implements OAuthProvider {
   }
 }
 
+/// In-memory [OnboardingStore] for tests. Defaults to "seen" so widget tests
+/// exercise the auth/login flow without the intro gating it.
+class FakeOnboardingStore implements OnboardingStore {
+  FakeOnboardingStore({this.seen = true});
+
+  bool seen;
+
+  @override
+  Future<bool> hasSeen() async => seen;
+
+  @override
+  Future<void> markSeen() async => seen = true;
+}
+
 /// Mock repository for controller/widget tests.
 class MockAuthRepository extends Mock implements AuthRepository {}
 
 /// Common provider overrides for widget tests: an in-memory token store and a
 /// no-network ApiClient, plus the supplied (mock) repository. With the default
-/// mock, the auth controller bootstraps to "unauthenticated".
+/// mock, the auth controller bootstraps to "unauthenticated"; onboarding is
+/// pre-marked seen so it does not gate the login flow.
 List<Override> authTestOverrides(MockAuthRepository repo) {
   return [
     secureTokenStoreProvider.overrideWithValue(FakeTokenStore()),
@@ -71,5 +87,6 @@ List<Override> authTestOverrides(MockAuthRepository repo) {
       ApiClient(dio: Dio(), refreshDio: Dio(), store: FakeTokenStore()),
     ),
     authRepositoryProvider.overrideWithValue(repo),
+    onboardingStoreProvider.overrideWithValue(FakeOnboardingStore()),
   ];
 }

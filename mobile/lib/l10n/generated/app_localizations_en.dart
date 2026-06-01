@@ -27,6 +27,48 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loginButtonEmail => 'Sign in with email';
 
   @override
+  String get consentPrefix => 'By continuing, you accept the';
+
+  @override
+  String get consentPrivacy => 'Privacy Policy';
+
+  @override
+  String get consentAnd => 'and';
+
+  @override
+  String get consentTerms => 'Terms of Service';
+
+  @override
+  String get onboardingTitle1 => 'Photograph your plant';
+
+  @override
+  String get onboardingBody1 =>
+      'Take a picture of the affected area — the AI agronomist will tell you what\'s wrong.';
+
+  @override
+  String get onboardingTitle2 => 'Describe it by voice or text';
+
+  @override
+  String get onboardingBody2 =>
+      'Explain the symptoms however suits you — text and voice are supported.';
+
+  @override
+  String get onboardingTitle3 => 'Get recommendations';
+
+  @override
+  String get onboardingBody3 =>
+      'An accurate diagnosis and fertilizer suggestions tailored to your plant.';
+
+  @override
+  String get onboardingSkip => 'Skip';
+
+  @override
+  String get onboardingNext => 'Next';
+
+  @override
+  String get onboardingStart => 'Get started';
+
+  @override
   String get emailRequestTitle => 'Sign in with email';
 
   @override
