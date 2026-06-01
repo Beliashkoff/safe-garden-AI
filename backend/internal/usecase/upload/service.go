@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/observability"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage/db"
 )
 
@@ -90,12 +91,15 @@ func NewService(store uploadStore, objs presigner) *Service {
 func (s *Service) Presign(ctx context.Context, userID uuid.UUID, in PresignInput) (PresignOutput, error) {
 	target, ok := resolveTarget(in.ContentType)
 	if !ok {
+		observability.IncUpload("rejected")
 		return PresignOutput{}, ErrUnsupportedType
 	}
 	switch {
 	case in.SizeBytes <= 0:
+		observability.IncUpload("rejected")
 		return PresignOutput{}, ErrInvalidSize
 	case in.SizeBytes > target.maxBytes:
+		observability.IncUpload("rejected")
 		return PresignOutput{}, ErrTooLarge
 	}
 
@@ -116,6 +120,7 @@ func (s *Service) Presign(ctx context.Context, userID uuid.UUID, in PresignInput
 	if err != nil {
 		return PresignOutput{}, fmt.Errorf("upload: presign: %w", err)
 	}
+	observability.IncUpload("presigned")
 	return PresignOutput{
 		URL:       url,
 		Key:       key,

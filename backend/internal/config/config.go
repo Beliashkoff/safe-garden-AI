@@ -21,6 +21,13 @@ type Config struct {
 	LogLevel  string `envconfig:"LOG_LEVEL" default:"info"`
 	SentryDSN string `envconfig:"SENTRY_DSN" default:""`
 
+	// Metrics — Prometheus /metrics on a dedicated plain-HTTP listener, scraped
+	// over the internal docker network. Never published through Caddy or to the
+	// public internet (ARCH §9). Empty host binds all interfaces inside the
+	// container; the port is not mapped to the host.
+	MetricsHost string `envconfig:"METRICS_HOST" default:""`
+	MetricsPort int    `envconfig:"METRICS_PORT" default:"9100"`
+
 	PostgresDSN string `envconfig:"POSTGRES_DSN" required:"true"`
 
 	// JWT — RS256 with kid rotation. Prefer JWT_KEYS_DIR (multi-key) for prod;

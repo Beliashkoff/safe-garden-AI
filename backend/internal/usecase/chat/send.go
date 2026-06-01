@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,6 +14,7 @@ import (
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/audio"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/llm/prompts"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/observability"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage/db"
 )
 
@@ -92,25 +94,38 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 		Tools:    llm.FertilizerTools(),
 		Metadata: llm.Metadata{UIDHash: uidHash(userID, s.pepper), RequestID: in.RequestID},
 	}
+	start := time.Now()
 	ch, err := s.llm.Send(ctx, req)
 	if err != nil {
+		observability.ObserveClaudeTurn(0, 0, 0, time.Since(start), "upstream_error")
+		observability.IncMessage("failed")
 		sink.Failed("upstream_error", "the assistant is unavailable")
 		s.finalizeIncomplete(assistantID, "failed", "")
 		return fmt.Errorf("chat: llm send: %w", err)
 	}
 
 	res, disconnectErr := relay(ch, sink)
+	dur := time.Since(start)
+	cost := llm.EstimateCostUSD(s.model, res.tokensIn, res.tokensOut)
 	switch {
-	case disconnectErr != nil: // client went away mid-stream
+	case disconnectErr != nil: // client went away mid-stream — not a Claude error
+		observability.ObserveClaudeTurn(res.tokensIn, res.tokensOut, cost, dur, "")
+		observability.IncMessage("cancelled")
 		s.finalizeIncomplete(assistantID, "cancelled", res.text)
 		return disconnectErr
-	case ctx.Err() != nil: // request context cancelled
+	case ctx.Err() != nil: // request context cancelled — not a Claude error
+		observability.ObserveClaudeTurn(res.tokensIn, res.tokensOut, cost, dur, "")
+		observability.IncMessage("cancelled")
 		s.finalizeIncomplete(assistantID, "cancelled", res.text)
 		return ctx.Err()
 	case res.failed: // upstream error already sent to the client
+		observability.ObserveClaudeTurn(res.tokensIn, res.tokensOut, cost, dur, "upstream_error")
+		observability.IncMessage("failed")
 		s.finalizeIncomplete(assistantID, "failed", res.text)
 		return nil
 	default:
+		observability.ObserveClaudeTurn(res.tokensIn, res.tokensOut, cost, dur, "")
+		observability.IncMessage("complete")
 		s.finalizeComplete(assistantID, userID, res.text, res.fertilizerCards, res.tokensIn, res.tokensOut)
 		return sink.Done(assistantID.String(), res.tokensIn, res.tokensOut)
 	}

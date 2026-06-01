@@ -198,6 +198,7 @@ func main() {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(observability.AccessLog(logger))
+	r.Use(observability.Metrics)
 
 	r.Mount("/v1", httptransport.NewRouter(httptransport.Deps{
 		Handler:     handler.New(authService, chatService, uploadService),
@@ -237,6 +238,18 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	// Metrics — Prometheus /metrics on a dedicated plain-HTTP listener, reachable
+	// only over the internal docker network (ARCH §9). Kept off the public router
+	// and off the mTLS internal listener so scraping needs no client cert and the
+	// endpoint is never exposed through Caddy.
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", observability.MetricsHandler())
+	metricsSrv := &http.Server{
+		Addr:              fmt.Sprintf("%s:%d", cfg.MetricsHost, cfg.MetricsPort),
+		Handler:           metricsMux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
 	go func() {
 		slog.Info("server starting", "addr", srv.Addr, "env", cfg.Env)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -267,6 +280,14 @@ func main() {
 		}
 	}()
 
+	go func() {
+		slog.Info("metrics server starting", "addr", metricsSrv.Addr)
+		if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("metrics server failed", "err", err)
+			stop()
+		}
+	}()
+
 	<-ctx.Done()
 	slog.Info("server shutting down")
 
@@ -277,6 +298,9 @@ func main() {
 	}
 	if err := internalSrv.Shutdown(shutCtx); err != nil {
 		slog.Error("internal server shutdown error", "err", err)
+	}
+	if err := metricsSrv.Shutdown(shutCtx); err != nil {
+		slog.Error("metrics server shutdown error", "err", err)
 	}
 }
 
