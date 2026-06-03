@@ -70,8 +70,11 @@ resource "yandex_vpc_security_group" "db" {
 }
 
 # --- IAM ---
+# SA создан вручную (на нём статический ключ для tfstate-backend и роли),
+# поэтому ссылаемся на него как на внешний ресурс, а не создаём заново —
+# иначе конфликт имени, а на destroy потерялся бы ключ доступа к state.
 
-resource "yandex_iam_service_account" "api" {
+data "yandex_iam_service_account" "api" {
   name = "safegarden-api"
 }
 
@@ -84,7 +87,7 @@ module "api_vm" {
   zone               = var.yc_zone
   subnet_id          = yandex_vpc_subnet.main.id
   security_group_ids = [yandex_vpc_security_group.api.id]
-  service_account_id = yandex_iam_service_account.api.id
+  service_account_id = data.yandex_iam_service_account.api.id
   ssh_public_key     = var.ssh_public_key
 }
 
