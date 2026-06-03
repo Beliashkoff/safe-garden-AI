@@ -6,7 +6,11 @@ provider "yandex" {
 }
 
 provider "hcloud" {
-  token = var.hcloud_token
+  # Hetzner — только DR (worker_provider=hetzner). При hostkey ресурсы count=0
+  # и токен не нужен, но провайдер всё равно конфигурируется и отвергает пустой
+  # токен. Подставляем валидный по длине (64 символа) плейсхолдер, когда токен
+  # не задан — API-вызовов к Hetzner при этом не происходит.
+  token = var.hcloud_token != "" ? var.hcloud_token : join("", [for _ in range(64) : "0"])
 }
 
 # --- VPC ---
