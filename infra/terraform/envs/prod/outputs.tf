@@ -27,3 +27,15 @@ output "media_bucket" {
   description = "Имя бакета для медиа."
   value       = module.media_bucket.bucket
 }
+
+output "redis_password" {
+  description = "Пароль Redis (для REDIS_PASSWORD бэкенда). Класть в Lockbox."
+  value       = random_password.redis.result
+  sensitive   = true
+}
+
+output "postgres_dsn" {
+  description = "Готовый POSTGRES_DSN для бэкенда. Класть в Lockbox."
+  value       = "postgres://${module.postgres.db_user}:${random_password.pg.result}@${module.postgres.fqdn}:6432/${module.postgres.db_name}?sslmode=require"
+  sensitive   = true
+}

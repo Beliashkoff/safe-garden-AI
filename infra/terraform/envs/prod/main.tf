@@ -9,13 +9,6 @@ provider "hcloud" {
   token = var.hcloud_token
 }
 
-provider "ovh" {
-  endpoint           = var.ovh_endpoint
-  application_key    = var.ovh_application_key
-  application_secret = var.ovh_application_secret
-  consumer_key       = var.ovh_consumer_key
-}
-
 # --- VPC ---
 
 resource "yandex_vpc_network" "main" {
@@ -93,6 +86,11 @@ module "api_vm" {
 
 # --- Managed PostgreSQL ---
 
+resource "random_password" "pg" {
+  length  = 24
+  special = false
+}
+
 module "postgres" {
   source = "../../modules/yandex-postgres"
 
@@ -101,16 +99,25 @@ module "postgres" {
   subnet_id          = yandex_vpc_subnet.main.id
   zone               = var.yc_zone
   security_group_ids = [yandex_vpc_security_group.db.id]
+  db_password        = random_password.pg.result
 }
 
 # --- Managed Redis ---
+
+resource "random_password" "redis" {
+  length  = 24
+  special = false
+}
 
 module "redis" {
   source = "../../modules/yandex-redis"
 
   name               = "safegarden-redis"
   network_id         = yandex_vpc_network.main.id
+  zone               = var.yc_zone
+  subnet_id          = yandex_vpc_subnet.main.id
   security_group_ids = [yandex_vpc_security_group.db.id]
+  password           = random_password.redis.result
 }
 
 # --- Object Storage ---
@@ -132,7 +139,6 @@ module "worker_vm" {
   ssh_public_key    = var.ssh_public_key
   ssh_key_id        = var.hcloud_ssh_key_id
   hostkey_manual_ip = var.hostkey_worker_ip
-  ovh_service_name  = var.ovh_service_name
 
   # IP бэкенда станет известен после поднятия api_vm — добавим allowlist
   # отдельным шагом в 2.2 (terraform apply -target=module.worker_vm).

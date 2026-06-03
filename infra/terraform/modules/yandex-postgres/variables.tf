@@ -26,7 +26,7 @@ variable "zone" {
 }
 
 variable "resource_preset_id" {
-  description = "Размер хоста: s2.micro (1 vCPU / 4 GB) на старт."
+  description = "Размер хоста: s2.micro (2 vCPU / 8 GB) на старт."
   type        = string
   default     = "s2.micro"
 }
@@ -47,6 +47,24 @@ variable "pg_version" {
   description = "Версия PostgreSQL."
   type        = string
   default     = "16"
+}
+
+variable "db_user" {
+  description = "Имя пользователя приложения."
+  type        = string
+  default     = "safegarden"
+}
+
+variable "db_name" {
+  description = "Имя базы приложения."
+  type        = string
+  default     = "safegarden"
+}
+
+variable "db_password" {
+  description = "Пароль пользователя приложения. Генерируется в env, хранится в Lockbox."
+  type        = string
+  sensitive   = true
 }
 
 variable "security_group_ids" {

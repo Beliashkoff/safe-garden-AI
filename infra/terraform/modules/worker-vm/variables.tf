@@ -1,21 +1,21 @@
 variable "provider_kind" {
-  description = "Куда выкатываем worker-VM: hostkey (default, prod) | hetzner | ovh. Параметризовано для DR-переезда — см. ARCHITECTURE.md §11.7."
+  description = "Куда выкатываем worker-VM: hostkey (default, prod) | hetzner. Параметризовано для DR-переезда — см. ARCHITECTURE.md §11.7."
   type        = string
   default     = "hostkey"
   validation {
-    condition     = contains(["hostkey", "hetzner", "ovh"], var.provider_kind)
-    error_message = "provider_kind должен быть одним из: hostkey, hetzner, ovh."
+    condition     = contains(["hostkey", "hetzner"], var.provider_kind)
+    error_message = "provider_kind должен быть одним из: hostkey, hetzner."
   }
 }
 
 variable "name" {
-  description = "Имя VM (используется в Hetzner/OVH, для HostKey — справочно)."
+  description = "Имя VM (используется в Hetzner, для HostKey — справочно)."
   type        = string
   default     = "safegarden-worker"
 }
 
 variable "ssh_key_id" {
-  description = "ID SSH-ключа в Hetzner Cloud (для Hetzner). На HostKey/OVH — public key передаётся другим путём."
+  description = "ID SSH-ключа в Hetzner Cloud (для Hetzner). На HostKey — public key передаётся другим путём."
   type        = string
   default     = ""
 }
@@ -43,31 +43,6 @@ variable "hetzner_location" {
   description = "Локация Hetzner: fsn1 (Falkenstein), nbg1 (Nuremberg), hel1 (Helsinki). Frankfurt отсутствует — fsn1 ближайший."
   type        = string
   default     = "fsn1"
-}
-
-# === OVH ===
-variable "ovh_service_name" {
-  description = "OVH Public Cloud project ID."
-  type        = string
-  default     = ""
-}
-
-variable "ovh_region" {
-  description = "Регион OVH Public Cloud."
-  type        = string
-  default     = "DE1"
-}
-
-variable "ovh_flavor_name" {
-  description = "Тип инстанса OVH (например s1-2, b2-7)."
-  type        = string
-  default     = "s1-2"
-}
-
-variable "ovh_image_name" {
-  description = "Имя образа OVH (Ubuntu 24.04)."
-  type        = string
-  default     = "Ubuntu 24.04"
 }
 
 # === HostKey (manual provisioning) ===

@@ -4,10 +4,6 @@ terraform {
       source  = "hetznercloud/hcloud"
       version = "~> 1.48"
     }
-    ovh = {
-      source  = "ovh/ovh"
-      version = "~> 0.51"
-    }
     null = {
       source  = "hashicorp/null"
       version = "~> 3.2"
@@ -18,7 +14,6 @@ terraform {
 locals {
   is_hostkey = var.provider_kind == "hostkey"
   is_hetzner = var.provider_kind == "hetzner"
-  is_ovh     = var.provider_kind == "ovh"
 
   cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
     ssh_public_key     = var.ssh_public_key
@@ -61,30 +56,6 @@ resource "hcloud_server" "worker" {
     ipv4_enabled = true
     ipv6_enabled = true
   }
-}
-
-# --- OVH Public Cloud (DR target) ---
-
-resource "ovh_cloud_project_instance" "worker" {
-  count        = local.is_ovh ? 1 : 0
-  service_name = var.ovh_service_name
-  region       = var.ovh_region
-
-  billing_period = "hourly"
-
-  boot_from {
-    image_name = var.ovh_image_name
-  }
-
-  flavor {
-    flavor_name = var.ovh_flavor_name
-  }
-
-  network {
-    public = true
-  }
-
-  user_data = local.cloud_init
 }
 
 # --- HostKey (manual) ---

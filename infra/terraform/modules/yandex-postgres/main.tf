@@ -33,3 +33,15 @@ resource "yandex_mdb_postgresql_cluster" "this" {
     subnet_id = var.subnet_id
   }
 }
+
+resource "yandex_mdb_postgresql_user" "app" {
+  cluster_id = yandex_mdb_postgresql_cluster.this.id
+  name       = var.db_user
+  password   = var.db_password
+}
+
+resource "yandex_mdb_postgresql_database" "app" {
+  cluster_id = yandex_mdb_postgresql_cluster.this.id
+  name       = var.db_name
+  owner      = yandex_mdb_postgresql_user.app.name
+}

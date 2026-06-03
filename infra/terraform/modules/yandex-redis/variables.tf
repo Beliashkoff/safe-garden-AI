@@ -3,9 +3,38 @@ variable "name" {
   type        = string
 }
 
+variable "environment" {
+  description = "PRESTABLE | PRODUCTION."
+  type        = string
+  default     = "PRODUCTION"
+}
+
 variable "network_id" {
   description = "VPC network ID."
   type        = string
+}
+
+variable "subnet_id" {
+  description = "Subnet ID хоста."
+  type        = string
+}
+
+variable "zone" {
+  description = "Зона хоста."
+  type        = string
+  default     = "ru-central1-a"
+}
+
+variable "redis_version" {
+  description = "Версия Redis."
+  type        = string
+  default     = "7.2"
+}
+
+variable "password" {
+  description = "Пароль Redis (AUTH). Генерируется в env, хранится в Lockbox."
+  type        = string
+  sensitive   = true
 }
 
 variable "resource_preset_id" {
@@ -33,7 +62,7 @@ variable "security_group_ids" {
 }
 
 variable "tls_enabled" {
-  description = "Включить TLS-порт."
+  description = "Включить TLS-порт (6380). false → обычный порт 6379, совпадает с SG."
   type        = bool
-  default     = true
+  default     = false
 }

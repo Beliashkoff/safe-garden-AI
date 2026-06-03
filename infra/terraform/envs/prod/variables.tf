@@ -31,7 +31,7 @@ variable "ssh_public_key" {
 
 # === Worker провайдер ===
 variable "worker_provider" {
-  description = "Где живёт worker-VM: hostkey | hetzner | ovh. См. ARCH §11.7."
+  description = "Где живёт worker-VM: hostkey | hetzner. См. ARCH §11.7."
   type        = string
   default     = "hostkey"
 }
@@ -45,33 +45,6 @@ variable "hcloud_token" {
 
 variable "hcloud_ssh_key_id" {
   description = "ID загруженного SSH-ключа в Hetzner Cloud."
-  type        = string
-  default     = ""
-}
-
-variable "ovh_endpoint" {
-  description = "OVH API endpoint (ovh-eu / ovh-ca)."
-  type        = string
-  default     = "ovh-eu"
-}
-
-variable "ovh_application_key" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-variable "ovh_application_secret" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-variable "ovh_consumer_key" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-variable "ovh_service_name" {
-  description = "OVH Public Cloud project ID."
   type        = string
   default     = ""
 }
