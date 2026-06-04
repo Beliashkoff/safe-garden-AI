@@ -38,9 +38,9 @@ variable "password" {
 }
 
 variable "resource_preset_id" {
-  description = "Размер хоста: hm1.nano (1 vCPU / 6 GB) на старт."
+  description = "Размер хоста Redis/Valkey (current-gen, доступен в zone d). b3-c1-m4 = 2 vCPU / 4 GB, burstable — хватает для rate-limit (fail-open)."
   type        = string
-  default     = "hm1.nano"
+  default     = "b3-c1-m4"
 }
 
 variable "disk_size" {
