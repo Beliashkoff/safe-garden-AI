@@ -26,9 +26,9 @@ variable "zone" {
 }
 
 variable "redis_version" {
-  description = "Версия Redis."
+  description = "Версия Redis/Valkey. YC принимает только *-valkey: 7.2-valkey, 8.0-valkey, 8.1-valkey, 9.0-valkey, 9.1-valkey."
   type        = string
-  default     = "7.2"
+  default     = "7.2-valkey"
 }
 
 variable "password" {
