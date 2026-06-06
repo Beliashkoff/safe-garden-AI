@@ -2,7 +2,7 @@
 
 # Debian-based (glibc) builder so the binary matches the glibc runtime below.
 # An alpine/musl build would not exec in a debian/distroless base (no musl loader).
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 ENV CGO_ENABLED=0
 WORKDIR /src
 COPY go.mod go.sum ./
