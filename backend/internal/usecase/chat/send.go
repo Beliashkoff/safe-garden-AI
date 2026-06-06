@@ -23,7 +23,7 @@ import (
 // are returned so the handler can answer with JSON; once streaming starts,
 // failures are emitted via sink and the assistant message is finalized
 // (complete / failed / cancelled).
-func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInput, sink Sink) error {
+func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInput, sink Sink) error { //nolint:gocyclo // orchestrates validate -> rate-limit -> persist -> stream -> finalize; the stage sequence is branchy by nature
 	blocks, err := validateInput(userID, in)
 	if err != nil {
 		return err

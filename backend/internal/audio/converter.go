@@ -72,7 +72,7 @@ func (c *FFmpegConverter) ToOggOpus(ctx context.Context, input []byte, _ string)
 
 func (c *FFmpegConverter) convert(ctx context.Context, srcPath string) ([]byte, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, c.ffmpegPath,
+	cmd := exec.CommandContext(ctx, c.ffmpegPath, //nolint:gosec // G204: ffmpegPath is from trusted config; srcPath is a server-created temp file; exec runs without a shell, args passed directly
 		"-hide_banner", "-nostdin",
 		"-i", srcPath,
 		"-c:a", "libopus", "-ar", "16000", "-ac", "1",
@@ -91,7 +91,7 @@ func (c *FFmpegConverter) convert(ctx context.Context, srcPath string) ([]byte, 
 
 func (c *FFmpegConverter) probeDurationMs(ctx context.Context, srcPath string) (int64, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, c.ffprobePath,
+	cmd := exec.CommandContext(ctx, c.ffprobePath, //nolint:gosec // G204: ffprobePath is from trusted config; srcPath is a server-created temp file; exec runs without a shell, args passed directly
 		"-v", "error",
 		"-show_entries", "format=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1",

@@ -138,7 +138,7 @@ type validatedBlock struct {
 // validateInput checks the request blocks (stage 3.1: text + image_ref) and
 // returns them in order. Pure: the storage-key prefix is checked here, but DB
 // ownership (GetUploadByStorageKey) is verified in SendMessage.
-func validateInput(userID uuid.UUID, in SendInput) ([]validatedBlock, error) {
+func validateInput(userID uuid.UUID, in SendInput) ([]validatedBlock, error) { //nolint:gocyclo // sequential per-block validation; each block kind (text / image_ref) adds branches
 	if len(in.Blocks) == 0 {
 		return nil, ErrEmptyContent
 	}

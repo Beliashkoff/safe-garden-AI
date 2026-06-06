@@ -70,7 +70,7 @@ func buildObjStore(cfg *config.Config) objStore {
 	return client
 }
 
-func main() {
+func main() { //nolint:gocyclo // composition root: wiring storage, auth, llm, redis, audio, object storage and the HTTP/internal/metrics servers is inherently branchy
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config load: %v\n", err)

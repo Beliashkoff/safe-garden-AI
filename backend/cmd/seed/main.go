@@ -207,7 +207,7 @@ func optInt(s string) (pgtype.Int4, error) {
 	if s == "" {
 		return pgtype.Int4{}, nil
 	}
-	n, err := strconv.Atoi(s)
+	n, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return pgtype.Int4{}, err
 	}
