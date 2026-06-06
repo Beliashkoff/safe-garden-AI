@@ -17,7 +17,7 @@ RUN go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
 # with a package manager.
 FROM debian:12-slim
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+    && apt-get install -y --no-install-recommends ffmpeg ca-certificates wget \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system app && useradd --system --gid app --no-create-home app
 COPY --from=builder /out/api /usr/local/bin/api
