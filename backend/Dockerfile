@@ -1,17 +1,20 @@
 # syntax=docker/dockerfile:1.7
 
-FROM golang:1.25-alpine AS builder
+# Debian-based (glibc) builder so the produced binary matches the debian runtime
+# below: whether the build ends up static (CGO off) or glibc-dynamic, it execs in
+# debian:12-slim. An alpine/musl build does NOT run in debian (no musl loader) —
+# that mismatch caused "exec /usr/local/bin/api: no such file or directory".
+FROM golang:1.25-bookworm AS builder
+ENV CGO_ENABLED=0
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-s -w" \
-    -o /out/api ./cmd/api
+RUN go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
 
 # debian-slim (not distroless/static) because the API converts uploaded voice
 # messages with ffmpeg (m4a/aac -> OggOpus for SpeechKit); ffmpeg needs a base
-# with a package manager. The Go binary is still static (CGO disabled).
+# with a package manager.
 FROM debian:12-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg ca-certificates \

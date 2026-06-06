@@ -1,15 +1,19 @@
 # syntax=docker/dockerfile:1.7
 
-FROM golang:1.25-alpine AS builder
+# Debian-based (glibc) builder so the binary matches the glibc runtime below.
+# An alpine/musl build would not exec in a debian/distroless base (no musl loader).
+FROM golang:1.25-bookworm AS builder
+ENV CGO_ENABLED=0
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-s -w" \
-    -o /out/llmworker ./cmd/llmworker
+RUN go build -trimpath -ldflags="-s -w" -o /out/llmworker ./cmd/llmworker
 
-FROM gcr.io/distroless/static-debian12:nonroot
+# distroless base-debian12 (glibc, ca-certificates) — matches the glibc builder
+# and runs the binary whether static or glibc-dynamic. static-debian12 has no
+# libc loader at all, so a non-static binary fails to exec there.
+FROM gcr.io/distroless/base-debian12:nonroot
 COPY --from=builder /out/llmworker /llmworker
 USER nonroot:nonroot
 EXPOSE 8081
