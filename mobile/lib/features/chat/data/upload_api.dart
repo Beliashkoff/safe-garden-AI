@@ -73,7 +73,8 @@ class HttpUploadApi implements UploadApi {
       return PresignResult(
         url: map['url'] as String,
         key: map['key'] as String,
-        headers: (map['headers'] as Map?)?.map(
+        headers:
+            (map['headers'] as Map?)?.map(
               (k, v) => MapEntry(k.toString(), v.toString()),
             ) ??
             const {},

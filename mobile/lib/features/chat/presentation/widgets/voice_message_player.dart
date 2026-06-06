@@ -20,8 +20,7 @@ class VoiceMessagePlayer extends ConsumerStatefulWidget {
   final int hintDurationMs;
 
   @override
-  ConsumerState<VoiceMessagePlayer> createState() =>
-      _VoiceMessagePlayerState();
+  ConsumerState<VoiceMessagePlayer> createState() => _VoiceMessagePlayerState();
 }
 
 class _VoiceMessagePlayerState extends ConsumerState<VoiceMessagePlayer> {
@@ -115,8 +114,7 @@ class _VoiceMessagePlayerState extends ConsumerState<VoiceMessagePlayer> {
   }
 
   Widget _bar(ThemeData theme, {bool busy = false, bool broken = false}) {
-    final total =
-        _duration ?? Duration(milliseconds: widget.hintDurationMs);
+    final total = _duration ?? Duration(milliseconds: widget.hintDurationMs);
     final value = (_duration != null && _duration!.inMilliseconds > 0)
         ? (_position.inMilliseconds / _duration!.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;

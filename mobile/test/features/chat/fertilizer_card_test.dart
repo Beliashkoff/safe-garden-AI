@@ -49,13 +49,23 @@ void main() {
   });
 
   group('FertilizerCardList widget', () {
-    testWidgets('renders one card per product (vertical stack)', (tester) async {
+    testWidgets('renders one card per product (vertical stack)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           const FertilizerCardList(
             products: [
-              FertilizerProduct(slug: 'a', name: 'Удобрение А', shortDesc: 'Описание А'),
-              FertilizerProduct(slug: 'b', name: 'Удобрение Б', shortDesc: 'Описание Б'),
+              FertilizerProduct(
+                slug: 'a',
+                name: 'Удобрение А',
+                shortDesc: 'Описание А',
+              ),
+              FertilizerProduct(
+                slug: 'b',
+                name: 'Удобрение Б',
+                shortDesc: 'Описание Б',
+              ),
             ],
           ),
         ),
@@ -69,14 +79,20 @@ void main() {
       expect(find.text('Подробнее'), findsNWidgets(2));
     });
 
-    testWidgets('tapping Подробнее reports the product via onOpen', (tester) async {
+    testWidgets('tapping Подробнее reports the product via onOpen', (
+      tester,
+    ) async {
       FertilizerProduct? tapped;
       await tester.pumpWidget(
         _wrap(
           FertilizerCardList(
             // Empty deeplink → onOpen fires, url_launcher is skipped (no platform).
             products: const [
-              FertilizerProduct(slug: 'k-boost', name: 'Калий-Буст', shortDesc: 'd'),
+              FertilizerProduct(
+                slug: 'k-boost',
+                name: 'Калий-Буст',
+                shortDesc: 'd',
+              ),
             ],
             onOpen: (p) => tapped = p,
           ),

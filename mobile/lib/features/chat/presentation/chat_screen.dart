@@ -123,9 +123,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       case AttachRequestResult.permissionPermanentlyDenied:
         _showPermissionDialog(source);
       case AttachRequestResult.failed:
-        messenger.showSnackBar(
-          SnackBar(content: Text(l10n.chatErrorGeneric)),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(l10n.chatErrorGeneric)));
     }
   }
 
@@ -343,7 +341,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     // A recorded voice note awaiting confirmation (or being sent) takes over the
     // whole input row.
-    if (voicePhase == VoicePhase.preview || voicePhase == VoicePhase.uploading) {
+    if (voicePhase == VoicePhase.preview ||
+        voicePhase == VoicePhase.uploading) {
       return const Padding(
         padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: VoiceRecorderBar(),

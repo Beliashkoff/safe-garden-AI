@@ -99,14 +99,22 @@ class _VoiceRecorderBarState extends ConsumerState<VoiceRecorderBar> {
     VoiceRecorderState state,
   ) {
     final canceling = state.cancelArmed;
-    final accent = canceling ? theme.colorScheme.error : theme.colorScheme.primary;
+    final accent = canceling
+        ? theme.colorScheme.error
+        : theme.colorScheme.primary;
     return Row(
       children: [
-        Icon(Icons.fiber_manual_record, color: theme.colorScheme.error, size: 14),
+        Icon(
+          Icons.fiber_manual_record,
+          color: theme.colorScheme.error,
+          size: 14,
+        ),
         const SizedBox(width: 8),
         Text(_fmt(state.elapsedMs), style: theme.textTheme.titleMedium),
         const SizedBox(width: 12),
-        Expanded(child: _LevelMeter(level: state.amplitude, color: accent)),
+        Expanded(
+          child: _LevelMeter(level: state.amplitude, color: accent),
+        ),
         const SizedBox(width: 12),
         Row(
           mainAxisSize: MainAxisSize.min,

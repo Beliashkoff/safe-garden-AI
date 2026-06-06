@@ -90,8 +90,7 @@ class SystemPermissions implements PermissionPort {
   const SystemPermissions();
 
   @override
-  Future<PermissionOutcome> ensureCamera() =>
-      _request(Permission.camera);
+  Future<PermissionOutcome> ensureCamera() => _request(Permission.camera);
 
   @override
   Future<PermissionOutcome> ensurePhotos() async {

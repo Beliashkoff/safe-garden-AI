@@ -113,8 +113,7 @@ class _FakeMediaCache implements MediaCache {
   }
 
   @override
-  Future<File> ensure(String storageKey) async =>
-      throw UnimplementedError();
+  Future<File> ensure(String storageKey) async => throw UnimplementedError();
 
   @override
   Future<void> clear() async {}
@@ -203,23 +202,26 @@ void main() {
     expect(container.read(messageComposerProvider).canAddMore, isFalse);
   });
 
-  test('denied permission returns a blocked result and stages nothing', () async {
-    final repo = FakeChatRepository();
-    final container = _container(
-      repo: repo,
-      picker: _FakePicker(cameraPath: '/tmp/x.jpg'),
-      perms: _FakePermissions(PermissionOutcome.denied),
-      uploads: _FakeUploadApi(),
-      media: _FakeMediaCache(),
-    );
-    addTearDown(container.dispose);
-    final composer = container.read(messageComposerProvider.notifier);
+  test(
+    'denied permission returns a blocked result and stages nothing',
+    () async {
+      final repo = FakeChatRepository();
+      final container = _container(
+        repo: repo,
+        picker: _FakePicker(cameraPath: '/tmp/x.jpg'),
+        perms: _FakePermissions(PermissionOutcome.denied),
+        uploads: _FakeUploadApi(),
+        media: _FakeMediaCache(),
+      );
+      addTearDown(container.dispose);
+      final composer = container.read(messageComposerProvider.notifier);
 
-    final result = await composer.addFromCamera();
+      final result = await composer.addFromCamera();
 
-    expect(result, AttachRequestResult.permissionDenied);
-    expect(container.read(messageComposerProvider).attachments, isEmpty);
-  });
+      expect(result, AttachRequestResult.permissionDenied);
+      expect(container.read(messageComposerProvider).attachments, isEmpty);
+    },
+  );
 
   test('a failed upload keeps staging and does not send', () async {
     final path = await _tempImage('fail');

@@ -35,7 +35,8 @@ class MessagePhotos extends ConsumerWidget {
             width: _size,
             height: _size,
             fit: BoxFit.cover,
-            errorBuilder: (context, _, _) => _placeholder(context, broken: true),
+            errorBuilder: (context, _, _) =>
+                _placeholder(context, broken: true),
           ),
           loading: () => _placeholder(context, broken: false),
           error: (_, _) => _placeholder(context, broken: true),

@@ -26,8 +26,13 @@ class AttachmentStrip extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         itemCount: state.attachments.length,
         separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, i) =>
-            _tileWidget(context, ref, l10n, state.attachments[i], state.uploading),
+        itemBuilder: (context, i) => _tileWidget(
+          context,
+          ref,
+          l10n,
+          state.attachments[i],
+          state.uploading,
+        ),
       ),
     );
   }
@@ -65,10 +70,7 @@ class AttachmentStrip extends ConsumerWidget {
           ),
         if (att.status == AttachStatus.failed)
           _overlay(
-            child: Icon(
-              Icons.error_outline,
-              color: theme.colorScheme.onError,
-            ),
+            child: Icon(Icons.error_outline, color: theme.colorScheme.onError),
           ),
         if (!uploading)
           Positioned(
@@ -76,8 +78,9 @@ class AttachmentStrip extends ConsumerWidget {
             right: -8,
             child: _RemoveButton(
               tooltip: l10n.chatRemovePhoto,
-              onTap: () =>
-                  ref.read(messageComposerProvider.notifier).remove(att.localId),
+              onTap: () => ref
+                  .read(messageComposerProvider.notifier)
+                  .remove(att.localId),
             ),
           ),
       ],

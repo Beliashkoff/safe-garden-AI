@@ -12,7 +12,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _FakePlayer implements AudioPlayerPort {
   @override
-  Future<Duration?> setFilePath(String path) async => const Duration(seconds: 4);
+  Future<Duration?> setFilePath(String path) async =>
+      const Duration(seconds: 4);
   @override
   Future<void> play() async {}
   @override

@@ -151,8 +151,9 @@ class MessageComposer extends Notifier<ComposerState> {
 
   void remove(String localId) {
     state = state.copyWith(
-      attachments:
-          state.attachments.where((a) => a.localId != localId).toList(),
+      attachments: state.attachments
+          .where((a) => a.localId != localId)
+          .toList(),
     );
   }
 
@@ -185,7 +186,10 @@ class MessageComposer extends Notifier<ComposerState> {
   }
 
   Future<String?> _uploadOne(PhotoAttachment att) async {
-    _patch(att.localId, (a) => a.copyWith(status: AttachStatus.uploading, progress: 0));
+    _patch(
+      att.localId,
+      (a) => a.copyWith(status: AttachStatus.uploading, progress: 0),
+    );
     try {
       final bytes = await att.file.readAsBytes();
       final presign = await _uploads.presignPut(
@@ -218,7 +222,10 @@ class MessageComposer extends Notifier<ComposerState> {
     }
   }
 
-  void _patch(String localId, PhotoAttachment Function(PhotoAttachment) update) {
+  void _patch(
+    String localId,
+    PhotoAttachment Function(PhotoAttachment) update,
+  ) {
     state = state.copyWith(
       attachments: [
         for (final a in state.attachments)
@@ -238,8 +245,7 @@ class MessageComposer extends Notifier<ComposerState> {
     }
   }
 
-  String _newId() =>
-      'att-${DateTime.now().microsecondsSinceEpoch}-${_seq++}';
+  String _newId() => 'att-${DateTime.now().microsecondsSinceEpoch}-${_seq++}';
 }
 
 final messageComposerProvider =
