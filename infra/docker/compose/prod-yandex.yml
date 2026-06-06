@@ -6,6 +6,12 @@ services:
     env_file:
       - path: /etc/safegarden/.env
         required: false
+    # JWT signing keys + mTLS cert chain, read-only. Container paths equal host
+    # paths so the env vars in .env (JWT_KEYS_DIR, INTERNAL_MTLS_*_PATH,
+    # LLM_WORKER_*_PATH) resolve identically inside and out.
+    volumes:
+      - /etc/safegarden/jwt-keys:/etc/safegarden/jwt-keys:ro
+      - /etc/safegarden/certs:/etc/safegarden/certs:ro
     restart: unless-stopped
     networks:
       - internal
