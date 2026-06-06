@@ -44,4 +44,13 @@ resource "yandex_mdb_postgresql_database" "app" {
   cluster_id = yandex_mdb_postgresql_cluster.this.id
   name       = var.db_name
   owner      = yandex_mdb_postgresql_user.app.name
+
+  # YC Managed PostgreSQL forbids CREATE EXTENSION by app users; extensions are
+  # enabled at the cluster level. Migration 0001_extensions.sql needs these.
+  extension {
+    name = "citext"
+  }
+  extension {
+    name = "pgcrypto"
+  }
 }
