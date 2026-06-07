@@ -1,0 +1,19 @@
+# syntax=docker/dockerfile:1.7
+
+# One-shot media-purge + upload-GC job (cmd/cleanup), run on a schedule by a
+# systemd timer on the VM (see infra/systemd/). Debian-based (glibc) builder so
+# the binary matches the glibc runtime below.
+FROM golang:1.25-bookworm AS builder
+ENV CGO_ENABLED=0
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -trimpath -ldflags="-s -w" -o /out/cleanup ./cmd/cleanup
+
+# distroless base-debian12: glibc + ca-certificates (needed for HTTPS to Object
+# Storage). No ports — the job runs once and exits.
+FROM gcr.io/distroless/base-debian12:nonroot
+COPY --from=builder /out/cleanup /cleanup
+USER nonroot:nonroot
+ENTRYPOINT ["/cleanup"]

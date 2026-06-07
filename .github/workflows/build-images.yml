@@ -31,6 +31,8 @@ jobs:
             file: backend/Dockerfile
           - image: llmworker
             file: backend/Dockerfile.llmworker
+          - image: cleanup
+            file: backend/Dockerfile.cleanup
     steps:
       - uses: actions/checkout@v4
 

@@ -1,0 +1,22 @@
+# Safe Garden — one-shot media-purge + upload-GC job.
+# Install: copy this + the .timer to /etc/systemd/system/ on the API VM, then
+#   systemctl daemon-reload && systemctl enable --now safegarden-cleanup.timer
+# Runs as the `safegarden` user (member of the docker group) so it reuses that
+# user's ghcr login (~/.docker/config.json) to pull the private image.
+[Unit]
+Description=Safe Garden media-purge + upload-GC (one-shot)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=safegarden
+Group=safegarden
+SupplementaryGroups=docker
+TimeoutStartSec=600
+# Pull is best-effort (leading '-'): if the registry is briefly unreachable the
+# job still runs against the cached image. The job reads POSTGRES_DSN + S3_* from
+# the same env file as the api; it needs no volumes (no cert/key files used).
+ExecStartPre=-/usr/bin/docker pull ghcr.io/beliashkoff/safe-garden-ai/cleanup:latest
+ExecStart=/usr/bin/docker run --rm --env-file /etc/safegarden/.env ghcr.io/beliashkoff/safe-garden-ai/cleanup:latest

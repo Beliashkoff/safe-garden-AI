@@ -1,0 +1,14 @@
+# Fires safegarden-cleanup.service hourly (ROADMAP §3.2: prompt media purge for
+# deleted accounts + cheap 7-day unused-upload GC).
+[Unit]
+Description=Run Safe Garden cleanup hourly
+
+[Timer]
+OnCalendar=hourly
+# Run a missed job after downtime instead of waiting for the next slot.
+Persistent=true
+# Spread the start within 5 min so it never hits the cluster exactly on the hour.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
