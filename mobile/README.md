@@ -143,6 +143,63 @@ flutter run \
   `CODE_SIGN_ENTITLEMENTS` в проект и привяжет к provisioning profile. Apple-кнопка
   показывается только на iOS/macOS.
 
+## Подпись release-сборки (Android)
+
+`flutter build apk --release` подписывает APK ключом из `android/key.properties`
+(в `.gitignore`). Файла нет → фолбэк на **debug-ключ** (см.
+[`android/app/build.gradle.kts`](./android/app/build.gradle.kts)): APK ставится
+через sideload, но SHA-1 у CI-сборки нестабилен (каждый прогон свой) →
+**Google Sign-In не работает**, а установка поверх прежней версии требует её
+удаления. Стабильный **upload-keystore** снимает оба ограничения и обязателен
+для загрузки в Google Play.
+
+### Один раз: сгенерировать keystore (локально, заказчик)
+
+```bash
+keytool -genkey -v -keystore upload-keystore.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+Снять SHA-1 (нужен для Android OAuth client в Google Cloud, package `site.agronomai.app`):
+
+```bash
+keytool -list -v -keystore upload-keystore.jks -alias upload   # строка "SHA1: ..."
+```
+
+Закодировать keystore в base64 для CI-секрета:
+
+```bash
+base64 -w0 upload-keystore.jks > keystore.b64                  # Git Bash
+# PowerShell:
+# [Convert]::ToBase64String([IO.File]::ReadAllBytes("upload-keystore.jks")) | Out-File keystore.b64 -Encoding ascii
+```
+
+### CI: секреты и переменные (Settings → Secrets and variables → Actions)
+
+Секреты (Secrets) — подпись:
+
+| Секрет | Значение |
+| ------ | -------- |
+| `ANDROID_KEYSTORE_BASE64` | содержимое `keystore.b64` |
+| `ANDROID_KEYSTORE_PASSWORD` | store-пароль |
+| `ANDROID_KEY_ALIAS` | `upload` |
+| `ANDROID_KEY_PASSWORD` | key-пароль (часто = store) |
+
+Build-time конфиг release-APK (`--dart-define`):
+
+| Имя | Тип | Назначение |
+| --- | --- | ---------- |
+| `MOBILE_API_BASE_URL` | var | Базовый URL API. Можно не задавать — фолбэк `https://api.agronomai.site/v1`. |
+| `GOOGLE_SERVER_CLIENT_ID` | var | Web OAuth client ID (`serverClientId`). Без него кнопка Google не работает. |
+| `MOBILE_SENTRY_DSN` | secret | DSN для сбора крашей с тестеров. Пусто → Sentry no-op. |
+
+Без секретов подписи сборка **не падает**: `build-apk-release` подпишет debug-ключом
+и выведет warning; с ними `app-release.apk` подписан стабильным upload-ключом.
+
+> Keystore и пароли — **только в секретах / password manager, не в репозиторий**
+> (`key.properties`, `*.jks` уже в `.gitignore`). Потеря upload-keystore = потеря
+> возможности обновлять приложение в Play.
+
 ## Симуляторы и эмуляторы
 
 ### Android Emulator
@@ -183,7 +240,7 @@ Apple Developer Account, signing настраивается в Xcode (`open ios/
 | `analyze`            | PR + push         | `dart format --set-exit-if-changed lib test`, `flutter analyze --fatal-infos`. |
 | `test`               | PR + push         | `flutter test --coverage` + artifact `coverage/lcov.info` (7 дней). |
 | `build-apk-debug`    | Только PR         | `flutter build apk --debug`, artifact `app-debug.apk` (7 дней). |
-| `build-apk-release`  | Только push в main| `flutter build apk --release`, artifact `app-release-unsigned.apk` (14 дней). Не входит в required checks — это post-merge сигнал. |
+| `build-apk-release`  | Только push в main| `flutter build apk --release` с prod `--dart-define` (см. «Подпись release-сборки»), artifact `app-release.apk` (14 дней). Не входит в required checks — это post-merge сигнал. |
 
 Перед PR локально полезно прогнать:
 

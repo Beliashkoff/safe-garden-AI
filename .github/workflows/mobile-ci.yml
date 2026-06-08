@@ -107,6 +107,30 @@ jobs:
 
       - run: flutter pub get
 
+      # Decode the upload keystore + write key.properties from secrets so the
+      # release APK is signed with a STABLE key (Google Sign-In needs a fixed
+      # SHA-1; Play needs a real key). If the keystore secret is absent the build
+      # falls back to debug signing (build.gradle.kts) — sideload only.
+      - name: Prepare release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 not set — release APK will be debug-signed (sideload only, no Google Sign-In)."
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          {
+            echo "storeFile=upload-keystore.jks"
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+          } > android/key.properties
+          echo "Release signing configured (upload keystore)."
+
       # Inject prod build-time config (app_config.dart reads these via
       # String.fromEnvironment). Without --dart-define the APK keeps dev
       # defaults (API_BASE_URL=http://10.0.2.2:8080 — emulator loopback) and is
