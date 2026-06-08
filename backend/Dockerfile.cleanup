@@ -3,7 +3,7 @@
 # One-shot media-purge + upload-GC job (cmd/cleanup), run on a schedule by a
 # systemd timer on the VM (see infra/systemd/). Debian-based (glibc) builder so
 # the binary matches the glibc runtime below.
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 ENV CGO_ENABLED=0
 WORKDIR /src
 COPY go.mod go.sum ./
