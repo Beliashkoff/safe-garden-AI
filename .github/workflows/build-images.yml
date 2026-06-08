@@ -1,8 +1,10 @@
 name: build-images
 
-# Builds and pushes the api + llmworker images to GHCR. CI (backend-ci.yml) only
-# lints/tests; this is the deploy artifact. Runs on main and version tags; the
-# prod VMs pull ghcr.io/<owner>/safe-garden-ai/{api,llmworker}:<tag>.
+# Builds + pushes the api/llmworker/cleanup images to GHCR, then deploys them to
+# the two prod VMs over SSH. CI (backend-ci.yml) only lints/tests; this is the
+# deploy artifact + CD. Runs on main and version tags. Deploy pins the exact
+# sha-<short> tag (not the floating :latest) so prod runs exactly what was built;
+# rollback is just re-pinning a previous sha (see infra/docker/compose/README.md).
 on:
   push:
     branches: [main]
@@ -67,3 +69,74 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  # CD: SSH into each prod VM and roll it to the exact image just built. Runs only
+  # after all three images pushed. The VMs already have a `safegarden` user in the
+  # docker group with a ghcr login (~/.docker/config.json) — see the cleanup
+  # systemd unit; the deploy key authorizes that same user. No inbound besides SSH.
+  # Required config (Settings -> Secrets and variables -> Actions), per VM:
+  #   secrets: API_VM_HOST, API_VM_SSH_KEY, API_VM_FINGERPRINT
+  #            WORKER_VM_HOST, WORKER_VM_SSH_KEY, WORKER_VM_FINGERPRINT
+  #   vars:    API_VM_DOMAIN, WORKER_VM_DOMAIN
+  #            (optional) API_VM_SSH_USER/PORT, WORKER_VM_SSH_USER/PORT
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Surfaces deployments in the GitHub UI; add required reviewers here later to
+    # gate prod behind manual approval without touching this file.
+    environment: production
+    concurrency:
+      group: deploy-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Compute image tag
+        # Must match docker/metadata-action type=sha (sha- prefix, 7-char short).
+        run: echo "IMAGE_TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Deploy api VM (Yandex)
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          DOMAIN: ${{ vars.API_VM_DOMAIN }}
+        with:
+          host: ${{ secrets.API_VM_HOST }}
+          username: ${{ vars.API_VM_SSH_USER || 'safegarden' }}
+          port: ${{ vars.API_VM_SSH_PORT || '22' }}
+          key: ${{ secrets.API_VM_SSH_KEY }}
+          fingerprint: ${{ secrets.API_VM_FINGERPRINT }}
+          envs: IMAGE_TAG,DOMAIN
+          script: |
+            set -eu
+            cd /etc/safegarden/compose
+            # Pin tag + domain durably: compose reads ./.env for ${IMAGE_TAG} and
+            # ${DOMAIN} interpolation, so manual `up -d` and reboots reuse them.
+            # These are the only two interpolation vars the compose files use.
+            umask 077
+            printf 'DOMAIN=%s\nIMAGE_TAG=%s\n' "$DOMAIN" "$IMAGE_TAG" > .env
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+
+      - name: Deploy worker VM (Frankfurt)
+        # Attempt the worker even if the api deploy failed; don't run on cancel.
+        if: ${{ !cancelled() }}
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          DOMAIN: ${{ vars.WORKER_VM_DOMAIN }}
+        with:
+          host: ${{ secrets.WORKER_VM_HOST }}
+          username: ${{ vars.WORKER_VM_SSH_USER || 'safegarden' }}
+          port: ${{ vars.WORKER_VM_SSH_PORT || '22' }}
+          key: ${{ secrets.WORKER_VM_SSH_KEY }}
+          fingerprint: ${{ secrets.WORKER_VM_FINGERPRINT }}
+          envs: IMAGE_TAG,DOMAIN
+          script: |
+            set -eu
+            cd /etc/safegarden/compose
+            umask 077
+            printf 'DOMAIN=%s\nIMAGE_TAG=%s\n' "$DOMAIN" "$IMAGE_TAG" > .env
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
