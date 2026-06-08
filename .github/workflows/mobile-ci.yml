@@ -106,10 +106,29 @@ jobs:
           cache: true
 
       - run: flutter pub get
-      - run: flutter build apk --release
 
+      # Inject prod build-time config (app_config.dart reads these via
+      # String.fromEnvironment). Without --dart-define the APK keeps dev
+      # defaults (API_BASE_URL=http://10.0.2.2:8080 — emulator loopback) and is
+      # useless on a real tester device. Values come from repo vars/secrets;
+      # API_BASE_URL falls back to prod so the APK is always usable.
+      # Passed via env (not inline ${{ }}) to avoid shell injection.
+      - name: Build release APK (prod config)
+        env:
+          API_BASE_URL: ${{ vars.MOBILE_API_BASE_URL || 'https://api.agronomai.site/v1' }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
+          SENTRY_DSN: ${{ secrets.MOBILE_SENTRY_DSN }}
+        run: |
+          flutter build apk --release \
+            --dart-define=API_BASE_URL="$API_BASE_URL" \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID" \
+            --dart-define=SENTRY_DSN="$SENTRY_DSN" \
+            --dart-define=SENTRY_ENV=prod
+
+      # Debug-signed (build.gradle.kts release uses the debug keystore): installs
+      # via sideload, NOT uploadable to Play. Stable signing is Part 2.
       - uses: actions/upload-artifact@v4
         with:
-          name: app-release-unsigned.apk
+          name: app-release.apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
