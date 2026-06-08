@@ -119,8 +119,9 @@ jobs:
             docker image prune -f
 
       - name: Deploy worker VM (Frankfurt)
-        # Attempt the worker even if the api deploy failed; don't run on cancel.
-        if: ${{ !cancelled() }}
+        # Skip until the worker VM is configured (WORKER_VM_DOMAIN set); then it
+        # activates automatically. Still attempts even if the api deploy failed.
+        if: ${{ !cancelled() && vars.WORKER_VM_DOMAIN != '' }}
         uses: appleboy/ssh-action@v1
         env:
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
