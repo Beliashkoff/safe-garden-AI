@@ -182,6 +182,9 @@ func main() { //nolint:gocyclo // composition root: wiring storage, auth, llm, r
 	if c, ok := transcriber.(interface{ Close() error }); ok {
 		defer func() { _ = c.Close() }()
 	}
+	if cfg.Env == "prod" && (audioCfg.Kind == "mock" || audioCfg.Kind == "") {
+		slog.Warn("STT_PROVIDER_KIND=mock in prod — voice messages return a fixture transcript, not real recognition")
+	}
 	converter := audio.NewConverter(audioCfg.FFmpegPath, audioCfg.FFprobePath)
 
 	// Object storage for presigned photo/audio uploads (ARCH §4.3, §5).
