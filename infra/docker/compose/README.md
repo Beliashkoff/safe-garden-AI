@@ -75,7 +75,10 @@ cleanup-юнит). Нужно:
    ограничениями: `no-port-forwarding,no-x11-forwarding,no-agent-forwarding`.
    Приватный — в secret `*_VM_SSH_KEY`.
 3. Снять отпечаток host-ключа VM в secret `*_VM_FINGERPRINT`:
-   `ssh-keyscan -t ed25519 <host> | ssh-keygen -lf -` → берём часть `SHA256:...`.
+   `ssh-keyscan -t ecdsa <host> | ssh-keygen -lf -` → берём часть `SHA256:...`.
+   ВАЖНО: именно `ecdsa`, не `ed25519`. appleboy/ssh-action (drone-ssh, Go
+   `x/crypto/ssh`) при наличии у хоста ecdsa-ключа согласует `ecdsa-sha2-nistp256`
+   и сверяет его отпечаток; ed25519-значение даст `host key fingerprint mismatch`.
 4. Убедиться, что у `safegarden` есть login-shell и доступ к каталогу
    `/etc/safegarden/compose` (запись `.env` + чтение compose-файла).
 

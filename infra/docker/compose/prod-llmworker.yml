@@ -9,12 +9,10 @@ services:
     restart: unless-stopped
     networks:
       - internal
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8081/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
+    # No Docker healthcheck: the runtime image is distroless (no wget/sh to exec
+    # a probe). Caddy orders startup via depends_on: service_started; liveness is
+    # covered by restart: unless-stopped. /healthz is still served for the mTLS
+    # smoke test and external monitoring.
 
   caddy:
     image: caddy:2-alpine
@@ -30,7 +28,7 @@ services:
       DOMAIN: ${DOMAIN:?DOMAIN env required}
     depends_on:
       llmworker:
-        condition: service_healthy
+        condition: service_started
     networks:
       - internal
 

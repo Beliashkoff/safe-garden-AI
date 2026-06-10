@@ -48,11 +48,11 @@
 
 ### 0.6 Внешние аккаунты и инфраструктура (заказчик)
 - [ ] **HostKey аккаунт** (hostkey.ru, ООО «АЙТИБ») на юрлицо/карту заказчика, с пополнением баланса в рублях. Сразу не покупаем VPS — только аккаунт. _Принятые юридические риски — в ARCHITECTURE.md §11.7._
-- [ ] **Anthropic API аккаунт** на иностранное юрлицо/email; запрос production-ключа (Tier 1 на старте).
+- [x] **Anthropic API аккаунт** на иностранное юрлицо/email; запрос production-ключа (Tier 1 на старте). _Prod-ключ получен и работает: smoke-стрим Claude с worker'а (Finland-VPS) OK, 2026-06-10._
 - [ ] **Yandex Cloud организация**, биллинг.
 - [ ] **Yandex 360** — подключение почты для домена, создание `noreply@<domain>`, генерация SMTP-пароля.
 - [ ] **Yandex SpeechKit** — сервис-аккаунт + API-ключ.
-- [ ] **Домен `agronomai.site`** (заказчик уже владеет): перевод NS на Yandex Cloud DNS, создание зоны, MX/SPF/DKIM/DMARC для `noreply@agronomai.site`. Поддомены: `api.agronomai.site` (бэкенд, A-record в Этапе 2.2), `agronomai.site` (apex — лендинг, Этап 7.2), `worker.agronomai.site` (опционально, HostKey VM, Этап 2.2). Подробный runbook — в `backend/README.md` §«Регистрация внешних аккаунтов».
+- [ ] **Домен `agronomai.site`** (заказчик уже владеет): перевод NS на Yandex Cloud DNS, создание зоны, MX/SPF/DKIM/DMARC для `noreply@agronomai.site`. Поддомены: `api.agronomai.site` (бэкенд, A-record в Этапе 2.2), `agronomai.site` (apex — лендинг, Этап 7.2), `worker.agronomai.site` (Finland-VPS, Этап 2.2 ✅). Подробный runbook — в `backend/README.md` §«Регистрация внешних аккаунтов».
 
 ### 0.7 Скелет llm-worker ✅
 - [x] `cmd/llmworker/main.go` — заглушка, `/healthz` + `/v1/llm/messages` echo. _Echo-SSE по контракту ARCH §11.3 (`message_started` → `delta`* → `usage` → `done`); защита от PII в payload (CLAUDE.md инвариант №5)._
@@ -179,8 +179,8 @@ _Реальный Claude — через worker (Этап 2.2); локально/
 - Пользователь отправляет текст, видит стримящийся ответ.
 - История сохраняется и подгружается при перезапуске.
 - Отмена работает корректно (нет пустых сообщений).
-- Prod-окружение поднято и использует реальный Claude через `llm-worker` на HostKey Frankfurt.
-- Worker доступен только с IP бэкенда в Yandex Cloud (HostKey firewall / iptables IP-allowlist + mTLS).
+- Prod-окружение поднято и использует реальный Claude через `llm-worker` на VPS в Финляндии (вне РФ). ✅ (2026-06-10)
+- Worker доступен только с IP бэкенда в Yandex Cloud (UFW IP-allowlist + mTLS). ✅
 - До публикации в сторы prod-окружение используется и для нашего ручного тестирования (см. D15).
 
 ---
@@ -364,7 +364,7 @@ _Дополнительно к mobile-скоупу: на бэкенд добав
 - [ ] Аудит конфигов: backup-расписание PG, retention, ротация Caddy-логов.
 - [ ] Бэкапы PostgreSQL — **проверены восстановлением** на отдельной VM.
 - [ ] Sentry/Grafana дашборды проверены, алерты приходят.
-- [ ] HostKey firewall / iptables на worker-VM: разрешён только IP Yandex Cloud VM на 443.
+- [x] UFW на worker-VM (Finland-VPS `31.77.195.12`): входящий 443 разрешён только с IP API-VM (158.160.241.21), 22 — по ключам; fail2ban.
 - [ ] Yandex Cloud Security Group: разрешён только трафик от мобильных клиентов на 443 (Caddy).
 - [ ] Очистка тестовых данных из prod-БД (тестовые users, conversations, uploads).
 

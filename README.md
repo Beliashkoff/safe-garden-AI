@@ -13,12 +13,12 @@
 
 - **Mobile:** Flutter (Riverpod, dio, freezed), iOS 14+ / Android 8+
 - **Backend:** Go (chi, pgx, sqlc), PostgreSQL, Redis, Yandex Object Storage
-- **LLM:** Claude Opus 4.x через **отдельный `llm-worker`** на HostKey Frankfurt (физически вне РФ; Anthropic блокирует РФ-AS, поэтому прямой вызов и AWS Bedrock не работают). Юрлицо провайдера — РФ; принятые риски и план миграции на иностранного провайдера — в `ARCHITECTURE.md` §11.7.
+- **LLM:** Claude Opus 4.x через **отдельный `llm-worker`** на VPS в Финляндии (физически вне РФ; Anthropic блокирует РФ-AS, поэтому прямой вызов и AWS Bedrock не работают). Принятые риски размещения и план миграции провайдера — в `ARCHITECTURE.md` §11.7.
 - **Email:** Yandex 360 SMTP (OTP-коды)
 - **Транскрипция:** Yandex SpeechKit v3 (с конвертацией m4a→OggOpus через `ffmpeg`)
 - **Облако:** Yandex Cloud (152-ФЗ, РФ-юрисдикция, PII не покидает РФ)
-- **Деплой:** Docker Compose на VM (Yandex Compute для api + HostKey Frankfurt `vm.v2-nano` для llm-worker). Без Kubernetes в v1.
-- **Окружения:** dev (локально через docker-compose) + prod (Yandex Cloud + HostKey Frankfurt). Stage-окружения нет — до релиза prod используется и для ручного тестирования.
+- **Деплой:** Docker Compose на VM (Yandex Compute для api + VPS в Финляндии для llm-worker). Без Kubernetes в v1.
+- **Окружения:** dev (локально через docker-compose) + prod (Yandex Cloud + VPS в Финляндии). Stage-окружения нет — до релиза prod используется и для ручного тестирования.
 - **Сторы:** App Store, Google Play
 
 ## Структура репозитория
@@ -27,7 +27,7 @@
 
 ```
 safe-garden-AI/
-├── backend/              # Go: HTTP API (РФ) + LLM-worker (HostKey Frankfurt)
+├── backend/              # Go: HTTP API (РФ) + LLM-worker (VPS Финляндия)
 ├── mobile/               # Flutter: iOS / Android
 ├── infra/                # Terraform + Docker Compose для prod
 ├── .github/workflows/    # CI: backend, mobile, release
@@ -122,7 +122,8 @@ CI состоит из трёх workflow:
 - 4.3 Mobile: голосовые сообщения ✅ — hold-to-record на кнопке-микрофоне (пустое поле → микрофон, текст → отправка): зажать → запись с таймером и индикатором уровня (свайп влево — отмена, авто-стоп 60с), отпустить → превью с плеером и «Удалить»/«Отправить». Запись `record` (AAC/m4a, 16kHz mono) и воспроизведение `just_audio` за портами (`audio_ports.dart`), `VoiceRecorderController` (presign→PUT→`ChatController.sendMessage(audioStorageKey)`). В чате — `VoiceMessagePlayer` (плеер из media-кэша) + текст транскрипции; SSE-событие `transcription` прикрепляет текст к user-сообщению до ответа ассистента. Доп.: `MediaCache` хранит расширение по ключу (аудио кэшируется), оффлайн-кэш блоков переведён на JSON (storage_key/duration переживают перезапуск). Разрешение микрофона (Info.plist + RECORD_AUDIO) за `PermissionPort.ensureMicrophone`. Тесты: `flutter analyze` + 72 `flutter test` зелёные (контроллер записи, SSE `transcription`, модель, бабл-плеер). _On-device E2E (микрофон, реальная запись/воспроизведение) отложен — Android SDK не установлен._
 - 5.1–5.5 Каталог удобрений + Tool Use ✅ (код) — таблица `fertilizers` + сидер `cmd/seed` из `infra/data/fertilizers.csv` (плейсхолдер с демо-записью). На worker'е — мультитёрн tool-use цикл: при `recommend_fertilizer` обратный RPC на РФ-бэкенд (`POST /internal/v1/tools/fertilizer`, отдельный mTLS-листенер, не под `RequireAuth`), результат → `tool_result` Claude, параллельно SSE-событие `fertilizer_card`. Бэкенд ретранслирует карточку и сохраняет блок `fertilizer_card` (`message_blocks.metadata.products`); история восстанавливает карточки. Mobile — `FertilizerProduct`/`ContentBlock.products`, парсинг события, виджет `FertilizerCardList` (вертикальный стек, фото/название/описание, «Подробнее» → `url_launcher`), аналитика тапов в `usage_log`. System prompt финализирован (обязательность tool call, тон), prompt caching на system+tools, eval-набор из 20 кейсов (`internal/llmworker/eval/cases.json`). Тесты: backend юнит (tool-loop с фейк-каталогом: эмит карточки / пустой каталог / ошибка callback; эндпоинт `/internal/v1/tools/fertilizer`; usecase каталога) + mobile (парсинг события, widget-тест карточки). _Каталог наполняется позже (данные заказчика, SPEC Q2); операторский прогон eval через живой Anthropic — после 0.6._
 - 6.1–6.6 Полировка / безопасность / мониторинг 🚧 (в работе) — security-CI (`dependabot`, `govulncheck` блокирующий + `nancy` nightly, gosec через golangci) и регрессионные тесты `RequireAuth`/ownership/изоляции переписки + аудит PII-логов; Prometheus-метрики (`/metrics` на отдельном внутреннем порту: http по route-паттерну, `claude_*`/`message_total`/`upload_status_total`), стек `infra/docker/compose/monitoring` (Prometheus+Grafana+Alertmanager+exporters, дашборд + алерты порогов ARCH §9, провалидированы `promtool`/`amtool`), Sentry backend+mobile (`sendDefaultPii=false`); k6-скрипт `infra/loadtest/messages.js` + `make loadtest`; mobile — онбординг (3 экрана), согласие на обработку ПДн со ссылками на Privacy/ToS, плейсхолдер app-icon/splash + тулинг. Тесты зелёные: backend `go test ./...` (+integration), mobile 78 `flutter test`. _Pending (runtime/внешнее): деплой мониторинга + тест-алерт, прогон k6 и `EXPLAIN ANALYZE` на prod-данных, генерация платформенных ассетов иконки/splash и финальный дизайн, тексты Privacy/ToS + РКН + Google Play Data Safety, Sentry symbol upload, OWASP sign-off._
-- В работе — **0.6 Внешние аккаунты** (HostKey, Anthropic, Yandex Cloud, Yandex 360, SpeechKit, DNS `agronomai.site`). Runbook — в [`backend/README.md`](./backend/README.md) §«Регистрация внешних аккаунтов». Дальнейшие этапы — в `ROADMAP.md`.
+- 🚀 **Прод-деплой** ✅ (2026-06-10) — РФ-бэкенд (Yandex Cloud, `api.agronomai.site`) + `llm-worker` на VPS в Финляндии (`worker.agronomai.site`, Caddy mTLS, UFW 443←только API-VM); бэкенд переключён в `LLM_CLIENT_KIND=worker` — реальный Claude работает в проде. CD-автодеплой обеих VM активен (`build-images.yml`).
+- В работе — **Этап 6** (полировка/безопасность/мониторинг) и подготовка к релизу (**Этап 7**). Внешние аккаунты (Anthropic, Yandex Cloud, Yandex 360, DNS `agronomai.site`) подключены. Дальнейшие этапы — в `ROADMAP.md`.
 
 ## Открытые блокеры по этапам
 
