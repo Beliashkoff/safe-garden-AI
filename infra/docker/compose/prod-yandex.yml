@@ -12,6 +12,11 @@ services:
     volumes:
       - /etc/safegarden/jwt-keys:/etc/safegarden/jwt-keys:ro
       - /etc/safegarden/certs:/etc/safegarden/certs:ro
+    # Internal mTLS listener (:8090) для обратного вызова worker->backend
+    # recommend_fertilizer (ARCH §11.3). Доступен только с IP worker-VM (Yandex SG
+    # ingress 8090); аутентификация — клиентский серт. Публичный api — за Caddy.
+    ports:
+      - "8090:8090"
     restart: unless-stopped
     networks:
       - internal

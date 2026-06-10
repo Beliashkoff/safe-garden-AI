@@ -12,9 +12,9 @@
 # ssh_public_key = "ssh-ed25519 AAAA... operator@host"
 
 # === Worker провайдер (см. ARCH §11.7) ===
-# По умолчанию hostkey — для DR-переезда поменять на hetzner / ovh.
-# worker_provider     = "hostkey"
-# hostkey_worker_ip   = "X.Y.Z.W"   # вписать после провижининга в личном кабинете HostKey
+# По умолчанию manual (ручной VPS вне РФ) — для DR-переезда поменять на hetzner.
+# worker_provider   = "manual"
+# worker_manual_ip  = "X.Y.Z.W"   # публичный IP VPS, вписать после провижининга
 
 # Заполнять только если worker_provider = "hetzner":
 # hcloud_token         = "..."

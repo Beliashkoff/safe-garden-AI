@@ -2,7 +2,7 @@ output "ip" {
   description = "Публичный IPv4 worker-VM. Используется бэкендом как mTLS endpoint."
   value = try(
     hcloud_server.worker[0].ipv4_address,
-    var.hostkey_manual_ip,
+    var.manual_ip,
   )
 }
 

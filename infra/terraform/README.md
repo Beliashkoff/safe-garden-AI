@@ -27,12 +27,12 @@ infra/terraform/
     └── yandex-s3/           # Object Storage bucket
 ```
 
-`worker-vm` параметризован переменной `provider` со значениями `hostkey`,
-`hetzner`, `ovh` — выполнение принятого риска HostKey
-([`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) §11.7): DR-переезд на
-иностранного провайдера должен быть однокнопочным. На HostKey у Terraform
-нет первоклассного провайдера — этот случай оформлен как `null_resource`
-с ручной инструкцией в `modules/worker-vm/README.md`.
+`worker-vm` параметризован переменной `provider_kind` со значениями `manual`
+(ручной VPS вне РФ; сейчас Финляндия), `hetzner` (DR) и legacy-алиасом `hostkey`
+([`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) §11.7): DR-переезд на другого
+провайдера должен быть однокнопочным. Для ручного VPS у Terraform нет
+первоклассного провайдера — этот случай оформлен как `null_resource`
+с инструкцией в `modules/worker-vm/README.md`.
 
 ## Локальная проверка (без apply)
 

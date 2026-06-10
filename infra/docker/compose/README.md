@@ -5,32 +5,46 @@
 | Файл | На какой VM | Содержит |
 | --- | --- | --- |
 | `prod-yandex.yml` + `prod-yandex.Caddyfile` | Yandex Compute Cloud (Москва/Питер) | `api` + `caddy` |
-| `prod-llmworker.yml` + `prod-llmworker.Caddyfile` | Worker-VM (HostKey Frankfurt по умолчанию, в случае DR — Hetzner/OVH) | `llmworker` + `caddy` с mTLS client_auth |
+| `prod-llmworker.yml` + `prod-llmworker.Caddyfile` | Worker-VM (VPS вне РФ, сейчас Финляндия; DR — Hetzner) | `llmworker` + `caddy` с mTLS client_auth |
 
 ## Раскладка на VM
 
-На обеих VM ожидается одна и та же структура:
+`compose/` (docker-compose.yml + Caddyfile + интерполяционный `.env` с
+`DOMAIN`/`IMAGE_TAG`) лежит на корневом диске обеих VM в `/etc/safegarden/compose`
+(его пишет CD). Расположение секретов различается:
 
+**API-VM (Yandex)** — секреты и серты на корневом диске:
 ```
 /etc/safegarden/
-├── compose/
-│   ├── docker-compose.yml      # ← prod-yandex.yml или prod-llmworker.yml
-│   └── Caddyfile               # ← соответствующий .Caddyfile
-├── .env                        # секреты (chmod 600)
-└── certs/                      # только на worker-VM, на LUKS-томе
-    ├── ca.pem
-    ├── worker.crt
-    └── worker.key
+├── compose/{docker-compose.yml, Caddyfile, .env}
+├── .env            # секреты api (chmod 600) — env_file контейнера
+├── certs/          # ca.pem, api-client.{crt,key}, internal.{crt,key}
+└── jwt-keys/
 ```
 
-Деплой выполняется в Этапе 2.2 (после `terraform apply` и подключения
-DNS). Ручная команда на VM (первый bootstrap и откат):
+**Worker-VM (VPS вне РФ)** — секреты и серты на LUKS-томе `/etc/llmworker`
+(ARCH §8.6); `compose/` — на корневом диске:
+```
+/etc/safegarden/compose/{docker-compose.yml, Caddyfile, .env}   # корневой диск
+/etc/llmworker/                                                 # LUKS-том
+├── .env            # ANTHROPIC_API_KEY, UID_HASH_PEPPER, BACKEND_CALLBACK_* (chmod 600)
+└── certs/          # ca.pem, worker.{crt,key} (Caddy) + worker-client.{crt,key} (callback)
+```
 
+Деплой/откат — `cd /etc/safegarden/compose && docker compose pull && docker compose up -d`.
+
+### LUKS на worker-VM (ARCH §8.6) — обязательная разблокировка после ребута
+
+Секреты воркера лежат на LUKS-томе (`/var/lib/llmworker.luks` → `/etc/llmworker`),
+который **не открывается автоматически** при загрузке (snapshot диска без passphrase
+ключи не отдаёт, §11.7). Первичная настройка — `sudo bash setup-luks.sh init`.
+**После каждого ребута VPS:**
 ```bash
-cd /etc/safegarden/compose
-docker compose pull
-docker compose up -d
+sudo bash setup-luks.sh open                       # ввести passphrase
+cd /etc/safegarden/compose && docker compose up -d
 ```
+До разблокировки Caddy не загрузит серты (443 down) и worker стартует в echo-режиме —
+бэкенд получит 503. Это ожидаемое поведение.
 
 ## Авто-деплой (CD)
 

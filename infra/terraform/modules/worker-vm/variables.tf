@@ -1,10 +1,10 @@
 variable "provider_kind" {
-  description = "Куда выкатываем worker-VM: hostkey (default, prod) | hetzner. Параметризовано для DR-переезда — см. ARCHITECTURE.md §11.7."
+  description = "Куда выкатываем worker-VM: manual (default, prod — ручной VPS вне РФ, IP в manual_ip) | hetzner (DR, Terraform поднимает сам) | hostkey (legacy-алиас ручного провижининга). См. ARCHITECTURE.md §11.7."
   type        = string
-  default     = "hostkey"
+  default     = "manual"
   validation {
-    condition     = contains(["hostkey", "hetzner"], var.provider_kind)
-    error_message = "provider_kind должен быть одним из: hostkey, hetzner."
+    condition     = contains(["manual", "hostkey", "hetzner"], var.provider_kind)
+    error_message = "provider_kind должен быть одним из: manual, hostkey, hetzner."
   }
 }
 
@@ -45,15 +45,15 @@ variable "hetzner_location" {
   default     = "fsn1"
 }
 
-# === HostKey (manual provisioning) ===
-variable "hostkey_manual_ip" {
-  description = "Публичный IP HostKey-VM. Заполняется руками после провижининга (см. modules/worker-vm/README.md)."
+# === Manual provisioning (VPS вне Yandex; default для prod) ===
+variable "manual_ip" {
+  description = "Публичный IP вручную провижененной worker-VM (VPS вне РФ). Заполняется после провижининга (см. modules/worker-vm/README.md)."
   type        = string
   default     = ""
 }
 
-variable "hostkey_region" {
-  description = "Локация HostKey (для метаданных): Frankfurt 1 / Amsterdam EuNetworks."
+variable "manual_region" {
+  description = "Локация ручной worker-VM (для метаданных), напр. Finland."
   type        = string
-  default     = "Frankfurt 1"
+  default     = "Finland"
 }

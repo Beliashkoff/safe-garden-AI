@@ -12,7 +12,8 @@ terraform {
 }
 
 locals {
-  is_hostkey = var.provider_kind == "hostkey"
+  # "hostkey" остаётся legacy-алиасом ручного провижининга.
+  is_manual  = var.provider_kind == "manual" || var.provider_kind == "hostkey"
   is_hetzner = var.provider_kind == "hetzner"
 
   cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
@@ -58,18 +59,22 @@ resource "hcloud_server" "worker" {
   }
 }
 
-# --- HostKey (manual) ---
-# У HostKey нет нативного Terraform-провайдера. VM создаётся в личном
-# кабинете руками, IP вписывается в hostkey_manual_ip. Этот ресурс
-# хранит фиксацию параметров в state — чтобы terraform plan показывал
-# дрейф, если кто-то поменяет значение.
+# --- Manual provisioning (VPS вне Yandex) ---
+# У ручного VPS нет нативного Terraform-провайдера. VM создаётся в панели
+# провайдера руками, IP вписывается в manual_ip. Этот ресурс хранит фиксацию
+# параметров в state — чтобы terraform plan показывал дрейф при их изменении.
 
-resource "null_resource" "hostkey_manual" {
-  count = local.is_hostkey ? 1 : 0
+resource "null_resource" "manual" {
+  count = local.is_manual ? 1 : 0
   triggers = {
     name   = var.name
-    region = var.hostkey_region
-    ip     = var.hostkey_manual_ip
-    note   = "HostKey VM provisioned manually; see modules/worker-vm/README.md"
+    region = var.manual_region
+    ip     = var.manual_ip
+    note   = "Worker VM provisioned manually (VPS outside RU); see modules/worker-vm/README.md"
   }
+}
+
+moved {
+  from = null_resource.hostkey_manual
+  to   = null_resource.manual
 }

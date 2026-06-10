@@ -45,6 +45,18 @@ resource "yandex_vpc_security_group" "api" {
     port           = 22
     v4_cidr_blocks = ["0.0.0.0/0"]
   }
+  # Internal mTLS listener (:8090) для обратного вызова worker->backend
+  # recommend_fertilizer (ARCH §11.3). Открыт ТОЛЬКО для публичного IP worker-VM;
+  # аутентификация — клиентский серт (worker-client). Пропускается, если
+  # worker_manual_ip не задан.
+  dynamic "ingress" {
+    for_each = var.worker_manual_ip != "" ? [1] : []
+    content {
+      protocol       = "TCP"
+      port           = 8090
+      v4_cidr_blocks = ["${var.worker_manual_ip}/32"]
+    }
+  }
   egress {
     protocol       = "ANY"
     from_port      = 0
@@ -141,13 +153,14 @@ module "media_bucket" {
 module "worker_vm" {
   source = "../../modules/worker-vm"
 
-  provider_kind     = var.worker_provider
-  name              = "safegarden-worker"
-  ssh_public_key    = var.ssh_public_key
-  ssh_key_id        = var.hcloud_ssh_key_id
-  hostkey_manual_ip = var.hostkey_worker_ip
+  provider_kind  = var.worker_provider
+  name           = "safegarden-worker"
+  ssh_public_key = var.ssh_public_key
+  ssh_key_id     = var.hcloud_ssh_key_id
+  manual_ip      = var.worker_manual_ip
 
-  # IP бэкенда станет известен после поднятия api_vm — добавим allowlist
-  # отдельным шагом в 2.2 (terraform apply -target=module.worker_vm).
+  # IP бэкенда — единственный источник, которому worker открывает 443 (mTLS).
+  # Для manual/hostkey firewall настраивается на самой VM (UFW); для hetzner —
+  # уходит в hcloud_firewall.
   allowed_source_ips = compact([module.api_vm.public_ip])
 }

@@ -4,8 +4,14 @@ services:
   llmworker:
     image: ghcr.io/beliashkoff/safe-garden-ai/llmworker:${IMAGE_TAG:-latest}
     env_file:
-      - path: /etc/safegarden/.env
+      # Секреты на LUKS-томе, смонтированном в /etc/llmworker (ARCH §8.6);
+      # после ребута том переоткрывается вручную (setup-luks.sh open).
+      - path: /etc/llmworker/.env
         required: false
+    volumes:
+      # Клиентский серт (worker-client) + CA для обратного вызова worker->backend
+      # (ARCH §11.3); читаются при старте в buildCallbackMTLS. Тот же LUKS-том.
+      - /etc/llmworker/certs:/etc/llmworker/certs:ro
     restart: unless-stopped
     networks:
       - internal
@@ -21,7 +27,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - /etc/safegarden/certs:/etc/caddy/certs:ro
+      - /etc/llmworker/certs:/etc/caddy/certs:ro
       - caddy_data:/data
       - caddy_config:/config
     environment:

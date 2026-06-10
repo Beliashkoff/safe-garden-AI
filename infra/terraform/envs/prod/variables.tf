@@ -31,9 +31,9 @@ variable "ssh_public_key" {
 
 # === Worker провайдер ===
 variable "worker_provider" {
-  description = "Где живёт worker-VM: hostkey | hetzner. См. ARCH §11.7."
+  description = "Где живёт worker-VM: manual (ручной VPS вне РФ, prod) | hetzner (DR) | hostkey (legacy-алиас ручного провижининга). См. ARCH §11.7."
   type        = string
-  default     = "hostkey"
+  default     = "manual"
 }
 
 variable "hcloud_token" {
@@ -49,8 +49,8 @@ variable "hcloud_ssh_key_id" {
   default     = ""
 }
 
-variable "hostkey_worker_ip" {
-  description = "Публичный IP HostKey-VM. Заполняется руками после провижининга."
+variable "worker_manual_ip" {
+  description = "Публичный IP вручную провижененной worker-VM (VPS вне РФ). Также открывает ingress 8090 в SG api для recommend_fertilizer callback'а."
   type        = string
   default     = ""
 }
