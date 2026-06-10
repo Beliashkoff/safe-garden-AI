@@ -12,6 +12,10 @@ resource "yandex_mdb_postgresql_cluster" "this" {
   environment = var.environment
   network_id  = var.network_id
 
+  # Защита от случайного удаления прод-кластера (terraform destroy / yc delete
+  # потребуют сначала снять флаг). Бэкапы — отдельный слой (ежедневно, 7д, PITR).
+  deletion_protection = true
+
   security_group_ids = var.security_group_ids
 
   config {
