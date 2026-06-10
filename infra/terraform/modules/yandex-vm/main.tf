@@ -47,4 +47,12 @@ resource "yandex_compute_instance" "this" {
     user-data = local.user_data
     ssh-keys  = "safegarden:${var.ssh_public_key}"
   }
+
+  # image_id берётся из data-source "последний образ в family", который сдвигается
+  # при каждой публикации нового образа Yandex'ом. Без этого любой apply хочет
+  # ПЕРЕСОЗДАТЬ работающую VM (с потерей диска и вручную разложенных секретов).
+  # Обновление образа — осознанное действие (taint/recreate), не дрейф.
+  lifecycle {
+    ignore_changes = [boot_disk[0].initialize_params[0].image_id]
+  }
 }
