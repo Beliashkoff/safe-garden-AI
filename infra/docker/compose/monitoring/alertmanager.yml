@@ -24,7 +24,7 @@ receivers:
   - name: team
     email_configs:
       # Yandex 360 SMTP, STARTTLS на 587. Пароль приложения — из *_file.
-      - to: biogrowth.ru@gmail.com
+      - to: beliashkoff@vk.com
         from: noreply@agronomai.site
         smarthost: smtp.yandex.ru:587
         auth_username: noreply@agronomai.site
