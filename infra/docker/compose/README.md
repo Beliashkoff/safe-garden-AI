@@ -46,6 +46,31 @@ cd /etc/safegarden/compose && docker compose up -d
 До разблокировки Caddy не загрузит серты (443 down) и worker стартует в echo-режиме —
 бэкенд получит 503. Это ожидаемое поведение.
 
+### Хост-настройка VM (вне compose, для воспроизводимости)
+
+Применяется на VM руками (не в репозитории):
+- **Ротация docker-логов:** `/etc/docker/daemon.json` =
+  `{"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}` →
+  `systemctl restart docker` → `docker compose up -d --force-recreate` (обе VM).
+- **SSH-харденинг:** `apt install fail2ban` (jail sshd по умолчанию) + drop-in
+  `/etc/ssh/sshd_config.d/00-safegarden-hardening.conf` (`PermitRootLogin no`,
+  `PasswordAuthentication no`, `PubkeyAuthentication yes`) → `sshd -t && systemctl restart ssh`.
+  Порт 22 в Yandex SG оставлен открытым — CD-деплой ходит по SSH с GitHub-раннеров.
+
+### Мониторинг (на API-VM)
+
+`monitoring.yml` поднимается рядом с `prod-yandex.yml`: цепляется к внешней сети
+`safegarden-api_internal`, Prometheus скрейпит `api:9100`. Деплой:
+`docker compose -f monitoring.yml --env-file /etc/safegarden/monitoring.env up -d`
+(переменные — см. `monitoring.env.example`). Любая последующая `docker compose -f
+monitoring.yml …` команда тоже требует `--env-file …` (иначе ошибка интерполяции
+`GRAFANA_ADMIN_PASSWORD`). Grafana — только на loopback: доступ через
+`ssh -L 3000:localhost:3000 safegarden@<api-vm>` → http://localhost:3000.
+Алерты — email (Alertmanager → Yandex SMTP, секрет
+`/etc/safegarden/monitoring/secrets/smtp_password`, тот же app-пароль, что у api).
+`postgres-exporter` опционален (профиль `pg`); метрики БД иначе — в нативном
+мониторинге Yandex Cloud.
+
 ## Авто-деплой (CD)
 
 После настройки (см. ниже) ручной шаг не нужен: workflow

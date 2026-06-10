@@ -1,12 +1,12 @@
-# Alertmanager routing (ARCH §9 / ROADMAP §6.6: test alert to email + Telegram).
+# Alertmanager routing (ARCH §9 / ROADMAP §6.6: test alert to email).
 #
-# Secrets are NOT stored here. Telegram bot token and SMTP password are read from
-# files mounted at /etc/alertmanager/secrets (kept on the VM, outside git):
-#   /etc/safegarden/monitoring/secrets/telegram_bot_token
+# Secrets are NOT stored here. The SMTP password is read from a file mounted at
+# /etc/alertmanager/secrets (kept on the VM, outside git):
 #   /etc/safegarden/monitoring/secrets/smtp_password
-# Non-secret, deployment-specific values (chat id, recipient, SMTP user) are set
-# inline below — adjust per environment. Alertmanager does NOT expand ${ENV}
-# vars in this file, which is why secrets use the *_file form.
+# Non-secret values (recipient, SMTP user) are set inline below. Alertmanager
+# does NOT expand ${ENV} vars in this file, which is why the secret uses *_file.
+# Email is the only channel; Telegram can be added later (telegram_configs +
+# bot_token_file + chat_id) if desired.
 
 route:
   receiver: team
@@ -22,14 +22,8 @@ route:
 
 receivers:
   - name: team
-    telegram_configs:
-      - bot_token_file: /etc/alertmanager/secrets/telegram_bot_token
-        chat_id: 100000000 # PLACEHOLDER — replace with the real chat id on deploy
-        api_url: https://api.telegram.org
-        send_resolved: true
     email_configs:
-      # Yandex 360 SMTP. If your tenant only allows 465 (implicit SSL), prefer
-      # Telegram as the primary channel — Alertmanager's email uses STARTTLS.
+      # Yandex 360 SMTP, STARTTLS на 587. Пароль приложения — из *_file.
       - to: biogrowth.ru@gmail.com
         from: noreply@agronomai.site
         smarthost: smtp.yandex.ru:587

@@ -22,10 +22,13 @@ scrape_configs:
     static_configs:
       - targets: ["node-exporter:9100"]
 
-  # PostgreSQL metrics (connections, activity) for DB alerts.
-  - job_name: postgres
-    static_configs:
-      - targets: ["postgres-exporter:9187"]
+  # PostgreSQL metrics (connections, activity) for DB alerts. OPTIONAL — active
+  # only with the monitoring "pg" profile (postgres-exporter). DB metrics are
+  # otherwise available in Yandex native monitoring. Uncomment when running
+  # `docker compose --profile pg up`.
+  # - job_name: postgres
+  #   static_configs:
+  #     - targets: ["postgres-exporter:9187"]
 
   # Prometheus self-monitoring.
   - job_name: prometheus

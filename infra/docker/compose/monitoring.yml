@@ -68,15 +68,17 @@ services:
       - /:/host:ro,rslave
     networks: [appnet]
 
-  # DB metrics for the "DB connections > 80%" alert (ARCH §9). DATA_SOURCE_NAME
-  # points at Yandex Managed PostgreSQL using a dedicated read-only monitoring
-  # role (member of pg_monitor) — NOT the application DSN. Create it once:
+  # DB metrics for the "DB connections > 80%" alert (ARCH §9). OPTIONAL: Managed
+  # PostgreSQL already feeds DB metrics to Yandex native monitoring, so this
+  # exporter sits behind the "pg" profile (not started by default). To enable:
+  # create a read-only monitoring role and run with `--profile pg`.
   #   CREATE ROLE monitoring LOGIN PASSWORD '...'; GRANT pg_monitor TO monitoring;
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+    profiles: ["pg"]
     restart: unless-stopped
     environment:
-      DATA_SOURCE_NAME: ${PG_EXPORTER_DSN:?PG_EXPORTER_DSN required}
+      DATA_SOURCE_NAME: ${PG_EXPORTER_DSN:-}
     networks: [appnet]
 
 volumes:
