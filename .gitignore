@@ -13,6 +13,14 @@
 *.crt
 *.p12
 *.mobileprovision
+# Local operator notes / scratch credentials — никогда не коммитить.
+# (NB: репо лежит в OneDrive — .gitignore не мешает синку в облако; секреты
+#  держать ВНЕ этой папки, напр. в ~/.claude/.../memory/.)
+*.local.md
+*.secrets.md
+*.secret
+secrets.local.*
+credentials.local.*
 
 # === Go (backend) ===
 *.exe
