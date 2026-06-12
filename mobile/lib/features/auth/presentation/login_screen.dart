@@ -74,7 +74,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   backgroundColor: _vkBrandBlue,
                   foregroundColor: _brandWhite,
                 ),
-                onPressed: _busy ? null : () => _runOAuth(controller.signInWithVk),
+                onPressed: _busy
+                    ? null
+                    : () => _runOAuth(controller.signInWithVk),
                 child: Text(l10n.loginButtonVk),
               ),
               const SizedBox(height: 12),

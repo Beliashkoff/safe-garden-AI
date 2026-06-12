@@ -56,8 +56,9 @@ void main() {
     expect(store.refresh, 'refresh-1');
     expect(oauth.lastYandexAuthUrl, 'https://oauth.yandex.ru/authorize?x=1');
     expect(oauth.lastYandexExpectedState, 'state-1');
-    verify(() => api.completeYandex(code: 'ya-code', state: 'state-1'))
-        .called(1);
+    verify(
+      () => api.completeYandex(code: 'ya-code', state: 'state-1'),
+    ).called(1);
   });
 
   test('signInWithVk passes backend PKCE material to the SDK and sends '
