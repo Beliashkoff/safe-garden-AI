@@ -172,7 +172,7 @@ Email-провайдер для OTP. SMTP-отправитель — `noreply@ag
 | `REDIS_ADDR` | 1.2 |
 | `S3_*` | 3.1 |
 | `JWT_*` | 1.1 |
-| `APPLE_*`, `GOOGLE_CLIENT_ID_*` | 1.1 |
+| `YANDEX_CLIENT_*`, `YANDEX_REDIRECT_URI`, `VK_CLIENT_ID`, `VK_REDIRECT_URI` | 1.1 (заменили Apple/Google по 406-ФЗ) |
 | `SMTP_*` | 1.3 |
 | `LLM_WORKER_BASE_URL`, `LLM_WORKER_MTLS_*` | 2.2 |
 | `YANDEX_SPEECHKIT_API_KEY` | 4.2 |

@@ -29,12 +29,14 @@ func (errParser) Parse(string) (authpkg.Claims, error) {
 // (ARCH §4, CLAUDE.md invariant #2). Adding an entry here is a deliberate
 // security decision; the test below fails for any other unauthenticated route.
 var publicRoutes = map[string]bool{
-	"POST /auth/apple":         true,
-	"POST /auth/google":        true,
-	"POST /auth/email/request": true,
-	"POST /auth/email/verify":  true,
-	"POST /auth/refresh":       true,
-	"POST /auth/logout":        true,
+	"POST /auth/yandex/start":    true,
+	"POST /auth/yandex/complete": true,
+	"POST /auth/vk/start":        true,
+	"POST /auth/vk/complete":     true,
+	"POST /auth/email/request":   true,
+	"POST /auth/email/verify":    true,
+	"POST /auth/refresh":         true,
+	"POST /auth/logout":          true,
 }
 
 // TestAllPrivateRoutesRequireAuth walks every registered /v1 route and asserts

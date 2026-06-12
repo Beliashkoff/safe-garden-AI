@@ -9,16 +9,17 @@ import '../../../helpers/fakes.dart';
 
 class MockAuthApi extends Mock implements AuthApi {}
 
-SignInResponse _signIn({bool google = false}) => SignInResponse(
-  accessToken: 'access-1',
-  refreshToken: 'refresh-1',
-  user: AppUser(
-    id: 'user-1',
-    email: 'u@example.com',
-    emailVerified: true,
-    providers: AuthProviders(email: !google, google: google),
-  ),
-);
+SignInResponse _signIn({bool yandex = false, bool vk = false}) =>
+    SignInResponse(
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      user: AppUser(
+        id: 'user-1',
+        email: 'u@example.com',
+        emailVerified: true,
+        providers: AuthProviders(email: !yandex && !vk, yandex: yandex, vk: vk),
+      ),
+    );
 
 void main() {
   late MockAuthApi api;
@@ -33,33 +34,61 @@ void main() {
     repo = AuthRepository(api: api, store: store, oauth: oauth);
   });
 
-  test('signInWithApple persists tokens and returns user', () async {
-    when(
-      () => api.signInApple(
-        idToken: any(named: 'idToken'),
-        nonce: any(named: 'nonce'),
+  test('signInWithYandex runs start → browser → complete and persists '
+      'tokens', () async {
+    when(() => api.startYandex()).thenAnswer(
+      (_) async => const OAuthStartResponse(
+        state: 'state-1',
+        authUrl: 'https://oauth.yandex.ru/authorize?x=1',
       ),
-    ).thenAnswer((_) async => _signIn());
+    );
+    when(
+      () => api.completeYandex(
+        code: any(named: 'code'),
+        state: any(named: 'state'),
+      ),
+    ).thenAnswer((_) async => _signIn(yandex: true));
 
-    final user = await repo.signInWithApple();
+    final user = await repo.signInWithYandex();
 
-    expect(user.id, 'user-1');
+    expect(user.providers.yandex, isTrue);
     expect(store.access, 'access-1');
     expect(store.refresh, 'refresh-1');
-    verify(
-      () => api.signInApple(idToken: 'apple-id-token', nonce: 'raw-nonce'),
-    ).called(1);
+    expect(oauth.lastYandexAuthUrl, 'https://oauth.yandex.ru/authorize?x=1');
+    expect(oauth.lastYandexExpectedState, 'state-1');
+    verify(() => api.completeYandex(code: 'ya-code', state: 'state-1'))
+        .called(1);
   });
 
-  test('signInWithGoogle persists tokens and returns user', () async {
+  test('signInWithVk passes backend PKCE material to the SDK and sends '
+      'code + device_id back', () async {
+    when(() => api.startVk()).thenAnswer(
+      (_) async => const OAuthStartResponse(
+        state: 'state-2',
+        codeChallenge: 'challenge-2',
+      ),
+    );
     when(
-      () => api.signInGoogle(idToken: any(named: 'idToken')),
-    ).thenAnswer((_) async => _signIn(google: true));
+      () => api.completeVk(
+        code: any(named: 'code'),
+        state: any(named: 'state'),
+        deviceId: any(named: 'deviceId'),
+      ),
+    ).thenAnswer((_) async => _signIn(vk: true));
 
-    final user = await repo.signInWithGoogle();
+    final user = await repo.signInWithVk();
 
-    expect(user.providers.google, isTrue);
+    expect(user.providers.vk, isTrue);
     expect(store.refresh, 'refresh-1');
+    expect(oauth.lastVkState, 'state-2');
+    expect(oauth.lastVkCodeChallenge, 'challenge-2');
+    verify(
+      () => api.completeVk(
+        code: 'vk-code',
+        state: 'state-2',
+        deviceId: 'device-1',
+      ),
+    ).called(1);
   });
 
   test('verifyEmailCode persists tokens', () async {

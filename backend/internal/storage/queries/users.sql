@@ -1,5 +1,5 @@
 -- name: CreateUser :one
-INSERT INTO users (email, email_verified, apple_sub, google_sub, display_name, locale)
+INSERT INTO users (email, email_verified, yandex_sub, vk_sub, display_name, locale)
 VALUES ($1, $2, $3, $4, $5, COALESCE(NULLIF($6, ''), 'ru'))
 RETURNING *;
 
@@ -9,19 +9,19 @@ SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL;
 -- name: GetUserByEmail :one
 SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL;
 
--- name: GetUserByAppleSub :one
-SELECT * FROM users WHERE apple_sub = $1 AND deleted_at IS NULL;
+-- name: GetUserByYandexSub :one
+SELECT * FROM users WHERE yandex_sub = $1 AND deleted_at IS NULL;
 
--- name: GetUserByGoogleSub :one
-SELECT * FROM users WHERE google_sub = $1 AND deleted_at IS NULL;
+-- name: GetUserByVKSub :one
+SELECT * FROM users WHERE vk_sub = $1 AND deleted_at IS NULL;
 
--- name: LinkAppleSub :one
-UPDATE users SET apple_sub = $2, updated_at = NOW()
+-- name: LinkYandexSub :one
+UPDATE users SET yandex_sub = $2, updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
--- name: LinkGoogleSub :one
-UPDATE users SET google_sub = $2, updated_at = NOW()
+-- name: LinkVKSub :one
+UPDATE users SET vk_sub = $2, updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
@@ -36,13 +36,13 @@ WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: SoftDeleteUser :exec
 -- Null out unique identifiers so the user can re-register with the same
--- email or OAuth subject later. Apple/Google review explicitly requires
--- account deletion to free up identifiers.
+-- email or OAuth subject later. Store review (and 152-FZ erasure requests)
+-- require account deletion to free up identifiers.
 UPDATE users
 SET deleted_at = NOW(),
     email = NULL,
-    apple_sub = NULL,
-    google_sub = NULL,
+    yandex_sub = NULL,
+    vk_sub = NULL,
     updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL;
 

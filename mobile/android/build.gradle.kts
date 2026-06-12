@@ -2,6 +2,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // VK ID SDK artifacts (vkid_flutter_sdk pulls the native Android SDK).
+        maven(url = "https://artifactory-external.vkpartner.ru/artifactory/vkid-sdk-android/")
     }
 }
 

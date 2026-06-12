@@ -57,22 +57,20 @@ void main() {
     expect(find.text('Диагностика растений с помощью AI'), findsOneWidget);
   });
 
-  testWidgets('Android: Google and Email, no Apple', (tester) async {
-    await tester.pumpWidget(_wrap(repo, platform: TargetPlatform.android));
-    await tester.pumpAndSettle();
+  testWidgets('shows VK ID, Yandex ID and email on both platforms', (
+    tester,
+  ) async {
+    for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+      await tester.pumpWidget(_wrap(repo, platform: platform));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Войти с Google'), findsOneWidget);
-    expect(find.text('Войти по email'), findsOneWidget);
-    expect(find.text('Войти с Apple'), findsNothing);
-  });
-
-  testWidgets('iOS: Apple, Google and Email', (tester) async {
-    await tester.pumpWidget(_wrap(repo, platform: TargetPlatform.iOS));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Войти с Apple'), findsOneWidget);
-    expect(find.text('Войти с Google'), findsOneWidget);
-    expect(find.text('Войти по email'), findsOneWidget);
+      expect(find.text('Войти с VK ID'), findsOneWidget);
+      expect(find.text('Войти с Яндекс ID'), findsOneWidget);
+      expect(find.text('Войти по email'), findsOneWidget);
+      // 406-FZ: foreign providers are gone.
+      expect(find.text('Войти с Apple'), findsNothing);
+      expect(find.text('Войти с Google'), findsNothing);
+    }
   });
 
   testWidgets('Email button navigates to the email screen', (tester) async {

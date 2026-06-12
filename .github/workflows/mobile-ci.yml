@@ -140,12 +140,14 @@ jobs:
       - name: Build release APK (prod config)
         env:
           API_BASE_URL: ${{ vars.MOBILE_API_BASE_URL || 'https://api.agronomai.site/v1' }}
-          GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
           SENTRY_DSN: ${{ secrets.MOBILE_SENTRY_DSN }}
+          # VK ID app credentials reach gradle as project properties
+          # (android/app/build.gradle.kts manifest placeholders).
+          ORG_GRADLE_PROJECT_vkidClientId: ${{ vars.VKID_CLIENT_ID }}
+          ORG_GRADLE_PROJECT_vkidClientSecret: ${{ secrets.VKID_CLIENT_SECRET }}
         run: |
           flutter build apk --release \
             --dart-define=API_BASE_URL="$API_BASE_URL" \
-            --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID" \
             --dart-define=SENTRY_DSN="$SENTRY_DSN" \
             --dart-define=SENTRY_ENV=prod
 

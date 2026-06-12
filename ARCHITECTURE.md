@@ -8,10 +8,11 @@
 
 ```
                                     ┌──────────────────────┐
-                                    │   Apple ID Provider  │
-                                    │   Google Identity    │
+                                    │  Яндекс ID (OAuth)   │
+                                    │  VK ID (OAuth 2.1)   │
                                     └──────────┬───────────┘
-                                               │ id_token
+                                               │ authorization code
+                                               │ (обмен — на бэке, PKCE)
                                                ▼
 ┌───────────────────┐    HTTPS/SSE    ┌──────────────────────┐
 │  Mobile (Flutter) │ ──────────────▶ │  Go Backend (chi)    │
@@ -53,8 +54,8 @@
 | SSE                          | `dio` `ResponseType.stream` + кастомный парсер |
 | Безопасное хранилище         | `flutter_secure_storage`                    |
 | Локальный кэш истории        | `drift` (SQLite через типизированный DSL)   |
-| Apple Sign-In                | `sign_in_with_apple`                        |
-| Google Sign-In               | `google_sign_in`                            |
+| VK ID                        | `vkid_flutter_sdk` (официальный, confidential flow) |
+| Яндекс ID                    | `flutter_web_auth_2` (системный браузер + custom scheme) |
 | Камера / галерея             | `image_picker`                              |
 | Сжатие фото                  | `flutter_image_compress`                    |
 | Запись аудио                 | `record`                                    |
@@ -77,7 +78,7 @@
 | Логи                         | `log/slog` (stdlib, JSON-handler в проде)            |
 | Валидация                    | `github.com/go-playground/validator/v10`             |
 | JWT                          | `github.com/golang-jwt/jwt/v5` (RS256)               |
-| OAuth верификация            | `github.com/coreos/go-oidc/v3` для Apple/Google JWKS |
+| OAuth (Яндекс ID / VK ID)    | `net/http` + `golang-jwt/jwt/v5` (обмен кода и проверка identity-JWT в `internal/auth`) |
 | Anthropic SDK                | `github.com/anthropics/anthropic-sdk-go`             |
 | AWS S3 (для Yandex Storage)  | `github.com/aws/aws-sdk-go-v2`                       |
 | Redis                        | `github.com/redis/go-redis/v9`                       |
@@ -228,12 +229,21 @@ safe-garden-AI/
 ### 4.1 Аутентификация
 
 ```
-POST /v1/auth/apple
-  body:    { id_token: string, nonce: string }
+POST /v1/auth/yandex/start
+  resp:    { state: string, auth_url: string }
+  # state одноразовый (ttl 10min). auth_url открывается в системном браузере;
+  # PKCE-verifier и client_secret остаются на бэке.
+
+POST /v1/auth/yandex/complete
+  body:    { code: string, state: string }
   resp:    { access_token, refresh_token, user: { id, email?, display_name? } }
 
-POST /v1/auth/google
-  body:    { id_token: string }
+POST /v1/auth/vk/start
+  resp:    { state: string, code_challenge: string }
+  # code_challenge передаётся в VK ID SDK (confidential flow).
+
+POST /v1/auth/vk/complete
+  body:    { code: string, state: string, device_id: string }
   resp:    { access_token, refresh_token, user }
 
 POST /v1/auth/email/request
@@ -370,13 +380,23 @@ CREATE TABLE users (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email          CITEXT UNIQUE,
   email_verified BOOLEAN NOT NULL DEFAULT FALSE,
-  apple_sub      TEXT UNIQUE,
-  google_sub     TEXT UNIQUE,
+  yandex_sub     TEXT UNIQUE,
+  vk_sub         TEXT UNIQUE,
   display_name   TEXT,
   locale         TEXT NOT NULL DEFAULT 'ru',
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at     TIMESTAMPTZ
+);
+
+-- oauth_states (серверное состояние OAuth-попыток Яндекс ID / VK ID)
+CREATE TABLE oauth_states (
+  state_hash    BYTEA PRIMARY KEY,      -- sha256(state)
+  provider      TEXT NOT NULL,          -- 'yandex' | 'vk'
+  code_verifier TEXT NOT NULL,          -- PKCE verifier, не покидает бэк
+  ip            TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at    TIMESTAMPTZ NOT NULL    -- ttl 10min, одноразовое потребление
 );
 
 -- email_codes (OTP)
@@ -576,7 +596,7 @@ LIMIT 3;
 ### 8.1 Аутентификация и токены
 - **Access token:** JWT RS256, ttl 15 мин. Содержит: `sub` (user_id), `iat`, `exp`, `jti`. Подписывается приватным ключом, лежащим в Lockbox; публичный ключ в JWKS-эндпоинте (внутренний).
 - **Refresh token:** opaque random 32 байта (base64url), ttl 30 дней. В БД хранится только `sha256` хэш. Каждый refresh ротирует токен (старый помечается `revoked`).
-- **Apple/Google id_token:** валидируется через JWKS провайдера с проверкой `aud`, `iss`, `exp`, `nonce` (для Apple). Для Sign-In with Apple — храним `apple_sub`, **не** доверяем e-mail (он может быть private relay).
+- **Яндекс ID / VK ID:** authorization code flow с обменом кода **на бэкенде** (PKCE-verifier и `client_secret` не покидают сервер). CSRF `state` хранится хэшированным в `oauth_states`, одноразовый, ttl 10 мин. Яндекс: личность подтверждается JWT от `login.yandex.ru/info?format=jwt`, подписанным HS256 нашим `client_secret` — криптографическая привязка токена к нашему приложению (анти-substitution). VK: обмен на `id.vk.ru/oauth2/auth` выполняет сам бэкенд (токены доказуемо выданы нашему `client_id`), профиль — через `user_info`, `user_id` сверяется с ответом обмена. Идентичность — только `yandex_sub`/`vk_sub`; e-mail от VK **не считается подтверждённым** (нет авто-линковки по нему).
 - **Email OTP:** 6 цифр, bcrypt-хэш в БД, ttl 10 мин, ≤ 5 попыток ввода кода, ≤ 3 запроса кода в час на email.
 
 ### 8.2 Защита API
@@ -602,9 +622,10 @@ LIMIT 3;
 - **Структура хранения объектов в Object Storage:** `u/{user_id}/img/...`, `u/{user_id}/audio/...` — позволяет каскадное удаление по префиксу.
 
 ### 8.4 OAuth-специфика
-- **Apple:** обязателен, если есть Google-вход (Apple Guideline 4.8). Использовать `nonce` для anti-replay.
-- **Google:** разные `client_id` для iOS/Android/web (последний — для serverside верификации).
-- **Email private relay (Apple):** учитывать, что email от Apple может быть `@privaterelay.appleid.com`.
+- **406-ФЗ (с 01.12.2023):** авторизация пользователей РФ — только через российские сервисы (Яндекс ID, VK ID), телефон или ЕСИА; иностранные OAuth (Apple/Google) запрещены. Поэтому в приложении ровно три способа: Яндекс ID, VK ID, email-OTP.
+- **Яндекс ID:** скоупы `login:info login:email`; redirect — custom scheme (`safegarden://auth/yandex`), перехватывается системным браузером (`ASWebAuthenticationSession`/Custom Tabs). `default_email` — собственный ящик пользователя, считается подтверждённым (можно авто-линковать).
+- **VK ID:** официальный SDK в confidential-режиме — приложению выдаётся только `code` + `device_id`, `code_challenge` приходит с бэка. Deep link возврата — `vk{client_id}://vk.ru`. Email из `user_info` не гарантированно подтверждён — не авто-линкуем и не сохраняем.
+- **Брендинг кнопок:** тексты и цвета кнопок «Войти с VK ID» / «Войти с Яндекс ID» фиксированы гайдлайнами провайдеров и не перекрашиваются темой.
 
 ### 8.5 Антибот / антифрод (v1 минимум, v2 расширить)
 - Rate limit на IP+User-Agent.
@@ -615,7 +636,7 @@ LIMIT 3;
 - В коде нет ни одного секрета. Все через env.
 - **Бэкенд (Yandex VM):** секреты читаются из **Yandex Lockbox** при старте контейнера (sidecar или init-скрипт получает значения и кладёт в env). Доступ к Lockbox через сервис-аккаунт, привязанный к VM.
 - **LLM-worker (HostKey VM):** секреты лежат в `/etc/llmworker/.env` на **LUKS-зашифрованном томе** (поднимается внутри VM на отдельном loopback-диске или дополнительном volume; провайдер-агностично). Файл с правами `600`, владелец — non-root user, под которым запущен Docker Compose. Никаких внешних secret-провайдеров — один VPS, отдельный Vault избыточен. Считаем, что у оператора VPS есть физический root-доступ к хосту, поэтому критичные секреты (`ANTHROPIC_API_KEY`, mTLS-приватный ключ) можно дополнительно держать только в смонтированном виде в `tmpfs` и при ребуте подгружать вручную (опционально — обсудить с заказчиком).
-- **Секреты бэкенда (Yandex Cloud):** `DATABASE_URL`, `REDIS_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `JWT_PRIVATE_KEY`, `LLM_WORKER_URL`, `LLM_WORKER_MTLS_CERT`, `LLM_WORKER_MTLS_KEY`, `LLM_WORKER_CA`, `APPLE_CLIENT_ID`, `GOOGLE_CLIENT_ID`, `SMTP_USERNAME`, `SMTP_PASSWORD` (Yandex 360), `SPEECHKIT_API_KEY`, `UID_HASH_PEPPER`, `SENTRY_DSN`.
+- **Секреты бэкенда (Yandex Cloud):** `DATABASE_URL`, `REDIS_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `JWT_PRIVATE_KEY`, `LLM_WORKER_URL`, `LLM_WORKER_MTLS_CERT`, `LLM_WORKER_MTLS_KEY`, `LLM_WORKER_CA`, `YANDEX_CLIENT_ID`, `YANDEX_CLIENT_SECRET`, `VK_CLIENT_ID`, `SMTP_USERNAME`, `SMTP_PASSWORD` (Yandex 360), `SPEECHKIT_API_KEY`, `UID_HASH_PEPPER`, `SENTRY_DSN`.
 - **Секреты worker'а (HostKey):** `ANTHROPIC_API_KEY`, `LLM_WORKER_MTLS_CERT`, `LLM_WORKER_MTLS_KEY`, `LLM_WORKER_CA`, `BACKEND_CALLBACK_URL` (для tool-callback на РФ-бэк), `SENTRY_DSN`. **`ANTHROPIC_API_KEY` хранится только тут**, бэкенд его не знает.
 - Ротация: refresh-токены — ротация при каждом использовании; JWT-ключ — ручная ротация (kid в JWKS); mTLS-сертификаты — ежеквартально через cert-manager или вручную; Anthropic-ключ — ротация при подозрении на утечку.
 
@@ -810,7 +831,7 @@ services:
 | ------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Anthropic банит ключ (детект паттернов)                       | Критично  | Резервный `openrouter_client` готов и протестирован; мониторинг 401/403 от Anthropic с алертом; план холодной ротации ключа (новый production-ключ + перезапуск worker'а).               |
 | Worker (HostKey) недоступен                                   | Критично  | SLO worker'а 99.5%; health-check каждые 30s; при 5xx от worker'а — graceful 503 с понятным сообщением; готовая инструкция переезда на резервный VPS у иностранного провайдера (Hetzner / OVH / Vultr). См. §11.7. |
-| Apple/Google отклоняют приложение                             | Высокое   | Чтение Guidelines заранее (App Store §5.1.1, Sign in with Apple §4.8); чек-лист перед сабмитом (см. ROADMAP §7).                            |
+| Сторы (App Store / RuStore / Play) отклоняют приложение       | Высокое   | Чтение Guidelines заранее (App Store §5.1.1); чек-лист перед сабмитом (см. ROADMAP §7). Авторизация уже соответствует 406-ФЗ (Яндекс ID / VK ID / email).                            |
 | Утечка фото пользователей                                     | Критично  | Раздельные buckets, presigned URLs short TTL, KMS, audit_log, без общедоступного листинга.                                                 |
 | Пользователи отправляют не-садоводческий контент              | Среднее   | System prompt с инструкцией отказа; рейт-лимит; модерация Claude; отказ в ответе с дружелюбным сообщением.                                 |
 | Стоимость Claude растёт с ростом аудитории                    | Среднее   | Prompt caching, дневной лимит запросов на пользователя, мониторинг `usage_log`, оповещения по бюджету.                                     |
@@ -825,7 +846,7 @@ services:
 Перед написанием кода в каждом этапе обязательно подтянуть актуальную документацию:
 
 - **Этап 0–2:** `chi`, `pgx/v5`, `sqlc`, `golangci-lint`, `riverpod`, `go_router`, `dio`.
-- **Этап 1:** `sign_in_with_apple`, `google_sign_in`, `golang-jwt/jwt/v5`, `coreos/go-oidc`, `gomail` (или альтернатива) для SMTP через Yandex 360.
+- **Этап 1:** `vkid_flutter_sdk` (VK ID), `flutter_web_auth_2`, документация Яндекс OAuth (oauth.yandex.ru) и VK ID (id.vk.ru), `golang-jwt/jwt/v5`, `gomail` (или альтернатива) для SMTP через Yandex 360.
 - **Этап 2:** `anthropic-sdk-go` (актуальный модельный ID Opus, формат streaming, prompt caching API). mTLS-конфигурация в Go (`crypto/tls`).
 - **Этап 3:** `image_picker`, `flutter_image_compress`, S3 presigned PUT (Yandex Object Storage).
 - **Этап 4:** `record` (Flutter), Yandex SpeechKit v3 API (streaming recognition gRPC, форматы, ошибки), `ffmpeg` для конвертации m4a→OggOpus.

@@ -8,13 +8,12 @@ import (
 
 func TestValidEmail(t *testing.T) {
 	cases := map[string]bool{
-		"user@example.com":              true,
-		"a.b+tag@sub.example.co":        true,
-		"":                              false,
-		"no-at-sign":                    false,
-		"two@@example.com":              false,
-		"name <user@example.com>":       false, // bare address only
-		"user@privaterelay.appleid.com": true,
+		"user@example.com":        true,
+		"a.b+tag@sub.example.co":  true,
+		"":                        false,
+		"no-at-sign":              false,
+		"two@@example.com":        false,
+		"name <user@example.com>": false, // bare address only
 	}
 	for in, want := range cases {
 		assert.Equalf(t, want, validEmail(in), "validEmail(%q)", in)
@@ -34,39 +33,28 @@ func TestNormalizeEmail(t *testing.T) {
 	assert.Equal(t, "user@example.com", normalizeEmail("  User@Example.COM "))
 }
 
-func TestIsApplePrivateRelay(t *testing.T) {
-	assert.True(t, isApplePrivateRelay("abc123@privaterelay.appleid.com"))
-	assert.False(t, isApplePrivateRelay("user@example.com"))
-}
-
 func TestCanLinkByEmail(t *testing.T) {
-	// Apple: real address links (provider-verified), relay does not.
-	assert.True(t, canLinkByEmail("apple", "user@example.com", false))
-	assert.False(t, canLinkByEmail("apple", "x@privaterelay.appleid.com", true))
-	// Google: only when email_verified.
-	assert.True(t, canLinkByEmail("google", "user@example.com", true))
-	assert.False(t, canLinkByEmail("google", "user@example.com", false))
+	// Provider-verified address (Yandex) links to an existing account.
+	assert.True(t, canLinkByEmail("user@example.com", true))
+	// Unverified address (VK — no confirmation guarantee) never links.
+	assert.False(t, canLinkByEmail("user@example.com", false))
 	// Empty never links.
-	assert.False(t, canLinkByEmail("google", "", true))
+	assert.False(t, canLinkByEmail("", true))
 }
 
 func TestEmailForStorage(t *testing.T) {
-	store, verified := emailForStorage("apple", "user@example.com", false)
-	assert.Equal(t, "user@example.com", store)
+	// Verified (Yandex) email is stored and marked verified.
+	store, verified := emailForStorage("user@yandex.ru", true)
+	assert.Equal(t, "user@yandex.ru", store)
 	assert.True(t, verified)
 
-	// Relay: stored and treated as verified/deliverable.
-	store, verified = emailForStorage("apple", "x@privaterelay.appleid.com", false)
-	assert.Equal(t, "x@privaterelay.appleid.com", store)
-	assert.True(t, verified)
-
-	// Unverified Google email is dropped to avoid collisions/impersonation.
-	store, verified = emailForStorage("google", "user@example.com", false)
+	// Unverified (VK) email is dropped to avoid squatting the unique slot.
+	store, verified = emailForStorage("user@example.com", false)
 	assert.Equal(t, "", store)
 	assert.False(t, verified)
 
 	// No email.
-	store, verified = emailForStorage("google", "", true)
+	store, verified = emailForStorage("", true)
 	assert.Equal(t, "", store)
 	assert.False(t, verified)
 }

@@ -1,6 +1,7 @@
 // Package auth provides authentication primitives: JWT issuance/verification
-// with kid rotation, OIDC verification for Apple/Google, opaque refresh tokens,
-// and email OTP. Stage 1.1 covers the primitives; HTTP wiring lives in stage 1.2.
+// with kid rotation, the Yandex ID / VK ID OAuth code-exchange clients (with
+// PKCE material), opaque refresh tokens, and email OTP. HTTP wiring lives in
+// transport/http; orchestration in usecase/auth.
 package auth
 
 import (

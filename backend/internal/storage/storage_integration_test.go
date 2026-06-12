@@ -117,15 +117,15 @@ func tsAt(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, V
 
 // ----- users ----------------------------------------------------------------
 
-func TestCreateUser_AppleSubUnique(t *testing.T) {
+func TestCreateUser_YandexSubUnique(t *testing.T) {
 	t.Cleanup(func() { truncateAll(t) })
 	q := testStore.Queries
 
 	u1, err := q.CreateUser(testCtx, db.CreateUserParams{
 		Email:         textPtr("alice@example.com"),
 		EmailVerified: false,
-		AppleSub:      textPtr("apple-sub-1"),
-		GoogleSub:     pgtype.Text{},
+		YandexSub:     textPtr("yandex-sub-1"),
+		VkSub:         pgtype.Text{},
 		DisplayName:   pgtype.Text{},
 		Column6:       "",
 	})
@@ -135,8 +135,8 @@ func TestCreateUser_AppleSubUnique(t *testing.T) {
 	_, err = q.CreateUser(testCtx, db.CreateUserParams{
 		Email:         textPtr("alice2@example.com"),
 		EmailVerified: false,
-		AppleSub:      textPtr("apple-sub-1"), // duplicate
-		GoogleSub:     pgtype.Text{},
+		YandexSub:     textPtr("yandex-sub-1"), // duplicate
+		VkSub:         pgtype.Text{},
 		DisplayName:   pgtype.Text{},
 		Column6:       "",
 	})
@@ -182,8 +182,8 @@ func TestSoftDeleteUser_FreesIdentifiers(t *testing.T) {
 
 	u, err := q.CreateUser(testCtx, db.CreateUserParams{
 		Email:     textPtr("reuse@example.com"),
-		AppleSub:  textPtr("apple-x"),
-		GoogleSub: textPtr("google-y"),
+		YandexSub: textPtr("yandex-x"),
+		VkSub:     textPtr("vk-y"),
 		Column6:   "",
 	})
 	require.NoError(t, err)
@@ -192,8 +192,8 @@ func TestSoftDeleteUser_FreesIdentifiers(t *testing.T) {
 	// Same identifiers can be used by a new user after delete.
 	_, err = q.CreateUser(testCtx, db.CreateUserParams{
 		Email:     textPtr("reuse@example.com"),
-		AppleSub:  textPtr("apple-x"),
-		GoogleSub: textPtr("google-y"),
+		YandexSub: textPtr("yandex-x"),
+		VkSub:     textPtr("vk-y"),
 		Column6:   "",
 	})
 	require.NoError(t, err)

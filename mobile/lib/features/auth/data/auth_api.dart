@@ -14,13 +14,24 @@ class AuthApi {
 
   Dio get _dio => _client.dio;
 
-  Future<SignInResponse> signInApple({
-    required String idToken,
-    required String nonce,
-  }) => _signIn('/auth/apple', {'id_token': idToken, 'nonce': nonce});
+  Future<OAuthStartResponse> startYandex() => _startOAuth('/auth/yandex/start');
 
-  Future<SignInResponse> signInGoogle({required String idToken}) =>
-      _signIn('/auth/google', {'id_token': idToken});
+  Future<SignInResponse> completeYandex({
+    required String code,
+    required String state,
+  }) => _signIn('/auth/yandex/complete', {'code': code, 'state': state});
+
+  Future<OAuthStartResponse> startVk() => _startOAuth('/auth/vk/start');
+
+  Future<SignInResponse> completeVk({
+    required String code,
+    required String state,
+    required String deviceId,
+  }) => _signIn('/auth/vk/complete', {
+    'code': code,
+    'state': state,
+    'device_id': deviceId,
+  });
 
   Future<SignInResponse> verifyEmailCode({
     required String email,
@@ -68,6 +79,17 @@ class AuthApi {
     try {
       final resp = await _dio.post<dynamic>(path, data: body);
       return SignInResponse.fromJson(
+        (resp.data as Map).cast<String, dynamic>(),
+      );
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  Future<OAuthStartResponse> _startOAuth(String path) async {
+    try {
+      final resp = await _dio.post<dynamic>(path);
+      return OAuthStartResponse.fromJson(
         (resp.data as Map).cast<String, dynamic>(),
       );
     } on DioException catch (e) {

@@ -15,15 +15,23 @@ type Querier interface {
 	// Finalises an assistant message: status + token counts (from the worker's SSE
 	// `usage` event, ARCH §11.3).
 	CompleteMessage(ctx context.Context, arg CompleteMessageParams) error
+	// Single-use: the row is removed atomically on first presentation, so a
+	// replayed state (or one stolen from the redirect) fails the second time.
+	ConsumeOAuthState(ctx context.Context, arg ConsumeOAuthStateParams) (OauthState, error)
+	// Anti-flood cap for POST /auth/{provider}/start.
+	CountActiveOAuthStatesByIP(ctx context.Context, ip pgtype.Text) (int64, error)
 	// DB-level baseline for the ≤3-requests/hour/email rate limit. Redis adds a
 	// faster check in front of this when it lands (stage 2.3).
 	CountRecentEmailCodes(ctx context.Context, email string) (int64, error)
 	CreateEmailCode(ctx context.Context, arg CreateEmailCodeParams) (EmailCode, error)
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
 	CreateMessageBlock(ctx context.Context, arg CreateMessageBlockParams) (MessageBlock, error)
+	CreateOAuthState(ctx context.Context, arg CreateOAuthStateParams) error
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateUpload(ctx context.Context, arg CreateUploadParams) (Upload, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Opportunistic sweep, called best-effort on each new attempt.
+	DeleteExpiredOAuthStates(ctx context.Context) error
 	// Periodic cleanup job (wired in a later stage). Keeps recently expired rows
 	// for a week to aid debugging reuse incidents.
 	DeleteExpiredRefreshTokens(ctx context.Context) error
@@ -53,18 +61,18 @@ type Querier interface {
 	GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (RefreshToken, error)
 	// Used by POST /v1/messages to verify the caller owns the referenced storage_key.
 	GetUploadByStorageKey(ctx context.Context, storageKey string) (Upload, error)
-	GetUserByAppleSub(ctx context.Context, appleSub pgtype.Text) (User, error)
 	GetUserByEmail(ctx context.Context, email pgtype.Text) (User, error)
-	GetUserByGoogleSub(ctx context.Context, googleSub pgtype.Text) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GetUserByVKSub(ctx context.Context, vkSub pgtype.Text) (User, error)
+	GetUserByYandexSub(ctx context.Context, yandexSub pgtype.Text) (User, error)
 	// RETURNING attempts lets the caller atomically enforce the ≤5 attempts cap.
 	IncrementEmailCodeAttempts(ctx context.Context, id uuid.UUID) (int32, error)
 	// user_id is nullable for system-level events (e.g. failed verification of an
 	// id_token before any user could be resolved).
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
 	InsertUsage(ctx context.Context, arg InsertUsageParams) error
-	LinkAppleSub(ctx context.Context, arg LinkAppleSubParams) (User, error)
-	LinkGoogleSub(ctx context.Context, arg LinkGoogleSubParams) (User, error)
+	LinkVKSub(ctx context.Context, arg LinkVKSubParams) (User, error)
+	LinkYandexSub(ctx context.Context, arg LinkYandexSubParams) (User, error)
 	ListAuditByUser(ctx context.Context, arg ListAuditByUserParams) ([]AuditLog, error)
 	// Batch-loads blocks for a page of messages (avoids N+1). Caller groups by
 	// message_id; rows arrive ordered within each message by order_index.
@@ -93,8 +101,8 @@ type Querier interface {
 	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
 	SetUserEmail(ctx context.Context, arg SetUserEmailParams) (User, error)
 	// Null out unique identifiers so the user can re-register with the same
-	// email or OAuth subject later. Apple/Google review explicitly requires
-	// account deletion to free up identifiers.
+	// email or OAuth subject later. Store review (and 152-FZ erasure requests)
+	// require account deletion to free up identifiers.
 	SoftDeleteUser(ctx context.Context, id uuid.UUID) error
 	// Backs per-user daily token limits and budget alerts (ARCH §13 cost risk; wired
 	// in Stage 2.3).

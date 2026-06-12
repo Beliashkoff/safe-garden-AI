@@ -38,24 +38,36 @@ class FakeTokenStore implements TokenStore {
 
 /// Scriptable [OAuthProvider] for tests (no native plugins).
 class FakeOAuthProvider implements OAuthProvider {
-  AppleCredential appleCredential = const AppleCredential(
-    identityToken: 'apple-id-token',
-    rawNonce: 'raw-nonce',
-  );
-  String googleIdToken = 'google-id-token';
-  Object? appleError;
-  Object? googleError;
+  YandexAuthCode yandexCode = const YandexAuthCode(code: 'ya-code');
+  VkAuthCode vkCode = const VkAuthCode(code: 'vk-code', deviceId: 'device-1');
+  Object? yandexError;
+  Object? vkError;
+
+  String? lastYandexAuthUrl;
+  String? lastYandexExpectedState;
+  String? lastVkState;
+  String? lastVkCodeChallenge;
 
   @override
-  Future<AppleCredential> getAppleCredential() async {
-    if (appleError != null) throw appleError!;
-    return appleCredential;
+  Future<YandexAuthCode> getYandexAuthCode({
+    required String authUrl,
+    required String expectedState,
+  }) async {
+    lastYandexAuthUrl = authUrl;
+    lastYandexExpectedState = expectedState;
+    if (yandexError != null) throw yandexError!;
+    return yandexCode;
   }
 
   @override
-  Future<String> getGoogleIdToken() async {
-    if (googleError != null) throw googleError!;
-    return googleIdToken;
+  Future<VkAuthCode> getVkAuthCode({
+    required String state,
+    required String codeChallenge,
+  }) async {
+    lastVkState = state;
+    lastVkCodeChallenge = codeChallenge;
+    if (vkError != null) throw vkError!;
+    return vkCode;
   }
 }
 

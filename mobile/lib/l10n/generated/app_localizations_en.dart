@@ -18,10 +18,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loginSubtitle => 'Plant diagnosis with AI';
 
   @override
-  String get loginButtonApple => 'Sign in with Apple';
+  String get loginButtonVk => 'Sign in with VK ID';
 
   @override
-  String get loginButtonGoogle => 'Sign in with Google';
+  String get loginButtonYandex => 'Sign in with Yandex ID';
 
   @override
   String get loginButtonEmail => 'Sign in with email';

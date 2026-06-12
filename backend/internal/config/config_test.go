@@ -16,8 +16,8 @@ var allConfigEnvKeys = []string{
 	"POSTGRES_DSN",
 	"JWT_KEYS_DIR", "JWT_ACTIVE_KID", "JWT_PRIVATE_KEY_PATH", "JWT_KID",
 	"JWT_ACCESS_TTL", "REFRESH_TTL",
-	"APPLE_BUNDLE_ID", "GOOGLE_CLIENT_ID_IOS", "GOOGLE_CLIENT_ID_ANDROID",
-	"GOOGLE_CLIENT_ID_WEB",
+	"YANDEX_CLIENT_ID", "YANDEX_CLIENT_SECRET", "YANDEX_REDIRECT_URI",
+	"VK_CLIENT_ID", "VK_REDIRECT_URI",
 	"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD",
 	"SMTP_FROM", "SMTP_FROM_NAME", "SMTP_TLS", "DOCS_ENABLED",
 	"REDIS_ADDR", "REDIS_PASSWORD", "UID_HASH_PEPPER",
@@ -25,7 +25,17 @@ var allConfigEnvKeys = []string{
 	"S3_BUCKET", "S3_USE_PATH_STYLE",
 }
 
-// setProdSecrets sets the non-OIDC/JWT vars required by validateProd (SMTP,
+// setOAuthProviders sets the Yandex ID / VK ID vars required by validateProd.
+func setOAuthProviders(t *testing.T) {
+	t.Helper()
+	t.Setenv("YANDEX_CLIENT_ID", "ya-client-id")
+	t.Setenv("YANDEX_CLIENT_SECRET", "ya-client-secret")
+	t.Setenv("YANDEX_REDIRECT_URI", "safegarden://auth/yandex")
+	t.Setenv("VK_CLIENT_ID", "53000000")
+	t.Setenv("VK_REDIRECT_URI", "vk53000000://vk.ru")
+}
+
+// setProdSecrets sets the non-OAuth/JWT vars required by validateProd (SMTP,
 // Redis, pepper). Prod tests not specifically about these call it so they
 // exercise the path under test.
 func setProdSecrets(t *testing.T) {
@@ -113,15 +123,18 @@ func TestLoad_MissingPostgresDSN(t *testing.T) {
 	assert.Contains(t, err.Error(), "POSTGRES_DSN")
 }
 
-func TestLoad_Prod_RequiresOIDCAndJWT(t *testing.T) {
+func TestLoad_Prod_RequiresOAuthAndJWT(t *testing.T) {
 	isolateEnv(t)
 	t.Setenv("ENV", "prod")
 	t.Setenv("POSTGRES_DSN", "postgres://x")
 
 	_, err := Load()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "APPLE_BUNDLE_ID")
-	assert.Contains(t, err.Error(), "GOOGLE_CLIENT_ID")
+	assert.Contains(t, err.Error(), "YANDEX_CLIENT_ID")
+	assert.Contains(t, err.Error(), "YANDEX_CLIENT_SECRET")
+	assert.Contains(t, err.Error(), "YANDEX_REDIRECT_URI")
+	assert.Contains(t, err.Error(), "VK_CLIENT_ID")
+	assert.Contains(t, err.Error(), "VK_REDIRECT_URI")
 	assert.Contains(t, err.Error(), "JWT_KEYS_DIR or JWT_PRIVATE_KEY_PATH")
 }
 
@@ -129,8 +142,7 @@ func TestLoad_Prod_HappyPath_KeysDir(t *testing.T) {
 	isolateEnv(t)
 	t.Setenv("ENV", "prod")
 	t.Setenv("POSTGRES_DSN", "postgres://x")
-	t.Setenv("APPLE_BUNDLE_ID", "com.example.app")
-	t.Setenv("GOOGLE_CLIENT_ID_IOS", "ios-client.apps.googleusercontent.com")
+	setOAuthProviders(t)
 	t.Setenv("JWT_KEYS_DIR", "/secrets/jwt")
 	t.Setenv("JWT_ACTIVE_KID", "2026-Q2")
 	setProdSecrets(t)
@@ -144,8 +156,7 @@ func TestLoad_Prod_HappyPath_SingleKey(t *testing.T) {
 	isolateEnv(t)
 	t.Setenv("ENV", "prod")
 	t.Setenv("POSTGRES_DSN", "postgres://x")
-	t.Setenv("APPLE_BUNDLE_ID", "com.example.app")
-	t.Setenv("GOOGLE_CLIENT_ID_ANDROID", "android-client.apps.googleusercontent.com")
+	setOAuthProviders(t)
 	t.Setenv("JWT_PRIVATE_KEY_PATH", "/secrets/jwt.pem")
 	t.Setenv("JWT_KID", "dev1")
 	setProdSecrets(t)
@@ -159,8 +170,7 @@ func TestLoad_Prod_RequiresSMTP(t *testing.T) {
 	isolateEnv(t)
 	t.Setenv("ENV", "prod")
 	t.Setenv("POSTGRES_DSN", "postgres://x")
-	t.Setenv("APPLE_BUNDLE_ID", "com.example.app")
-	t.Setenv("GOOGLE_CLIENT_ID_IOS", "ios.apps.googleusercontent.com")
+	setOAuthProviders(t)
 	t.Setenv("JWT_PRIVATE_KEY_PATH", "/secrets/jwt.pem")
 	t.Setenv("JWT_KID", "dev1")
 	// SMTP intentionally unset.
@@ -175,8 +185,7 @@ func TestLoad_Prod_RequiresRedisAndPepper(t *testing.T) {
 	isolateEnv(t)
 	t.Setenv("ENV", "prod")
 	t.Setenv("POSTGRES_DSN", "postgres://x")
-	t.Setenv("APPLE_BUNDLE_ID", "com.example.app")
-	t.Setenv("GOOGLE_CLIENT_ID_IOS", "ios.apps.googleusercontent.com")
+	setOAuthProviders(t)
 	t.Setenv("JWT_PRIVATE_KEY_PATH", "/secrets/jwt.pem")
 	t.Setenv("JWT_KID", "dev1")
 	t.Setenv("SMTP_USERNAME", "noreply@example.com")
@@ -194,8 +203,7 @@ func TestLoad_Prod_RequiresS3(t *testing.T) {
 	isolateEnv(t)
 	t.Setenv("ENV", "prod")
 	t.Setenv("POSTGRES_DSN", "postgres://x")
-	t.Setenv("APPLE_BUNDLE_ID", "com.example.app")
-	t.Setenv("GOOGLE_CLIENT_ID_IOS", "ios.apps.googleusercontent.com")
+	setOAuthProviders(t)
 	t.Setenv("JWT_PRIVATE_KEY_PATH", "/secrets/jwt.pem")
 	t.Setenv("JWT_KID", "dev1")
 	t.Setenv("SMTP_USERNAME", "noreply@example.com")
@@ -227,8 +235,7 @@ func TestLoad_Prod_KeysDirMissingActiveKID(t *testing.T) {
 	isolateEnv(t)
 	t.Setenv("ENV", "prod")
 	t.Setenv("POSTGRES_DSN", "postgres://x")
-	t.Setenv("APPLE_BUNDLE_ID", "com.example.app")
-	t.Setenv("GOOGLE_CLIENT_ID_IOS", "ios.apps.googleusercontent.com")
+	setOAuthProviders(t)
 	t.Setenv("JWT_KEYS_DIR", "/secrets/jwt")
 
 	_, err := Load()

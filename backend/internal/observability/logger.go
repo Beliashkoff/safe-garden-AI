@@ -24,14 +24,18 @@ var redactedKeys = map[string]struct{}{
 	"audio":         {}, // voice message bytes — never log
 	"audio_b64":     {},
 	// Stage 1.1 additions:
-	"apple_sub":    {}, // stable external identifier — usable to correlate accounts across services
-	"google_sub":   {}, // same as above
+	"yandex_sub":   {}, // stable external identifier — usable to correlate accounts across services
+	"vk_sub":       {}, // same as above
 	"nonce":        {}, // replay material until verification completes
 	"display_name": {}, // user-provided, may contain real names
 	"code_hash":    {}, // defense-in-depth — never log hashes
 	"token_hash":   {},
 	"private_key":  {}, // accidental key dumps
 	"jwks":         {},
+	// OAuth (Yandex ID / VK ID) flow material — replayable until consumed:
+	"state":         {},
+	"code_verifier": {},
+	"client_secret": {},
 }
 
 const redactedValue = "[REDACTED]"

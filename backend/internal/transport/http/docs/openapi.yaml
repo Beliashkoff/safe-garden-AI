@@ -23,38 +23,38 @@ tags:
     description: Presigned media uploads
 
 paths:
-  /auth/apple:
+  /auth/yandex/start:
     post:
       tags: [auth]
-      summary: Sign in with Apple
-      description: Verifies an Apple id_token (with nonce) and signs the user in, creating or linking the account.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AppleSignInRequest"
+      summary: Start Yandex ID sign-in
+      description: >
+        Begins a Yandex ID authorization-code attempt. The backend generates the
+        CSRF state and PKCE verifier (kept server-side) and returns the full
+        authorize URL to open in the system browser. The attempt expires in 10
+        minutes and the state is single-use.
       responses:
         "200":
-          description: Signed in
+          description: Attempt created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SignInResponse"
-        "400": { $ref: "#/components/responses/ValidationError" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
+                $ref: "#/components/schemas/YandexStartResponse"
+        "429": { $ref: "#/components/responses/RateLimited" }
 
-  /auth/google:
+  /auth/yandex/complete:
     post:
       tags: [auth]
-      summary: Sign in with Google
-      description: Verifies a Google id_token and signs the user in, creating or linking the account.
+      summary: Complete Yandex ID sign-in
+      description: >
+        Exchanges the authorization code server-side (PKCE + client_secret),
+        verifies the identity JWT from login.yandex.ru, and signs the user in,
+        creating or linking the account.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GoogleSignInRequest"
+              $ref: "#/components/schemas/YandexCompleteRequest"
       responses:
         "200":
           description: Signed in
@@ -64,6 +64,50 @@ paths:
                 $ref: "#/components/schemas/SignInResponse"
         "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /auth/vk/start:
+    post:
+      tags: [auth]
+      summary: Start VK ID sign-in
+      description: >
+        Begins a VK ID attempt for the mobile VK ID SDK (confidential flow).
+        Returns the CSRF state and the S256 code_challenge; the PKCE verifier
+        never leaves the backend. The attempt expires in 10 minutes and the
+        state is single-use.
+      responses:
+        "200":
+          description: Attempt created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VKStartResponse"
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/vk/complete:
+    post:
+      tags: [auth]
+      summary: Complete VK ID sign-in
+      description: >
+        Exchanges the VK authorization code server-side (PKCE) using the
+        device_id VK issued alongside the code, fetches the profile, and signs
+        the user in, creating or linking the account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VKCompleteRequest"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignInResponse"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
 
   /auth/email/request:
     post:
@@ -354,18 +398,34 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
-    AppleSignInRequest:
+    YandexStartResponse:
       type: object
-      required: [id_token, nonce]
+      required: [state, auth_url]
       properties:
-        id_token: { type: string }
-        nonce: { type: string, description: The raw nonce echoed in the Apple id_token }
+        state: { type: string, description: One-time CSRF state; echo it back in /auth/yandex/complete }
+        auth_url: { type: string, format: uri, description: Full oauth.yandex.ru/authorize URL to open in the system browser }
 
-    GoogleSignInRequest:
+    YandexCompleteRequest:
       type: object
-      required: [id_token]
+      required: [code, state]
       properties:
-        id_token: { type: string }
+        code: { type: string, description: Authorization code from the redirect }
+        state: { type: string, description: The state issued by /auth/yandex/start }
+
+    VKStartResponse:
+      type: object
+      required: [state, code_challenge]
+      properties:
+        state: { type: string, description: One-time CSRF state; pass to the VK ID SDK and echo it back in /auth/vk/complete }
+        code_challenge: { type: string, description: S256 PKCE challenge for the VK ID SDK confidential flow }
+
+    VKCompleteRequest:
+      type: object
+      required: [code, state, device_id]
+      properties:
+        code: { type: string, description: Authorization code from the VK ID SDK onAuthCode callback }
+        state: { type: string, description: The state issued by /auth/vk/start }
+        device_id: { type: string, description: device_id issued by VK alongside the code }
 
     EmailRequest:
       type: object
@@ -417,10 +477,10 @@ components:
         email_verified: { type: boolean }
         providers:
           type: object
-          required: [apple, google, email]
+          required: [yandex, vk, email]
           properties:
-            apple: { type: boolean }
-            google: { type: boolean }
+            yandex: { type: boolean }
+            vk: { type: boolean }
             email: { type: boolean }
 
     Error:

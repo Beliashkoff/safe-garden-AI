@@ -102,15 +102,26 @@ void main() {
     expect(c.read(authStatusProvider), AuthStatus.unauthenticated);
   });
 
-  test('cancelled Apple sign-in is silent', () async {
+  test('cancelled Yandex sign-in is silent', () async {
     when(() => repo.tryRestoreSession()).thenAnswer((_) async => null);
     when(
-      () => repo.signInWithApple(),
+      () => repo.signInWithYandex(),
     ).thenThrow(const OAuthCanceledException());
     final c = _container(repo);
     await c.read(authControllerProvider.future);
 
-    await c.read(authControllerProvider.notifier).signInWithApple();
+    await c.read(authControllerProvider.notifier).signInWithYandex();
+
+    expect(c.read(authStatusProvider), AuthStatus.unauthenticated);
+  });
+
+  test('cancelled VK sign-in is silent', () async {
+    when(() => repo.tryRestoreSession()).thenAnswer((_) async => null);
+    when(() => repo.signInWithVk()).thenThrow(const OAuthCanceledException());
+    final c = _container(repo);
+    await c.read(authControllerProvider.future);
+
+    await c.read(authControllerProvider.notifier).signInWithVk();
 
     expect(c.read(authStatusProvider), AuthStatus.unauthenticated);
   });

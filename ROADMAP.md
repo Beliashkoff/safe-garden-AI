@@ -73,17 +73,18 @@
 
 ## Этап 1 — Авторизация (~1.5 недели)
 
-**Цель:** пользователь может зарегистрироваться/войти через Apple, Google или Email + OTP, токены хранятся безопасно, refresh работает.
+**Цель:** пользователь может зарегистрироваться/войти через Яндекс ID, VK ID или Email + OTP, токены хранятся безопасно, refresh работает.
+
+> ⚠️ 2026-06-12: авторизация переведена с Apple/Google на российские провайдеры (406-ФЗ). Пункты ниже помечены по фактическому состоянию: исходная Apple/Google-реализация выполнена и затем **полностью заменена** на Яндекс ID + VK ID (эндпоинты `/v1/auth/{yandex,vk}/{start,complete}`, миграция `0013`, `internal/auth/{yandex,vk,pkce}.go`, `vkid_flutter_sdk` + `flutter_web_auth_2` на mobile).
 
 ### 1.1 Backend: модели и хранилище ✅
 - [x] Миграции: `users`, `refresh_tokens`, `email_codes`, `audit_log`. _DDL дословно из ARCH §6.1; индексы `(token_hash) UNIQUE`, partial `(user_id) WHERE revoked_at IS NULL`, `(email, expires_at)`, `(user_id, created_at DESC)`._
 - [x] sqlc-запросы: создание/поиск user, выпуск/поиск/ревок refresh-токена, OTP CRUD. _`internal/storage/queries/` + сгенерированный `internal/storage/db/`. `Store.ExecTx` для атомарной ротации refresh-токена. Интеграционные тесты под `make test-integration` (testcontainers)._
 - [x] `internal/auth/jwt.go`: генерация/проверка RS256, ротация ключей через `kid`. _Multi-key `KeysDir` + single-file fallback. Parser: `WithValidMethods([RS256])` отвергает `alg=none`/HS256-confusion, `WithExpirationRequired`, leeway 60s, lookup по `kid` из header._
-- [x] `internal/auth/oidc.go`: верификация Apple и Google id_token через JWKS (`coreos/go-oidc`). _Apple — обязательный nonce через `subtle.ConstantTimeCompare`, identity = `apple_sub` (email не доверяем, ARCH §11.1). Google — manual aud-allowlist для iOS+Android client_id._
+- [x] ~~`internal/auth/oidc.go`: верификация Apple и Google id_token~~ → `internal/auth/yandex.go` + `internal/auth/vk.go`: обмен authorization code на бэке (PKCE, `oauth_states` c hashed одноразовым `state`). _Яндекс: identity-JWT `login.yandex.ru/info?format=jwt` (HS256 на наш client_secret — привязка к приложению). VK: обмен на `id.vk.ru/oauth2/auth` + `user_info` с кросс-проверкой `user_id`. Identity = `yandex_sub`/`vk_sub`; email от VK не считается подтверждённым._
 
 ### 1.2 Backend: эндпоинты ✅
-- [x] `POST /v1/auth/apple`
-- [x] `POST /v1/auth/google`
+- [x] ~~`POST /v1/auth/apple` / `POST /v1/auth/google`~~ → `POST /v1/auth/yandex/start|complete`, `POST /v1/auth/vk/start|complete` (анти-флуд по IP на `/start`)
 - [x] `POST /v1/auth/email/request` (с rate limit 3/час/email) _DB-baseline через `CountRecentEmailCodes` за интерфейсом `ratelimit.Limiter`; Redis-уровень — в 2.3._
 - [x] `POST /v1/auth/email/verify` (≤ 5 попыток на код) _Атомарный `IncrementEmailCodeAttempts` до сверки — cap держится и на неверных попытках._
 - [x] `POST /v1/auth/refresh` (с ротацией) _Атомарная ротация в `ExecTx`; предъявление revoked/expired токена → `RevokeAllUserRefreshTokens` + аудит `refresh_reuse_detected`._
@@ -93,7 +94,7 @@
 - [x] Middleware `RequireAuth`: проверяет JWT, кладёт `user_id` в context. _`internal/transport/http/middleware`; `user_id` через типизированный `ctxkey`._
 - [x] Middleware `RequestID`, `RealIP`, `Logger`, `Recoverer`. _chi RequestID/RealIP/Recoverer + `observability.AccessLog` (роль «Logger»)._
 
-_Слои: `transport/http` (хендлеры + `httperr` — единый формат ошибок ARCH §4.7) → `usecase/auth` (Service: оркестрация, auto-link аккаунтов по email) → примитивы `internal/auth` + `storage`. Auto-link: sign-in с Apple/Google привязывается к существующему аккаунту при совпадении email (Apple — без private-relay; Google — при `email_verified`). **Swagger:** spec-first OpenAPI 3.0 (`internal/transport/http/docs/openapi.yaml`, embed) + Swagger UI на `/v1/docs` (флаг `DOCS_ENABLED`). Тесты: unit (usecase-хелперы, middleware, mailer, ratelimit) + integration хендлеров (testcontainers + fake OIDC) под `make test-integration`._
+_Слои: `transport/http` (хендлеры + `httperr` — единый формат ошибок ARCH §4.7) → `usecase/auth` (Service: оркестрация, auto-link аккаунтов по email) → примитивы `internal/auth` + `storage`. Auto-link: только по provider-verified email (Яндекс); VK никогда не авто-линкуется (email не подтверждён — анти-takeover). **Swagger:** spec-first OpenAPI 3.0 (`internal/transport/http/docs/openapi.yaml`, embed) + Swagger UI на `/v1/docs` (флаг `DOCS_ENABLED`). Тесты: unit (usecase-хелперы, middleware, mailer, ratelimit) + integration хендлеров (testcontainers + fake-провайдеры Яндекс/VK) под `make test-integration`._
 
 ### 1.3 Backend: email-провайдер ✅
 - [x] Абстракция `Mailer` интерфейс (`internal/mailer`). Реализации: SMTP (`yandex360` через `smtp.yandex.ru:465` implicit TLS **и** `dev`/MailHog `localhost:1025` plaintext — выбор по `SMTP_TLS`) + log-fallback при пустом `SMTP_HOST`.
@@ -103,7 +104,7 @@ _Слои: `transport/http` (хендлеры + `httperr` — единый фо�
 
 ### 1.4 Mobile: UI ✅
 - [ ] Экран онбординга (1 слайд) → экран логина. _Отложено: опциональный слайд, не входил в скоуп шага; login-экран несёт заголовок+подзаголовок. Сделаем при UX-полише._
-- [x] Кнопки: «Войти с Apple» (только iOS), «Войти с Google», «По email». _`login_screen.dart` (ConsumerStatefulWidget), Apple скрыт вне iOS/macOS._
+- [x] Кнопки: «Войти с VK ID», «Войти с Яндекс ID», «По email» (обе платформы). _`login_screen.dart`; брендовые цвета кнопок фиксированы гайдлайнами провайдеров._
 - [x] Экран «введите email» → «введите код 6 цифр». _`email_request_screen.dart` + `email_verify_screen.dart` (авто-submit на 6 цифр, resend)._
 - [x] Корректные тексты ошибок (нет сети, неверный код, истёк код, лимит). _`auth_error_message.dart` мапит `ApiException.code`/`NetworkException` в локализованные строки (RU/EN)._
 - [x] Loading/disabled состояния. _Локальные `_busy`-флаги в экранах; глобальный AsyncLoading — только на bootstrap._
@@ -112,7 +113,7 @@ _Слои: `transport/http` (хендлеры + `httperr` — единый фо�
 - [x] `core/network/api_client.dart`: `dio` + интерсептор Auth (Bearer) + интерсептор Refresh (на 401 — вызвать /refresh, повторить). _Один общий refresh с мьютексом, без рекурсии, retry один раз; при провале refresh → полный логаут._
 - [x] `core/storage/secure_token_store.dart` (через `flutter_secure_storage`). _Интерфейс `TokenStore` для тестируемости._
 - [x] `features/auth/data/auth_repository.dart` + контроллер. _`auth_repository.dart` + `application/auth_controller.dart` (AsyncNotifier); OAuth-обёртки в `data/oauth_providers.dart`._
-- [x] `sign_in_with_apple` и `google_sign_in` интеграция. _Apple: raw nonce + sha256; Google v7: `initialize(serverClientId)` + `authenticate()`. Бэк-allowlist расширен `GOOGLE_CLIENT_ID_WEB`. E2E отложено до OAuth-аккаунтов (0.6) и macOS (7)._
+- [x] ~~`sign_in_with_apple` и `google_sign_in`~~ → `vkid_flutter_sdk` (confidential flow: backend-issued `state`+`code_challenge`, SDK отдаёт `code`+`device_id` через `onAuthCode`) и `flutter_web_auth_2` (Яндекс: системный браузер, redirect `safegarden://auth/yandex`, сверка `state` до отправки кода на бэк). _E2E отложено до регистрации приложений в кабинетах Яндекс/VK и устройства._
 - [x] Авто-вход при запуске (если есть refresh-токен). _`AuthController.build()` → `tryRestoreSession`; `go_router` redirect-гард по `authStatusProvider` (splash → login/chat)._
 
 ### 1.6 Тесты ✅
@@ -325,7 +326,7 @@ _Дополнительно к mobile-скоупу: на бэкенд добав
 - [x] Согласие на обработку ПДн при регистрации (экран входа: «продолжая, вы принимаете…» + ссылки на Privacy/ToS).
 - [ ] 152-ФЗ: уведомление в Роскомнадзор (если требуется по объёму) — заказчик.
 - [x] Apple §5.1.1: data deletion из приложения.
-- [x] Apple §4.8: Apple Sign-In присутствует там, где Google.
+- [x] 406-ФЗ: только российские способы входа (Яндекс ID, VK ID, email-OTP); иностранные OAuth удалены.
 - [ ] Google Play Data Safety form заполнена (заказчик/PM).
 
 ### 6.4 UX-полировка

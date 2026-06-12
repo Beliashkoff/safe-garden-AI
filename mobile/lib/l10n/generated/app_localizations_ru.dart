@@ -18,10 +18,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get loginSubtitle => 'Диагностика растений с помощью AI';
 
   @override
-  String get loginButtonApple => 'Войти с Apple';
+  String get loginButtonVk => 'Войти с VK ID';
 
   @override
-  String get loginButtonGoogle => 'Войти с Google';
+  String get loginButtonYandex => 'Войти с Яндекс ID';
 
   @override
   String get loginButtonEmail => 'Войти по email';

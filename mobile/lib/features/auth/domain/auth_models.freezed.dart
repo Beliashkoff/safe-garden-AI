@@ -21,8 +21,8 @@ AuthProviders _$AuthProvidersFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$AuthProviders {
-  bool get apple => throw _privateConstructorUsedError;
-  bool get google => throw _privateConstructorUsedError;
+  bool get yandex => throw _privateConstructorUsedError;
+  bool get vk => throw _privateConstructorUsedError;
   bool get email => throw _privateConstructorUsedError;
 
   /// Serializes this AuthProviders to a JSON map.
@@ -42,7 +42,7 @@ abstract class $AuthProvidersCopyWith<$Res> {
     $Res Function(AuthProviders) then,
   ) = _$AuthProvidersCopyWithImpl<$Res, AuthProviders>;
   @useResult
-  $Res call({bool apple, bool google, bool email});
+  $Res call({bool yandex, bool vk, bool email});
 }
 
 /// @nodoc
@@ -59,20 +59,16 @@ class _$AuthProvidersCopyWithImpl<$Res, $Val extends AuthProviders>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({
-    Object? apple = null,
-    Object? google = null,
-    Object? email = null,
-  }) {
+  $Res call({Object? yandex = null, Object? vk = null, Object? email = null}) {
     return _then(
       _value.copyWith(
-            apple: null == apple
-                ? _value.apple
-                : apple // ignore: cast_nullable_to_non_nullable
+            yandex: null == yandex
+                ? _value.yandex
+                : yandex // ignore: cast_nullable_to_non_nullable
                       as bool,
-            google: null == google
-                ? _value.google
-                : google // ignore: cast_nullable_to_non_nullable
+            vk: null == vk
+                ? _value.vk
+                : vk // ignore: cast_nullable_to_non_nullable
                       as bool,
             email: null == email
                 ? _value.email
@@ -93,7 +89,7 @@ abstract class _$$AuthProvidersImplCopyWith<$Res>
   ) = __$$AuthProvidersImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({bool apple, bool google, bool email});
+  $Res call({bool yandex, bool vk, bool email});
 }
 
 /// @nodoc
@@ -109,20 +105,16 @@ class __$$AuthProvidersImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({
-    Object? apple = null,
-    Object? google = null,
-    Object? email = null,
-  }) {
+  $Res call({Object? yandex = null, Object? vk = null, Object? email = null}) {
     return _then(
       _$AuthProvidersImpl(
-        apple: null == apple
-            ? _value.apple
-            : apple // ignore: cast_nullable_to_non_nullable
+        yandex: null == yandex
+            ? _value.yandex
+            : yandex // ignore: cast_nullable_to_non_nullable
                   as bool,
-        google: null == google
-            ? _value.google
-            : google // ignore: cast_nullable_to_non_nullable
+        vk: null == vk
+            ? _value.vk
+            : vk // ignore: cast_nullable_to_non_nullable
                   as bool,
         email: null == email
             ? _value.email
@@ -137,8 +129,8 @@ class __$$AuthProvidersImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$AuthProvidersImpl implements _AuthProviders {
   const _$AuthProvidersImpl({
-    this.apple = false,
-    this.google = false,
+    this.yandex = false,
+    this.vk = false,
     this.email = false,
   });
 
@@ -147,17 +139,17 @@ class _$AuthProvidersImpl implements _AuthProviders {
 
   @override
   @JsonKey()
-  final bool apple;
+  final bool yandex;
   @override
   @JsonKey()
-  final bool google;
+  final bool vk;
   @override
   @JsonKey()
   final bool email;
 
   @override
   String toString() {
-    return 'AuthProviders(apple: $apple, google: $google, email: $email)';
+    return 'AuthProviders(yandex: $yandex, vk: $vk, email: $email)';
   }
 
   @override
@@ -165,14 +157,14 @@ class _$AuthProvidersImpl implements _AuthProviders {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$AuthProvidersImpl &&
-            (identical(other.apple, apple) || other.apple == apple) &&
-            (identical(other.google, google) || other.google == google) &&
+            (identical(other.yandex, yandex) || other.yandex == yandex) &&
+            (identical(other.vk, vk) || other.vk == vk) &&
             (identical(other.email, email) || other.email == email));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, apple, google, email);
+  int get hashCode => Object.hash(runtimeType, yandex, vk, email);
 
   /// Create a copy of AuthProviders
   /// with the given fields replaced by the non-null parameter values.
@@ -190,8 +182,8 @@ class _$AuthProvidersImpl implements _AuthProviders {
 
 abstract class _AuthProviders implements AuthProviders {
   const factory _AuthProviders({
-    final bool apple,
-    final bool google,
+    final bool yandex,
+    final bool vk,
     final bool email,
   }) = _$AuthProvidersImpl;
 
@@ -199,9 +191,9 @@ abstract class _AuthProviders implements AuthProviders {
       _$AuthProvidersImpl.fromJson;
 
   @override
-  bool get apple;
+  bool get yandex;
   @override
-  bool get google;
+  bool get vk;
   @override
   bool get email;
 
@@ -210,6 +202,219 @@ abstract class _AuthProviders implements AuthProviders {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$AuthProvidersImplCopyWith<_$AuthProvidersImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+OAuthStartResponse _$OAuthStartResponseFromJson(Map<String, dynamic> json) {
+  return _OAuthStartResponse.fromJson(json);
+}
+
+/// @nodoc
+mixin _$OAuthStartResponse {
+  String get state => throw _privateConstructorUsedError;
+  @JsonKey(name: 'auth_url')
+  String? get authUrl => throw _privateConstructorUsedError;
+  @JsonKey(name: 'code_challenge')
+  String? get codeChallenge => throw _privateConstructorUsedError;
+
+  /// Serializes this OAuthStartResponse to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of OAuthStartResponse
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $OAuthStartResponseCopyWith<OAuthStartResponse> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $OAuthStartResponseCopyWith<$Res> {
+  factory $OAuthStartResponseCopyWith(
+    OAuthStartResponse value,
+    $Res Function(OAuthStartResponse) then,
+  ) = _$OAuthStartResponseCopyWithImpl<$Res, OAuthStartResponse>;
+  @useResult
+  $Res call({
+    String state,
+    @JsonKey(name: 'auth_url') String? authUrl,
+    @JsonKey(name: 'code_challenge') String? codeChallenge,
+  });
+}
+
+/// @nodoc
+class _$OAuthStartResponseCopyWithImpl<$Res, $Val extends OAuthStartResponse>
+    implements $OAuthStartResponseCopyWith<$Res> {
+  _$OAuthStartResponseCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of OAuthStartResponse
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? state = null,
+    Object? authUrl = freezed,
+    Object? codeChallenge = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            state: null == state
+                ? _value.state
+                : state // ignore: cast_nullable_to_non_nullable
+                      as String,
+            authUrl: freezed == authUrl
+                ? _value.authUrl
+                : authUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            codeChallenge: freezed == codeChallenge
+                ? _value.codeChallenge
+                : codeChallenge // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$OAuthStartResponseImplCopyWith<$Res>
+    implements $OAuthStartResponseCopyWith<$Res> {
+  factory _$$OAuthStartResponseImplCopyWith(
+    _$OAuthStartResponseImpl value,
+    $Res Function(_$OAuthStartResponseImpl) then,
+  ) = __$$OAuthStartResponseImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String state,
+    @JsonKey(name: 'auth_url') String? authUrl,
+    @JsonKey(name: 'code_challenge') String? codeChallenge,
+  });
+}
+
+/// @nodoc
+class __$$OAuthStartResponseImplCopyWithImpl<$Res>
+    extends _$OAuthStartResponseCopyWithImpl<$Res, _$OAuthStartResponseImpl>
+    implements _$$OAuthStartResponseImplCopyWith<$Res> {
+  __$$OAuthStartResponseImplCopyWithImpl(
+    _$OAuthStartResponseImpl _value,
+    $Res Function(_$OAuthStartResponseImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of OAuthStartResponse
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? state = null,
+    Object? authUrl = freezed,
+    Object? codeChallenge = freezed,
+  }) {
+    return _then(
+      _$OAuthStartResponseImpl(
+        state: null == state
+            ? _value.state
+            : state // ignore: cast_nullable_to_non_nullable
+                  as String,
+        authUrl: freezed == authUrl
+            ? _value.authUrl
+            : authUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        codeChallenge: freezed == codeChallenge
+            ? _value.codeChallenge
+            : codeChallenge // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$OAuthStartResponseImpl implements _OAuthStartResponse {
+  const _$OAuthStartResponseImpl({
+    required this.state,
+    @JsonKey(name: 'auth_url') this.authUrl,
+    @JsonKey(name: 'code_challenge') this.codeChallenge,
+  });
+
+  factory _$OAuthStartResponseImpl.fromJson(Map<String, dynamic> json) =>
+      _$$OAuthStartResponseImplFromJson(json);
+
+  @override
+  final String state;
+  @override
+  @JsonKey(name: 'auth_url')
+  final String? authUrl;
+  @override
+  @JsonKey(name: 'code_challenge')
+  final String? codeChallenge;
+
+  @override
+  String toString() {
+    return 'OAuthStartResponse(state: $state, authUrl: $authUrl, codeChallenge: $codeChallenge)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$OAuthStartResponseImpl &&
+            (identical(other.state, state) || other.state == state) &&
+            (identical(other.authUrl, authUrl) || other.authUrl == authUrl) &&
+            (identical(other.codeChallenge, codeChallenge) ||
+                other.codeChallenge == codeChallenge));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, state, authUrl, codeChallenge);
+
+  /// Create a copy of OAuthStartResponse
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$OAuthStartResponseImplCopyWith<_$OAuthStartResponseImpl> get copyWith =>
+      __$$OAuthStartResponseImplCopyWithImpl<_$OAuthStartResponseImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$OAuthStartResponseImplToJson(this);
+  }
+}
+
+abstract class _OAuthStartResponse implements OAuthStartResponse {
+  const factory _OAuthStartResponse({
+    required final String state,
+    @JsonKey(name: 'auth_url') final String? authUrl,
+    @JsonKey(name: 'code_challenge') final String? codeChallenge,
+  }) = _$OAuthStartResponseImpl;
+
+  factory _OAuthStartResponse.fromJson(Map<String, dynamic> json) =
+      _$OAuthStartResponseImpl.fromJson;
+
+  @override
+  String get state;
+  @override
+  @JsonKey(name: 'auth_url')
+  String? get authUrl;
+  @override
+  @JsonKey(name: 'code_challenge')
+  String? get codeChallenge;
+
+  /// Create a copy of OAuthStartResponse
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$OAuthStartResponseImplCopyWith<_$OAuthStartResponseImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 

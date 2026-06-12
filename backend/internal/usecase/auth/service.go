@@ -31,7 +31,8 @@ const (
 type Service struct {
 	store      *storage.Store
 	issuer     *authpkg.Issuer
-	verifier   *authpkg.Verifier
+	yandex     *authpkg.YandexClient
+	vk         *authpkg.VKClient
 	mailer     mailer.Mailer
 	limiter    ratelimit.Limiter
 	refreshTTL time.Duration
@@ -44,7 +45,8 @@ type Service struct {
 func NewService(
 	store *storage.Store,
 	issuer *authpkg.Issuer,
-	verifier *authpkg.Verifier,
+	yandex *authpkg.YandexClient,
+	vk *authpkg.VKClient,
 	m mailer.Mailer,
 	limiter ratelimit.Limiter,
 	refreshTTL time.Duration,
@@ -53,7 +55,8 @@ func NewService(
 	return &Service{
 		store:      store,
 		issuer:     issuer,
-		verifier:   verifier,
+		yandex:     yandex,
+		vk:         vk,
 		mailer:     m,
 		limiter:    limiter,
 		refreshTTL: refreshTTL,
@@ -68,8 +71,8 @@ type UserView struct {
 	Email         string // "" when unset
 	EmailVerified bool
 	DisplayName   string // "" when unset
-	HasApple      bool
-	HasGoogle     bool
+	HasYandex     bool
+	HasVK         bool
 }
 
 // AuthResult is returned by every successful sign-in / refresh.
@@ -94,8 +97,8 @@ func toView(u db.User) UserView {
 		Email:         u.Email.String,
 		EmailVerified: u.EmailVerified,
 		DisplayName:   u.DisplayName.String,
-		HasApple:      u.AppleSub.Valid,
-		HasGoogle:     u.GoogleSub.Valid,
+		HasYandex:     u.YandexSub.Valid,
+		HasVK:         u.VkSub.Valid,
 	}
 }
 

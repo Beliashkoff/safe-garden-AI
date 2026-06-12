@@ -64,8 +64,12 @@ func respondError(w http.ResponseWriter, r *http.Request, err error) {
 
 func mapErr(err error) error {
 	switch {
-	case errors.Is(err, authuc.ErrInvalidIDToken):
-		return httperr.Unauthorized("invalid id_token")
+	case errors.Is(err, authuc.ErrInvalidOAuthState):
+		return httperr.Unauthorized("invalid or expired sign-in attempt, start over")
+	case errors.Is(err, authuc.ErrOAuthFailed):
+		return httperr.Unauthorized("sign-in was not confirmed by the provider")
+	case errors.Is(err, authuc.ErrOAuthUnavailable):
+		return httperr.ServiceUnavailable("sign-in provider is temporarily unavailable")
 	case errors.Is(err, authuc.ErrInvalidEmail):
 		return httperr.ValidationFailed("invalid email").WithDetail("field", "email")
 	case errors.Is(err, authuc.ErrInvalidOTP):
@@ -161,8 +165,8 @@ type userDTO struct {
 }
 
 type providersDTO struct {
-	Apple  bool `json:"apple"`
-	Google bool `json:"google"`
+	Yandex bool `json:"yandex"`
+	VK     bool `json:"vk"`
 	Email  bool `json:"email"`
 }
 
@@ -173,8 +177,8 @@ func toUserDTO(u authuc.UserView) userDTO {
 		DisplayName:   u.DisplayName,
 		EmailVerified: u.EmailVerified,
 		Providers: providersDTO{
-			Apple:  u.HasApple,
-			Google: u.HasGoogle,
+			Yandex: u.HasYandex,
+			VK:     u.HasVK,
 			Email:  u.Email != "",
 		},
 	}

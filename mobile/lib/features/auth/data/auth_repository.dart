@@ -21,19 +21,31 @@ class AuthRepository {
   final TokenStore _store;
   final OAuthProvider _oauth;
 
-  Future<AppUser> signInWithApple() async {
-    final credential = await _oauth.getAppleCredential();
-    final response = await _api.signInApple(
-      idToken: credential.identityToken,
-      nonce: credential.rawNonce,
+  Future<AppUser> signInWithYandex() async {
+    final start = await _api.startYandex();
+    final authCode = await _oauth.getYandexAuthCode(
+      authUrl: start.authUrl ?? '',
+      expectedState: start.state,
+    );
+    final response = await _api.completeYandex(
+      code: authCode.code,
+      state: start.state,
     );
     await _persist(response);
     return response.user;
   }
 
-  Future<AppUser> signInWithGoogle() async {
-    final idToken = await _oauth.getGoogleIdToken();
-    final response = await _api.signInGoogle(idToken: idToken);
+  Future<AppUser> signInWithVk() async {
+    final start = await _api.startVk();
+    final authCode = await _oauth.getVkAuthCode(
+      state: start.state,
+      codeChallenge: start.codeChallenge ?? '',
+    );
+    final response = await _api.completeVk(
+      code: authCode.code,
+      state: start.state,
+      deviceId: authCode.deviceId,
+    );
     await _persist(response);
     return response.user;
   }

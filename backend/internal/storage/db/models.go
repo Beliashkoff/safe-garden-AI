@@ -75,6 +75,15 @@ type MessageBlock struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type OauthState struct {
+	StateHash    []byte
+	Provider     string
+	CodeVerifier string
+	Ip           pgtype.Text
+	CreatedAt    pgtype.Timestamptz
+	ExpiresAt    pgtype.Timestamptz
+}
+
 type RefreshToken struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
@@ -111,12 +120,12 @@ type User struct {
 	ID            uuid.UUID
 	Email         pgtype.Text
 	EmailVerified bool
-	AppleSub      pgtype.Text
-	GoogleSub     pgtype.Text
 	DisplayName   pgtype.Text
 	Locale        string
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
 	DeletedAt     pgtype.Timestamptz
 	MediaPurgedAt pgtype.Timestamptz
+	YandexSub     pgtype.Text
+	VkSub         pgtype.Text
 }

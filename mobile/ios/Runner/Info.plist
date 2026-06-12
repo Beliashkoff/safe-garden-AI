@@ -26,6 +26,22 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- VK ID: значения берутся из build settings (ios/Flutter/VKID.xcconfig,
+	     не коммитится). CFBundleURLSchemes vk{client_id} — deep link возврата
+	     из провайдера авторизации VK. -->
+	<key>VK_APP_CLIENT_ID</key>
+	<string>$(VKID_CLIENT_ID)</string>
+	<key>VK_APP_CLIENT_SECRET</key>
+	<string>$(VKID_CLIENT_SECRET)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vk$(VKID_CLIENT_ID)</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Доступ к камере нужен, чтобы сфотографировать растение для диагностики.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

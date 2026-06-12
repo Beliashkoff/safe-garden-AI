@@ -24,8 +24,10 @@ func NewRouter(d Deps) chi.Router {
 	r := chi.NewRouter()
 
 	r.Route("/auth", func(r chi.Router) {
-		r.Post("/apple", d.Handler.SignInApple)
-		r.Post("/google", d.Handler.SignInGoogle)
+		r.Post("/yandex/start", d.Handler.StartYandex)
+		r.Post("/yandex/complete", d.Handler.CompleteYandex)
+		r.Post("/vk/start", d.Handler.StartVK)
+		r.Post("/vk/complete", d.Handler.CompleteVK)
 		r.Post("/email/request", d.Handler.RequestOTP)
 		r.Post("/email/verify", d.Handler.VerifyOTP)
 		r.Post("/refresh", d.Handler.Refresh)

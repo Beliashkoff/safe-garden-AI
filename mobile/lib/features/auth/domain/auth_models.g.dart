@@ -8,17 +8,33 @@ part of 'auth_models.dart';
 
 _$AuthProvidersImpl _$$AuthProvidersImplFromJson(Map<String, dynamic> json) =>
     _$AuthProvidersImpl(
-      apple: json['apple'] as bool? ?? false,
-      google: json['google'] as bool? ?? false,
+      yandex: json['yandex'] as bool? ?? false,
+      vk: json['vk'] as bool? ?? false,
       email: json['email'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$$AuthProvidersImplToJson(_$AuthProvidersImpl instance) =>
     <String, dynamic>{
-      'apple': instance.apple,
-      'google': instance.google,
+      'yandex': instance.yandex,
+      'vk': instance.vk,
       'email': instance.email,
     };
+
+_$OAuthStartResponseImpl _$$OAuthStartResponseImplFromJson(
+  Map<String, dynamic> json,
+) => _$OAuthStartResponseImpl(
+  state: json['state'] as String,
+  authUrl: json['auth_url'] as String?,
+  codeChallenge: json['code_challenge'] as String?,
+);
+
+Map<String, dynamic> _$$OAuthStartResponseImplToJson(
+  _$OAuthStartResponseImpl instance,
+) => <String, dynamic>{
+  'state': instance.state,
+  'auth_url': instance.authUrl,
+  'code_challenge': instance.codeChallenge,
+};
 
 _$AppUserImpl _$$AppUserImplFromJson(Map<String, dynamic> json) =>
     _$AppUserImpl(

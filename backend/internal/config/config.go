@@ -11,9 +11,9 @@ import (
 // Config aggregates runtime configuration loaded from environment variables.
 //
 // Postgres DSN is required at all envs because the API process cannot serve
-// requests without a database. OIDC (Apple/Google) and JWT key locations are
-// optional in dev to allow boot without external credentials, but validateProd
-// enforces them when ENV=prod.
+// requests without a database. OAuth (Yandex ID / VK ID) and JWT key locations
+// are optional in dev to allow boot without external credentials, but
+// validateProd enforces them when ENV=prod.
 type Config struct {
 	Env       string `envconfig:"ENV" default:"dev"`
 	HTTPHost  string `envconfig:"HTTP_HOST" default:""`
@@ -39,14 +39,20 @@ type Config struct {
 	JWTAccessTTL      time.Duration `envconfig:"JWT_ACCESS_TTL" default:"15m"`
 	RefreshTTL        time.Duration `envconfig:"REFRESH_TTL" default:"720h"`
 
-	// OIDC — empty in dev, required in prod (see validateProd).
-	AppleBundleID    string `envconfig:"APPLE_BUNDLE_ID" default:""`
-	GoogleClientIOS  string `envconfig:"GOOGLE_CLIENT_ID_IOS" default:""`
-	GoogleClientAndr string `envconfig:"GOOGLE_CLIENT_ID_ANDROID" default:""`
-	// Web/server OAuth client. The mobile google_sign_in flow uses this as its
-	// serverClientId, so the id_token's aud equals this value — it must be in
-	// the verifier allowlist.
-	GoogleClientWeb string `envconfig:"GOOGLE_CLIENT_ID_WEB" default:""`
+	// OAuth providers (Yandex ID / VK ID, 406-FZ-compliant RU sign-in) —
+	// empty in dev, required in prod (see validateProd). The code exchange
+	// runs server-side: secrets and PKCE verifiers never reach the client.
+	YandexClientID     string `envconfig:"YANDEX_CLIENT_ID" default:""`
+	YandexClientSecret string `envconfig:"YANDEX_CLIENT_SECRET" default:""`
+	// Callback URI registered at oauth.yandex.ru; the mobile app intercepts it
+	// in the system browser (custom scheme).
+	YandexRedirectURI string `envconfig:"YANDEX_REDIRECT_URI" default:""`
+	// VK ID numeric application ID. No secret: the mobile SDK is a public
+	// client and the exchange is protected by PKCE (verifier held here).
+	VKClientID string `envconfig:"VK_CLIENT_ID" default:""`
+	// Deep link the VK ID SDK returns through (vk{client_id}://vk.ru); must
+	// match the token-exchange redirect_uri parameter.
+	VKRedirectURI string `envconfig:"VK_REDIRECT_URI" default:""`
 
 	// SMTP — Mailer for OTP delivery. Dev defaults target the docker-compose
 	// MailHog (localhost:1025, no auth, no TLS). Prod uses Yandex 360
@@ -117,7 +123,11 @@ func (c *Config) validateProd() error {
 		}
 	}
 
-	require(c.AppleBundleID, "APPLE_BUNDLE_ID")
+	require(c.YandexClientID, "YANDEX_CLIENT_ID")
+	require(c.YandexClientSecret, "YANDEX_CLIENT_SECRET")
+	require(c.YandexRedirectURI, "YANDEX_REDIRECT_URI")
+	require(c.VKClientID, "VK_CLIENT_ID")
+	require(c.VKRedirectURI, "VK_REDIRECT_URI")
 	require(c.SMTPUsername, "SMTP_USERNAME")
 	require(c.SMTPPassword, "SMTP_PASSWORD")
 	require(c.SMTPFrom, "SMTP_FROM")
@@ -137,9 +147,6 @@ func (c *Config) validateProd() error {
 		require(c.InternalMTLSClientCAPath, "INTERNAL_MTLS_CLIENT_CA_PATH")
 	}
 
-	if c.GoogleClientIOS == "" && c.GoogleClientAndr == "" && c.GoogleClientWeb == "" {
-		missing = append(missing, "GOOGLE_CLIENT_ID_IOS or GOOGLE_CLIENT_ID_ANDROID or GOOGLE_CLIENT_ID_WEB")
-	}
 	if c.JWTKeysDir == "" && c.JWTPrivateKeyPath == "" {
 		missing = append(missing, "JWT_KEYS_DIR or JWT_PRIVATE_KEY_PATH")
 	}

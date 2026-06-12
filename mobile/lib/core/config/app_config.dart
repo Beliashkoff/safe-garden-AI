@@ -11,12 +11,13 @@ class AppConfig {
     defaultValue: 'http://10.0.2.2:8080/v1',
   );
 
-  /// OAuth web/server client ID (Google). Used as `serverClientId` so the
-  /// returned id_token's `aud` matches the backend allowlist. Supplied per
-  /// environment once Google Cloud OAuth clients exist (Stage 0.6).
-  static const String googleServerClientId = String.fromEnvironment(
-    'GOOGLE_SERVER_CLIENT_ID',
-    defaultValue: '',
+  /// Custom URL scheme the Yandex ID browser flow redirects back through.
+  /// Must equal the scheme of the backend's YANDEX_REDIRECT_URI and the
+  /// Callback URI registered at oauth.yandex.ru. The Android intent-filter
+  /// (flutter_web_auth_2 CallbackActivity) carries the same literal.
+  static const String yandexCallbackScheme = String.fromEnvironment(
+    'YANDEX_CALLBACK_SCHEME',
+    defaultValue: 'safegarden',
   );
 
   /// Sentry DSN. Empty by default so dev/CI builds run with Sentry disabled

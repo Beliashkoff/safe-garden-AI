@@ -41,17 +41,17 @@ class AuthController extends AsyncNotifier<AuthSnapshot> {
     }
   }
 
-  Future<void> signInWithApple() async {
+  Future<void> signInWithYandex() async {
     try {
-      state = AsyncData(Authenticated(await _repo.signInWithApple()));
+      state = AsyncData(Authenticated(await _repo.signInWithYandex()));
     } on OAuthCanceledException {
       // User dismissed the sheet — stay where we are.
     }
   }
 
-  Future<void> signInWithGoogle() async {
+  Future<void> signInWithVk() async {
     try {
-      state = AsyncData(Authenticated(await _repo.signInWithGoogle()));
+      state = AsyncData(Authenticated(await _repo.signInWithVk()));
     } on OAuthCanceledException {
       // User dismissed the sheet — stay where we are.
     }

@@ -4,7 +4,7 @@ Flutter-приложение для iOS 14+ / Android 8+. Пакет в [`pubspe
 
 State management — Riverpod, навигация — `go_router`, HTTP — `dio`, иммутабельные модели — `freezed`, локализация — `intl` ARB. Полная архитектура — в [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §3, §9.
 
-> Текущее состояние — реализована авторизация (Этап 1.4–1.6): email-OTP, Apple, Google против бэкенда Этапа 1.2; безопасное хранение токенов, прозрачный refresh на 401, авто-вход при старте, удаление аккаунта. Тема Material 3 (light/dark), локализация RU/EN.
+> Текущее состояние — реализована авторизация (Этап 1.4–1.6, переведена на РФ-провайдеры по 406-ФЗ): email-OTP, Яндекс ID, VK ID против бэкенда Этапа 1.2; безопасное хранение токенов, прозрачный refresh на 401, авто-вход при старте, удаление аккаунта. Тема Material 3 (light/dark), локализация RU/EN.
 
 ## Prerequisites
 
@@ -61,9 +61,9 @@ lib/
 | `freezed_annotation` + `json_annotation` | Иммутабельные модели + JSON-сериализация. Codegen через `build_runner`. |
 | `intl` + `flutter_localizations` | i18n. UI-строки — только через ARB, без хардкода. |
 | `flutter_secure_storage` | Хранение access/refresh-токенов (Keychain / EncryptedSharedPreferences). |
-| `sign_in_with_apple`  | Apple Sign-In (id_token + nonce). |
-| `google_sign_in` (v7) | Google Sign-In (id_token через `serverClientId`). |
-| `crypto`              | sha256 для Apple nonce. |
+| `vkid_flutter_sdk`    | VK ID (официальный SDK, confidential flow: SDK отдаёт только `code` + `device_id`, обмен на бэке). |
+| `flutter_web_auth_2`  | Яндекс ID: системный браузер (`ASWebAuthenticationSession` / Custom Tabs) + перехват custom scheme. |
+| `crypto`              | Хэши (используется и транзитивно). |
 | `cupertino_icons`     | Иконки iOS. |
 | `flutter_lints` (dev) | Базовые правила, поверх — строгие в `analysis_options.yaml`. |
 | `mocktail` (dev)      | Моки для тестов. |
@@ -117,12 +117,11 @@ flutter build ios                  # iOS (только macOS)
 | Переменная | Назначение | Default |
 | ---------- | ---------- | ------- |
 | `API_BASE_URL` | Базовый URL API. Для Android-эмулятора host = `10.0.2.2`. | `http://10.0.2.2:8080/v1` |
-| `GOOGLE_SERVER_CLIENT_ID` | Web/server OAuth client ID. Передаётся в `google_sign_in` как `serverClientId`; `aud` в id_token будет равен ему — бэк должен иметь его в `GOOGLE_CLIENT_ID_WEB`. | `""` |
+| `YANDEX_CALLBACK_SCHEME` | Схема redirect'а Яндекс ID. Должна совпадать со схемой `YANDEX_REDIRECT_URI` бэкенда и intent-filter в `AndroidManifest.xml`. | `safegarden` |
 
 ```bash
 flutter run \
-  --dart-define=API_BASE_URL=http://10.0.2.2:8080/v1 \
-  --dart-define=GOOGLE_SERVER_CLIENT_ID=<web-client-id>.apps.googleusercontent.com
+  --dart-define=API_BASE_URL=http://10.0.2.2:8080/v1
 ```
 
 **Локальный E2E email-OTP** (когда установлен Android SDK): поднять бэк `make dev`
@@ -130,28 +129,35 @@ flutter run \
 код взять в MailHog UI (`http://localhost:8025`) → войти. Проверить авто-вход после
 рестарта, logout и удаление аккаунта (меню в AppBar чата).
 
-**Платформенная настройка (зависит от внешних аккаунтов — Этапы 0.6 / 7):**
+**Платформенная настройка (зависит от внешних аккаунтов заказчика):**
 
-- **Google (Android/iOS):** создать OAuth-клиенты в Google Cloud Console (Android — по
-  package `site.agronomai.app` + SHA-1; iOS — по bundle id; Web — для `serverClientId`).
-  `google_sign_in` v7 для базового входа **не требует** `google-services.json` —
-  достаточно `serverClientId` в рантайме. SHA-1 debug-ключа: `keytool -list -v -alias
-  androiddebugkey -keystore ~/.android/debug.keystore` (пароль `android`).
-- **Apple (iOS):** файл [`ios/Runner/Runner.entitlements`](./ios/Runner/Runner.entitlements)
-  с `com.apple.developer.applesignin` уже добавлен. Остаётся (на macOS, Этап 7) включить
-  capability «Sign in with Apple» в Xcode (Signing & Capabilities) — это пропишет
-  `CODE_SIGN_ENTITLEMENTS` в проект и привяжет к provisioning profile. Apple-кнопка
-  показывается только на iOS/macOS.
+- **Яндекс ID:** приложение регистрируется на [oauth.yandex.ru](https://oauth.yandex.ru)
+  (права `login:info`, `login:email`; Callback URI = `safegarden://auth/yandex`).
+  ClientID/secret живут **только на бэкенде** (`YANDEX_CLIENT_ID/SECRET/REDIRECT_URI`);
+  мобильному клиенту ничего не нужно, кроме совпадающей схемы redirect'а
+  (intent-filter `safegarden` уже прописан в `AndroidManifest.xml`; на iOS схему
+  передаёт `flutter_web_auth_2` программно).
+- **VK ID (Android):** числовой ID приложения и «защищённый ключ» из кабинета
+  [id.vk.ru/about/business](https://id.vk.ru/about/business) кладутся в
+  `android/local.properties`: `vkid.clientId=...`, `vkid.clientSecret=...`
+  (CI передаёт через `ORG_GRADLE_PROJECT_vkidClientId/vkidClientSecret`).
+  Manifest placeholders и репозиторий `artifactory-external.vkpartner.ru` уже
+  настроены в gradle-файлах.
+- **VK ID (iOS, на macOS — Этап 7):** в `ios/Flutter/` создать не коммитящийся
+  xcconfig c `VKID_CLIENT_ID=...` и `VKID_CLIENT_SECRET=...` и подключить его к
+  build settings; `Info.plist` уже читает `$(VKID_CLIENT_ID)`/`$(VKID_CLIENT_SECRET)`
+  и URL-схему `vk$(VKID_CLIENT_ID)`. В кабинете VK указать Universal Link.
+  `AppDelegate.swift`/`SceneDelegate.swift` уже пробрасывают deep link в SDK —
+  проверить компиляцию на macOS (модуль `vkid_flutter_sdk`).
 
 ## Подпись release-сборки (Android)
 
 `flutter build apk --release` подписывает APK ключом из `android/key.properties`
 (в `.gitignore`). Файла нет → фолбэк на **debug-ключ** (см.
 [`android/app/build.gradle.kts`](./android/app/build.gradle.kts)): APK ставится
-через sideload, но SHA-1 у CI-сборки нестабилен (каждый прогон свой) →
-**Google Sign-In не работает**, а установка поверх прежней версии требует её
-удаления. Стабильный **upload-keystore** снимает оба ограничения и обязателен
-для загрузки в Google Play.
+через sideload, но установка поверх прежней версии требует её удаления.
+Стабильный **upload-keystore** снимает это ограничение и обязателен
+для загрузки в Google Play / RuStore.
 
 ### Один раз: сгенерировать keystore (локально, заказчик)
 
@@ -160,10 +166,10 @@ keytool -genkey -v -keystore upload-keystore.jks \
   -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 ```
 
-Снять SHA-1 (нужен для Android OAuth client в Google Cloud, package `site.agronomai.app`):
+Снять SHA-1/SHA-256 (могут понадобиться при привязке Android-приложения в кабинетах провайдеров):
 
 ```bash
-keytool -list -v -keystore upload-keystore.jks -alias upload   # строка "SHA1: ..."
+keytool -list -v -keystore upload-keystore.jks -alias upload   # строки "SHA1: ..." / "SHA256: ..."
 ```
 
 Закодировать keystore в base64 для CI-секрета:
@@ -190,7 +196,8 @@ Build-time конфиг release-APK (`--dart-define`):
 | Имя | Тип | Назначение |
 | --- | --- | ---------- |
 | `MOBILE_API_BASE_URL` | var | Базовый URL API. Можно не задавать — фолбэк `https://api.agronomai.site/v1`. |
-| `GOOGLE_SERVER_CLIENT_ID` | var | Web OAuth client ID (`serverClientId`). Без него кнопка Google не работает. |
+| `VKID_CLIENT_ID` | var | Числовой ID приложения VK ID (manifest placeholder через `ORG_GRADLE_PROJECT_vkidClientId`). Без него кнопка VK не работает. |
+| `VKID_CLIENT_SECRET` | secret | «Защищённый ключ» VK ID (manifest placeholder). |
 | `MOBILE_SENTRY_DSN` | secret | DSN для сбора крашей с тестеров. Пусто → Sentry no-op. |
 
 Без секретов подписи сборка **не падает**: `build-apk-release` подпишет debug-ключом

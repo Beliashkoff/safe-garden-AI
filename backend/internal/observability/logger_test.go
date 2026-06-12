@@ -28,14 +28,18 @@ func TestRedactPII_SensitiveKeysAreRedacted(t *testing.T) {
 		{"transcription", "transcribed voice content"},
 		{"message_text", "hello there"},
 		// Stage 1.1 additions:
-		{"apple_sub", "001234.appleSubjectValue"},
-		{"google_sub", "11223344556677889900"},
+		{"yandex_sub", "1000034426"},
+		{"vk_sub", "11223344556677889900"},
 		{"nonce", "raw-nonce-secret-bytes"},
 		{"display_name", "Иван Иванов"},
 		{"code_hash", "$2a$10$xxxxx"},
 		{"token_hash", "deadbeef-hash-bytes"},
 		{"private_key", "-----BEGIN PRIVATE KEY-----"},
 		{"jwks", "{keys: [...]}"},
+		// OAuth flow material:
+		{"state", "csrf-state-value"},
+		{"code_verifier", "pkce-verifier-value"},
+		{"client_secret", "oauth-app-secret"},
 	}
 
 	for _, tc := range cases {

@@ -116,17 +116,17 @@ abstract class AppLocalizations {
   /// **'Диагностика растений с помощью AI'**
   String get loginSubtitle;
 
-  /// No description provided for @loginButtonApple.
+  /// No description provided for @loginButtonVk.
   ///
   /// In ru, this message translates to:
-  /// **'Войти с Apple'**
-  String get loginButtonApple;
+  /// **'Войти с VK ID'**
+  String get loginButtonVk;
 
-  /// No description provided for @loginButtonGoogle.
+  /// No description provided for @loginButtonYandex.
   ///
   /// In ru, this message translates to:
-  /// **'Войти с Google'**
-  String get loginButtonGoogle;
+  /// **'Войти с Яндекс ID'**
+  String get loginButtonYandex;
 
   /// No description provided for @loginButtonEmail.
   ///

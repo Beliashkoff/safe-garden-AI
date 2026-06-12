@@ -107,15 +107,20 @@ func main() { //nolint:gocyclo // composition root: wiring storage, auth, llm, r
 		os.Exit(1)
 	}
 
-	verifier, err := authpkg.NewVerifier(ctx, authpkg.VerifierConfig{
-		AppleBundleID:    cfg.AppleBundleID,
-		GoogleClientIOS:  cfg.GoogleClientIOS,
-		GoogleClientAndr: cfg.GoogleClientAndr,
-		GoogleClientWeb:  cfg.GoogleClientWeb,
+	yandexClient := authpkg.NewYandex(authpkg.YandexConfig{
+		ClientID:     cfg.YandexClientID,
+		ClientSecret: cfg.YandexClientSecret,
+		RedirectURI:  cfg.YandexRedirectURI,
 	})
-	if err != nil {
-		slog.Error("oidc verifier init failed", "err", err)
-		os.Exit(1)
+	vkClient := authpkg.NewVK(authpkg.VKConfig{
+		ClientID:    cfg.VKClientID,
+		RedirectURI: cfg.VKRedirectURI,
+	})
+	if !yandexClient.Configured() {
+		slog.Warn("Yandex ID credentials empty — Yandex sign-in disabled (dev only)")
+	}
+	if !vkClient.Configured() {
+		slog.Warn("VK ID credentials empty — VK sign-in disabled (dev only)")
 	}
 
 	mailerImpl := mailer.New(mailer.SMTPConfig{
@@ -129,7 +134,7 @@ func main() { //nolint:gocyclo // composition root: wiring storage, auth, llm, r
 	}, logger)
 
 	authService := authuc.NewService(
-		store, issuer, verifier, mailerImpl,
+		store, issuer, yandexClient, vkClient, mailerImpl,
 		ratelimit.NewDB(store), cfg.RefreshTTL, logger,
 	)
 

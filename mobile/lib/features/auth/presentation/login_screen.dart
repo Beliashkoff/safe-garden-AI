@@ -45,9 +45,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final controller = ref.read(authControllerProvider.notifier);
-    final showAppleButton =
-        theme.platform == TargetPlatform.iOS ||
-        theme.platform == TargetPlatform.macOS;
 
     return Scaffold(
       body: SafeArea(
@@ -69,20 +66,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 style: theme.textTheme.bodyLarge,
               ),
               const SizedBox(height: 48),
-              if (showAppleButton) ...[
-                FilledButton(
-                  onPressed: _busy
-                      ? null
-                      : () => _runOAuth(controller.signInWithApple),
-                  child: Text(l10n.loginButtonApple),
+              // Provider buttons use the providers' fixed brand colors — an
+              // explicit exception to the theme-only rule: VK ID and Yandex ID
+              // design guidelines forbid recoloring their sign-in buttons.
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _vkBrandBlue,
+                  foregroundColor: _brandWhite,
                 ),
-                const SizedBox(height: 12),
-              ],
-              FilledButton.tonal(
+                onPressed: _busy ? null : () => _runOAuth(controller.signInWithVk),
+                child: Text(l10n.loginButtonVk),
+              ),
+              const SizedBox(height: 12),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _yandexBrandBlack,
+                  foregroundColor: _brandWhite,
+                ),
                 onPressed: _busy
                     ? null
-                    : () => _runOAuth(controller.signInWithGoogle),
-                child: Text(l10n.loginButtonGoogle),
+                    : () => _runOAuth(controller.signInWithYandex),
+                child: Text(l10n.loginButtonYandex),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
@@ -98,6 +102,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 }
+
+// Brand palette mandated by the providers' button guidelines (VK ID
+// design-rules, Yandex ID buttons-design): the colors may not be altered.
+const _vkBrandBlue = Color(0xFF0077FF);
+const _yandexBrandBlack = Color(0xFF000000);
+const _brandWhite = Color(0xFFFFFFFF);
 
 /// Informational consent shown at the registration point (ARCH §6.3): by
 /// continuing, the user accepts the Privacy Policy and Terms of Service, both

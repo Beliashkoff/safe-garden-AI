@@ -13,16 +13,16 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, email_verified, apple_sub, google_sub, display_name, locale)
+INSERT INTO users (email, email_verified, yandex_sub, vk_sub, display_name, locale)
 VALUES ($1, $2, $3, $4, $5, COALESCE(NULLIF($6, ''), 'ru'))
-RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at
+RETURNING id, email, email_verified, display_name, locale, created_at, updated_at, deleted_at, media_purged_at, yandex_sub, vk_sub
 `
 
 type CreateUserParams struct {
 	Email         pgtype.Text
 	EmailVerified bool
-	AppleSub      pgtype.Text
-	GoogleSub     pgtype.Text
+	YandexSub     pgtype.Text
+	VkSub         pgtype.Text
 	DisplayName   pgtype.Text
 	Column6       interface{}
 }
@@ -31,8 +31,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	row := q.db.QueryRow(ctx, createUser,
 		arg.Email,
 		arg.EmailVerified,
-		arg.AppleSub,
-		arg.GoogleSub,
+		arg.YandexSub,
+		arg.VkSub,
 		arg.DisplayName,
 		arg.Column6,
 	)
@@ -41,14 +41,14 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.ID,
 		&i.Email,
 		&i.EmailVerified,
-		&i.AppleSub,
-		&i.GoogleSub,
 		&i.DisplayName,
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.MediaPurgedAt,
+		&i.YandexSub,
+		&i.VkSub,
 	)
 	return i, err
 }
@@ -75,31 +75,8 @@ func (q *Queries) DeleteUserUploads(ctx context.Context, userID uuid.UUID) error
 	return err
 }
 
-const getUserByAppleSub = `-- name: GetUserByAppleSub :one
-SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at FROM users WHERE apple_sub = $1 AND deleted_at IS NULL
-`
-
-func (q *Queries) GetUserByAppleSub(ctx context.Context, appleSub pgtype.Text) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByAppleSub, appleSub)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.EmailVerified,
-		&i.AppleSub,
-		&i.GoogleSub,
-		&i.DisplayName,
-		&i.Locale,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.MediaPurgedAt,
-	)
-	return i, err
-}
-
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at FROM users WHERE email = $1 AND deleted_at IS NULL
+SELECT id, email, email_verified, display_name, locale, created_at, updated_at, deleted_at, media_purged_at, yandex_sub, vk_sub FROM users WHERE email = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, error) {
@@ -109,43 +86,20 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, 
 		&i.ID,
 		&i.Email,
 		&i.EmailVerified,
-		&i.AppleSub,
-		&i.GoogleSub,
 		&i.DisplayName,
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.MediaPurgedAt,
-	)
-	return i, err
-}
-
-const getUserByGoogleSub = `-- name: GetUserByGoogleSub :one
-SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at FROM users WHERE google_sub = $1 AND deleted_at IS NULL
-`
-
-func (q *Queries) GetUserByGoogleSub(ctx context.Context, googleSub pgtype.Text) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByGoogleSub, googleSub)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.EmailVerified,
-		&i.AppleSub,
-		&i.GoogleSub,
-		&i.DisplayName,
-		&i.Locale,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.MediaPurgedAt,
+		&i.YandexSub,
+		&i.VkSub,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at FROM users WHERE id = $1 AND deleted_at IS NULL
+SELECT id, email, email_verified, display_name, locale, created_at, updated_at, deleted_at, media_purged_at, yandex_sub, vk_sub FROM users WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -155,74 +109,120 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.ID,
 		&i.Email,
 		&i.EmailVerified,
-		&i.AppleSub,
-		&i.GoogleSub,
 		&i.DisplayName,
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.MediaPurgedAt,
+		&i.YandexSub,
+		&i.VkSub,
 	)
 	return i, err
 }
 
-const linkAppleSub = `-- name: LinkAppleSub :one
-UPDATE users SET apple_sub = $2, updated_at = NOW()
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at
+const getUserByVKSub = `-- name: GetUserByVKSub :one
+SELECT id, email, email_verified, display_name, locale, created_at, updated_at, deleted_at, media_purged_at, yandex_sub, vk_sub FROM users WHERE vk_sub = $1 AND deleted_at IS NULL
 `
 
-type LinkAppleSubParams struct {
-	ID       uuid.UUID
-	AppleSub pgtype.Text
-}
-
-func (q *Queries) LinkAppleSub(ctx context.Context, arg LinkAppleSubParams) (User, error) {
-	row := q.db.QueryRow(ctx, linkAppleSub, arg.ID, arg.AppleSub)
+func (q *Queries) GetUserByVKSub(ctx context.Context, vkSub pgtype.Text) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByVKSub, vkSub)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.EmailVerified,
-		&i.AppleSub,
-		&i.GoogleSub,
 		&i.DisplayName,
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.MediaPurgedAt,
+		&i.YandexSub,
+		&i.VkSub,
 	)
 	return i, err
 }
 
-const linkGoogleSub = `-- name: LinkGoogleSub :one
-UPDATE users SET google_sub = $2, updated_at = NOW()
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at
+const getUserByYandexSub = `-- name: GetUserByYandexSub :one
+SELECT id, email, email_verified, display_name, locale, created_at, updated_at, deleted_at, media_purged_at, yandex_sub, vk_sub FROM users WHERE yandex_sub = $1 AND deleted_at IS NULL
 `
 
-type LinkGoogleSubParams struct {
+func (q *Queries) GetUserByYandexSub(ctx context.Context, yandexSub pgtype.Text) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByYandexSub, yandexSub)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.EmailVerified,
+		&i.DisplayName,
+		&i.Locale,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.MediaPurgedAt,
+		&i.YandexSub,
+		&i.VkSub,
+	)
+	return i, err
+}
+
+const linkVKSub = `-- name: LinkVKSub :one
+UPDATE users SET vk_sub = $2, updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, email, email_verified, display_name, locale, created_at, updated_at, deleted_at, media_purged_at, yandex_sub, vk_sub
+`
+
+type LinkVKSubParams struct {
+	ID    uuid.UUID
+	VkSub pgtype.Text
+}
+
+func (q *Queries) LinkVKSub(ctx context.Context, arg LinkVKSubParams) (User, error) {
+	row := q.db.QueryRow(ctx, linkVKSub, arg.ID, arg.VkSub)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.EmailVerified,
+		&i.DisplayName,
+		&i.Locale,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.MediaPurgedAt,
+		&i.YandexSub,
+		&i.VkSub,
+	)
+	return i, err
+}
+
+const linkYandexSub = `-- name: LinkYandexSub :one
+UPDATE users SET yandex_sub = $2, updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, email, email_verified, display_name, locale, created_at, updated_at, deleted_at, media_purged_at, yandex_sub, vk_sub
+`
+
+type LinkYandexSubParams struct {
 	ID        uuid.UUID
-	GoogleSub pgtype.Text
+	YandexSub pgtype.Text
 }
 
-func (q *Queries) LinkGoogleSub(ctx context.Context, arg LinkGoogleSubParams) (User, error) {
-	row := q.db.QueryRow(ctx, linkGoogleSub, arg.ID, arg.GoogleSub)
+func (q *Queries) LinkYandexSub(ctx context.Context, arg LinkYandexSubParams) (User, error) {
+	row := q.db.QueryRow(ctx, linkYandexSub, arg.ID, arg.YandexSub)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.EmailVerified,
-		&i.AppleSub,
-		&i.GoogleSub,
 		&i.DisplayName,
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.MediaPurgedAt,
+		&i.YandexSub,
+		&i.VkSub,
 	)
 	return i, err
 }
@@ -279,7 +279,7 @@ func (q *Queries) MarkUserMediaPurged(ctx context.Context, id uuid.UUID) error {
 const setUserEmail = `-- name: SetUserEmail :one
 UPDATE users SET email = $2, email_verified = $3, updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, email, email_verified, apple_sub, google_sub, display_name, locale, created_at, updated_at, deleted_at, media_purged_at
+RETURNING id, email, email_verified, display_name, locale, created_at, updated_at, deleted_at, media_purged_at, yandex_sub, vk_sub
 `
 
 type SetUserEmailParams struct {
@@ -295,14 +295,14 @@ func (q *Queries) SetUserEmail(ctx context.Context, arg SetUserEmailParams) (Use
 		&i.ID,
 		&i.Email,
 		&i.EmailVerified,
-		&i.AppleSub,
-		&i.GoogleSub,
 		&i.DisplayName,
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.MediaPurgedAt,
+		&i.YandexSub,
+		&i.VkSub,
 	)
 	return i, err
 }
@@ -311,15 +311,15 @@ const softDeleteUser = `-- name: SoftDeleteUser :exec
 UPDATE users
 SET deleted_at = NOW(),
     email = NULL,
-    apple_sub = NULL,
-    google_sub = NULL,
+    yandex_sub = NULL,
+    vk_sub = NULL,
     updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
 `
 
 // Null out unique identifiers so the user can re-register with the same
-// email or OAuth subject later. Apple/Google review explicitly requires
-// account deletion to free up identifiers.
+// email or OAuth subject later. Store review (and 152-FZ erasure requests)
+// require account deletion to free up identifiers.
 func (q *Queries) SoftDeleteUser(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, softDeleteUser, id)
 	return err

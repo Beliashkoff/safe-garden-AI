@@ -116,55 +116,145 @@ func TestLogout_RevokesRefresh(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
-func TestApple_SignInCreatesAndReuses(t *testing.T) {
-	h := newHarness(t)
-	const nonce = "nonce-apple-1"
-	tok := h.idp.appleToken(t, "apple-sub-1", "apple-user@example.com", nonce, true)
+// startOAuth runs POST /v1/auth/{provider}/start and returns the response.
+func (h *harness) startOAuth(t *testing.T, provider string) oauthStartResp {
+	t.Helper()
+	resp, data := h.postJSON(t, "/v1/auth/"+provider+"/start", nil)
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "start body: %s", data)
+	var out oauthStartResp
+	require.NoError(t, json.Unmarshal(data, &out))
+	require.NotEmpty(t, out.State)
+	return out
+}
 
-	resp, data := h.postJSON(t, "/v1/auth/apple", map[string]string{"id_token": tok, "nonce": nonce})
-	require.Equalf(t, http.StatusOK, resp.StatusCode, "apple body: %s", data)
-	var first signInResp
-	require.NoError(t, json.Unmarshal(data, &first))
-	assert.True(t, first.User.Providers.Apple)
+type oauthStartResp struct {
+	State         string `json:"state"`
+	CodeChallenge string `json:"code_challenge"`
+	AuthURL       string `json:"auth_url"`
+}
+
+func (h *harness) signInYandex(t *testing.T, sub, email string) signInResp {
+	t.Helper()
+	start := h.startOAuth(t, "yandex")
+	code := h.yandex.addCode(sub, email)
+	resp, data := h.postJSON(t, "/v1/auth/yandex/complete",
+		map[string]string{"code": code, "state": start.State})
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "complete body: %s", data)
+	var out signInResp
+	require.NoError(t, json.Unmarshal(data, &out))
+	return out
+}
+
+func (h *harness) signInVK(t *testing.T, sub, email string) signInResp {
+	t.Helper()
+	start := h.startOAuth(t, "vk")
+	code, deviceID := h.vk.addCode(sub, email)
+	resp, data := h.postJSON(t, "/v1/auth/vk/complete",
+		map[string]string{"code": code, "state": start.State, "device_id": deviceID})
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "complete body: %s", data)
+	var out signInResp
+	require.NoError(t, json.Unmarshal(data, &out))
+	return out
+}
+
+func TestYandex_StartReturnsAuthURL(t *testing.T) {
+	h := newHarness(t)
+	start := h.startOAuth(t, "yandex")
+	assert.Contains(t, start.AuthURL, "/authorize?")
+	assert.Contains(t, start.AuthURL, "code_challenge_method=S256")
+	assert.Contains(t, start.AuthURL, "client_id="+testYandexClientID)
+	assert.Empty(t, start.CodeChallenge, "yandex challenge is embedded in auth_url only")
+}
+
+func TestYandex_SignInCreatesAndReuses(t *testing.T) {
+	h := newHarness(t)
+	first := h.signInYandex(t, "100500", "ya-user@yandex.ru")
+	assert.True(t, first.User.Providers.Yandex)
+	assert.Equal(t, "ya-user@yandex.ru", first.User.Email)
+	assert.True(t, first.User.EmailVerified)
 
 	// Second sign-in with the same subject returns the same account.
-	tok2 := h.idp.appleToken(t, "apple-sub-1", "apple-user@example.com", nonce, true)
-	_, data = h.postJSON(t, "/v1/auth/apple", map[string]string{"id_token": tok2, "nonce": nonce})
-	var second signInResp
-	require.NoError(t, json.Unmarshal(data, &second))
+	second := h.signInYandex(t, "100500", "ya-user@yandex.ru")
 	assert.Equal(t, first.User.ID, second.User.ID)
 }
 
-func TestApple_NonceMismatch(t *testing.T) {
+func TestYandex_InvalidState(t *testing.T) {
 	h := newHarness(t)
-	tok := h.idp.appleToken(t, "apple-sub-2", "x@example.com", "real-nonce", true)
-	resp, _ := h.postJSON(t, "/v1/auth/apple", map[string]string{"id_token": tok, "nonce": "wrong-nonce"})
+	code := h.yandex.addCode("100501", "x@yandex.ru")
+	resp, _ := h.postJSON(t, "/v1/auth/yandex/complete",
+		map[string]string{"code": code, "state": "forged-state-value-aaaaaaaaaaaaaa"})
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
-func TestGoogle_SignIn(t *testing.T) {
+func TestYandex_StateIsSingleUse(t *testing.T) {
 	h := newHarness(t)
-	tok := h.idp.googleToken(t, "google-sub-1", "g-user@example.com", true)
-	resp, data := h.postJSON(t, "/v1/auth/google", map[string]string{"id_token": tok})
-	require.Equalf(t, http.StatusOK, resp.StatusCode, "google body: %s", data)
-	var res signInResp
-	require.NoError(t, json.Unmarshal(data, &res))
-	assert.True(t, res.User.Providers.Google)
+	start := h.startOAuth(t, "yandex")
+	code := h.yandex.addCode("100502", "y@yandex.ru")
+	resp, _ := h.postJSON(t, "/v1/auth/yandex/complete",
+		map[string]string{"code": code, "state": start.State})
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Replaying the consumed state fails even with a fresh provider code.
+	code2 := h.yandex.addCode("100502", "y@yandex.ru")
+	resp, _ = h.postJSON(t, "/v1/auth/yandex/complete",
+		map[string]string{"code": code2, "state": start.State})
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
-func TestAutoLinkByEmail(t *testing.T) {
+func TestYandex_StateProviderMismatch(t *testing.T) {
 	h := newHarness(t)
-	emailUser := h.signInEmail(t, "link@example.com")
+	// A state issued for VK must not complete a Yandex sign-in.
+	start := h.startOAuth(t, "vk")
+	code := h.yandex.addCode("100503", "z@yandex.ru")
+	resp, _ := h.postJSON(t, "/v1/auth/yandex/complete",
+		map[string]string{"code": code, "state": start.State})
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
 
-	tok := h.idp.googleToken(t, "google-sub-link", "link@example.com", true)
-	resp, data := h.postJSON(t, "/v1/auth/google", map[string]string{"id_token": tok})
-	require.Equalf(t, http.StatusOK, resp.StatusCode, "google body: %s", data)
-	var linked signInResp
-	require.NoError(t, json.Unmarshal(data, &linked))
+func TestVK_StartReturnsChallenge(t *testing.T) {
+	h := newHarness(t)
+	start := h.startOAuth(t, "vk")
+	assert.NotEmpty(t, start.CodeChallenge)
+	assert.Empty(t, start.AuthURL, "vk UI is built by the native SDK")
+}
 
-	assert.Equal(t, emailUser.User.ID, linked.User.ID, "google sign-in should attach to the email account")
-	assert.True(t, linked.User.Providers.Google)
+func TestVK_SignIn(t *testing.T) {
+	h := newHarness(t)
+	res := h.signInVK(t, "777001", "vk-user@example.com")
+	assert.True(t, res.User.Providers.VK)
+	// VK email is not provider-verified → not stored on the account.
+	assert.Empty(t, res.User.Email)
+	assert.False(t, res.User.EmailVerified)
+}
+
+func TestVK_WrongDeviceID(t *testing.T) {
+	h := newHarness(t)
+	start := h.startOAuth(t, "vk")
+	code, _ := h.vk.addCode("777002", "")
+	resp, _ := h.postJSON(t, "/v1/auth/vk/complete",
+		map[string]string{"code": code, "state": start.State, "device_id": "wrong-device"})
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestAutoLinkByEmail_Yandex(t *testing.T) {
+	h := newHarness(t)
+	emailUser := h.signInEmail(t, "link@yandex.ru")
+
+	linked := h.signInYandex(t, "100600", "link@yandex.ru")
+	assert.Equal(t, emailUser.User.ID, linked.User.ID, "yandex sign-in should attach to the email account")
+	assert.True(t, linked.User.Providers.Yandex)
 	assert.True(t, linked.User.Providers.Email)
+}
+
+func TestVK_NeverAutoLinksByEmail(t *testing.T) {
+	h := newHarness(t)
+	emailUser := h.signInEmail(t, "owner@example.com")
+
+	// VK reports the same email, but it is not provider-verified — a separate
+	// account is created instead of attaching to the OTP one (anti-takeover).
+	vkUser := h.signInVK(t, "777003", "owner@example.com")
+	assert.NotEqual(t, emailUser.User.ID, vkUser.User.ID)
+	assert.Empty(t, vkUser.User.Email)
 }
 
 func TestRequireAuth_RejectsMissingAndBadToken(t *testing.T) {
@@ -193,14 +283,16 @@ func TestDeleteAccount(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
-func TestValidation_AppleEmptyBody(t *testing.T) {
+func TestValidation_OAuthCompleteEmptyBody(t *testing.T) {
 	h := newHarness(t)
-	resp, data := h.postJSON(t, "/v1/auth/apple", map[string]string{})
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	var e errorResp
-	require.NoError(t, json.Unmarshal(data, &e))
-	assert.Equal(t, "validation_failed", e.Error.Code)
-	assert.NotEmpty(t, e.RequestID)
+	for _, path := range []string{"/v1/auth/yandex/complete", "/v1/auth/vk/complete"} {
+		resp, data := h.postJSON(t, path, map[string]string{})
+		require.Equalf(t, http.StatusBadRequest, resp.StatusCode, "%s body: %s", path, data)
+		var e errorResp
+		require.NoError(t, json.Unmarshal(data, &e))
+		assert.Equal(t, "validation_failed", e.Error.Code)
+		assert.NotEmpty(t, e.RequestID)
+	}
 }
 
 func TestDocs_Served(t *testing.T) {

@@ -8,13 +8,28 @@ part 'auth_models.g.dart';
 @freezed
 class AuthProviders with _$AuthProviders {
   const factory AuthProviders({
-    @Default(false) bool apple,
-    @Default(false) bool google,
+    @Default(false) bool yandex,
+    @Default(false) bool vk,
     @Default(false) bool email,
   }) = _AuthProviders;
 
   factory AuthProviders.fromJson(Map<String, dynamic> json) =>
       _$AuthProvidersFromJson(json);
+}
+
+/// Response of POST /auth/{yandex,vk}/start: the one-time attempt handle.
+/// [authUrl] is set for Yandex (system-browser flow); [codeChallenge] for the
+/// VK ID SDK confidential flow.
+@freezed
+class OAuthStartResponse with _$OAuthStartResponse {
+  const factory OAuthStartResponse({
+    required String state,
+    @JsonKey(name: 'auth_url') String? authUrl,
+    @JsonKey(name: 'code_challenge') String? codeChallenge,
+  }) = _OAuthStartResponse;
+
+  factory OAuthStartResponse.fromJson(Map<String, dynamic> json) =>
+      _$OAuthStartResponseFromJson(json);
 }
 
 /// The authenticated user profile (backend `user` object).
@@ -44,7 +59,7 @@ class AuthTokens with _$AuthTokens {
       _$AuthTokensFromJson(json);
 }
 
-/// Response of the sign-in endpoints (Apple/Google/email-verify).
+/// Response of the sign-in endpoints (Yandex/VK/email-verify).
 @freezed
 class SignInResponse with _$SignInResponse {
   const factory SignInResponse({

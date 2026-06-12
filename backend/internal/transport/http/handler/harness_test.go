@@ -9,13 +9,11 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io"
 	"log/slog"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -51,8 +49,11 @@ import (
 )
 
 const (
-	testAppleBundle  = "com.example.app"
-	testGoogleClient = "ios.apps.googleusercontent.com"
+	testYandexClientID = "ya-client-id"
+	testYandexSecret   = "ya-client-secret"
+	testYandexRedirect = "safegarden://auth/yandex"
+	testVKClientID     = "53000000"
+	testVKRedirect     = "vk53000000://vk.ru"
 )
 
 var (
@@ -127,8 +128,8 @@ func applyMigrations(dsn string) error {
 func truncateAll(t *testing.T) {
 	t.Helper()
 	_, err := adminDB.Exec("TRUNCATE users, refresh_tokens, email_codes, audit_log, " +
-		"conversations, messages, message_blocks, uploads, fertilizers, usage_log " +
-		"RESTART IDENTITY CASCADE")
+		"conversations, messages, message_blocks, uploads, fertilizers, usage_log, " +
+		"oauth_states RESTART IDENTITY CASCADE")
 	require.NoError(t, err)
 }
 
@@ -269,12 +270,14 @@ func (f *fakeObjStore) getCount(key string) int {
 	return n
 }
 
-// harness is a full HTTP stack wired against the shared test Postgres, a fresh
-// fake IdP, a recording mailer, and a mock LLM client (mutable by chat tests).
+// harness is a full HTTP stack wired against the shared test Postgres, fresh
+// fake OAuth providers, a recording mailer, and a mock LLM client (mutable by
+// chat tests).
 type harness struct {
 	srv    *httptest.Server
 	mailer *recordingMailer
-	idp    *fakeIDP
+	yandex *fakeYandex
+	vk     *fakeVK
 	issuer *authpkg.Issuer
 	mock   *llm.MockClient
 	objs   *fakeObjStore
@@ -302,20 +305,27 @@ func newHarness(t *testing.T, opts ...harnessOpt) *harness {
 		o(&cfg)
 	}
 
-	idp := newFakeIDP(t)
-	t.Cleanup(idp.Close)
+	fakeYa := newFakeYandex(t)
+	t.Cleanup(fakeYa.Close)
+	fakeVKSrv := newFakeVK(t)
+	t.Cleanup(fakeVKSrv.Close)
 
-	verifier, err := authpkg.NewVerifier(testCtx, authpkg.VerifierConfig{
-		AppleBundleID:        testAppleBundle,
-		AppleIssuerOverride:  idp.issuer,
-		GoogleClientIOS:      testGoogleClient,
-		GoogleIssuerOverride: idp.issuer,
+	yandexClient := authpkg.NewYandex(authpkg.YandexConfig{
+		ClientID:     testYandexClientID,
+		ClientSecret: testYandexSecret,
+		RedirectURI:  testYandexRedirect,
+		OAuthBaseURL: fakeYa.srv.URL,
+		LoginBaseURL: fakeYa.srv.URL,
 	})
-	require.NoError(t, err)
+	vkClient := authpkg.NewVK(authpkg.VKConfig{
+		ClientID:    testVKClientID,
+		RedirectURI: testVKRedirect,
+		BaseURL:     fakeVKSrv.srv.URL,
+	})
 
 	issuer := newTestIssuer(t)
 	rec := &recordingMailer{}
-	authService := authuc.NewService(testStore, issuer, verifier, rec,
+	authService := authuc.NewService(testStore, issuer, yandexClient, vkClient, rec,
 		ratelimit.NewDB(testStore), 720*time.Hour, testLogger)
 
 	mock := llm.NewMockClient()
@@ -341,7 +351,7 @@ func newHarness(t *testing.T, opts ...harnessOpt) *harness {
 	srv := httptest.NewServer(root)
 	t.Cleanup(srv.Close)
 
-	return &harness{srv: srv, mailer: rec, idp: idp, issuer: issuer, mock: mock, objs: objs, stt: stt, conv: conv}
+	return &harness{srv: srv, mailer: rec, yandex: fakeYa, vk: fakeVKSrv, issuer: issuer, mock: mock, objs: objs, stt: stt, conv: conv}
 }
 
 func newTestIssuer(t *testing.T) *authpkg.Issuer {
@@ -405,8 +415,8 @@ type signInResp struct {
 		Email         string `json:"email"`
 		EmailVerified bool   `json:"email_verified"`
 		Providers     struct {
-			Apple  bool `json:"apple"`
-			Google bool `json:"google"`
+			Yandex bool `json:"yandex"`
+			VK     bool `json:"vk"`
 			Email  bool `json:"email"`
 		} `json:"providers"`
 	} `json:"user"`
@@ -420,70 +430,164 @@ type errorResp struct {
 	RequestID string `json:"request_id"`
 }
 
-// --- fake IdP (mirrors internal/auth oidc_test.go) ---
+// --- fake OAuth providers ---
 
-type fakeIDP struct {
-	srv    *httptest.Server
-	key    *rsa.PrivateKey
-	kid    string
-	issuer string
+type providerIdentity struct {
+	sub   string
+	email string
 }
 
-func newFakeIDP(t *testing.T) *fakeIDP {
-	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+// fakeYandex emulates oauth.yandex.ru/token + login.yandex.ru/info?format=jwt.
+// Codes are registered per test via addCode; the /info response is an HS256
+// JWT signed with the client_secret, exactly like the real endpoint.
+type fakeYandex struct {
+	srv *httptest.Server
 
-	idp := &fakeIDP{key: key, kid: "idp-key"}
+	mu     sync.Mutex
+	codes  map[string]providerIdentity // auth code → identity
+	tokens map[string]providerIdentity // access token → identity
+	n      int
+}
+
+func newFakeYandex(t *testing.T) *fakeYandex {
+	t.Helper()
+	f := &fakeYandex{
+		codes:  map[string]providerIdentity{},
+		tokens: map[string]providerIdentity{},
+	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		id, ok := f.codes[r.PostFormValue("code")]
+		if r.PostFormValue("grant_type") != "authorization_code" ||
+			r.PostFormValue("client_id") != testYandexClientID ||
+			r.PostFormValue("client_secret") != testYandexSecret ||
+			r.PostFormValue("code_verifier") == "" || !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"error":"invalid_grant"}`)
+			return
+		}
+		delete(f.codes, r.PostFormValue("code"))
+		f.n++
+		tok := fmt.Sprintf("ya-access-%d", f.n)
+		f.tokens[tok] = id
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"issuer":"%s","jwks_uri":"%s/jwks","authorization_endpoint":"%s/auth","token_endpoint":"%s/token","response_types_supported":["id_token"],"subject_types_supported":["public"],"id_token_signing_alg_values_supported":["RS256"]}`,
-			idp.issuer, idp.issuer, idp.issuer, idp.issuer)
+		fmt.Fprintf(w, `{"token_type":"bearer","access_token":"%s","expires_in":31536000}`, tok)
 	})
-	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		n := base64.RawURLEncoding.EncodeToString(key.N.Bytes())
-		e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes())
-		fmt.Fprintf(w, `{"keys":[{"kty":"RSA","use":"sig","alg":"RS256","kid":"%s","n":"%s","e":"%s"}]}`, idp.kid, n, e)
+	mux.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		id, ok := f.tokens[strings.TrimPrefix(r.Header.Get("Authorization"), "OAuth ")]
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		claims := jwt.MapClaims{
+			"iss":   "login.yandex.ru",
+			"iat":   time.Now().Add(-time.Minute).Unix(),
+			"exp":   time.Now().Add(10 * time.Minute).Unix(),
+			"uid":   id.sub,
+			"login": "tester",
+		}
+		if id.email != "" {
+			claims["email"] = id.email
+		}
+		signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).
+			SignedString([]byte(testYandexSecret))
+		require.NoError(t, err)
+		fmt.Fprint(w, signed)
 	})
-	idp.srv = httptest.NewServer(mux)
-	idp.issuer = idp.srv.URL
-	return idp
+	f.srv = httptest.NewServer(mux)
+	return f
 }
 
-func (idp *fakeIDP) Close() { idp.srv.Close() }
+func (f *fakeYandex) Close() { f.srv.Close() }
 
-func (idp *fakeIDP) appleToken(t *testing.T, sub, email, nonce string, emailVerified bool) string {
-	return idp.sign(t, jwt.MapClaims{
-		"iss":            idp.issuer,
-		"aud":            testAppleBundle,
-		"sub":            sub,
-		"iat":            time.Now().Add(-time.Minute).Unix(),
-		"exp":            time.Now().Add(10 * time.Minute).Unix(),
-		"email":          email,
-		"email_verified": emailVerified,
-		"nonce":          nonce,
-	})
+// addCode registers a one-time auth code for the given identity.
+func (f *fakeYandex) addCode(sub, email string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.n++
+	code := fmt.Sprintf("ya-code-%d", f.n)
+	f.codes[code] = providerIdentity{sub: sub, email: email}
+	return code
 }
 
-func (idp *fakeIDP) googleToken(t *testing.T, sub, email string, emailVerified bool) string {
-	return idp.sign(t, jwt.MapClaims{
-		"iss":            idp.issuer,
-		"aud":            testGoogleClient,
-		"sub":            sub,
-		"iat":            time.Now().Add(-time.Minute).Unix(),
-		"exp":            time.Now().Add(10 * time.Minute).Unix(),
-		"email":          email,
-		"email_verified": emailVerified,
-	})
+// fakeVK emulates id.vk.ru/oauth2/auth + /oauth2/user_info. Codes carry the
+// device_id VK would issue next to them; the exchange echoes the request state.
+type fakeVK struct {
+	srv *httptest.Server
+
+	mu     sync.Mutex
+	codes  map[string]vkCode
+	tokens map[string]providerIdentity
+	n      int
 }
 
-func (idp *fakeIDP) sign(t *testing.T, claims jwt.MapClaims) string {
+type vkCode struct {
+	id       providerIdentity
+	deviceID string
+}
+
+const testVKDeviceID = "vk-device-1"
+
+func newFakeVK(t *testing.T) *fakeVK {
 	t.Helper()
-	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	tok.Header["kid"] = idp.kid
-	out, err := tok.SignedString(idp.key)
-	require.NoError(t, err)
-	return out
+	f := &fakeVK{
+		codes:  map[string]vkCode{},
+		tokens: map[string]providerIdentity{},
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/oauth2/auth", func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		c, ok := f.codes[r.PostFormValue("code")]
+		if r.PostFormValue("grant_type") != "authorization_code" ||
+			r.PostFormValue("client_id") != testVKClientID ||
+			r.PostFormValue("redirect_uri") != testVKRedirect ||
+			r.PostFormValue("code_verifier") == "" ||
+			!ok || r.PostFormValue("device_id") != c.deviceID {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"error":"invalid_request"}`)
+			return
+		}
+		delete(f.codes, r.PostFormValue("code"))
+		f.n++
+		tok := fmt.Sprintf("vk-access-%d", f.n)
+		f.tokens[tok] = c.id
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"access_token":"%s","refresh_token":"r","id_token":"i","token_type":"Bearer","expires_in":3600,"user_id":%s,"state":"%s","scope":"vkid.personal_info email"}`,
+			tok, c.id.sub, r.PostFormValue("state"))
+	})
+	mux.HandleFunc("/oauth2/user_info", func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		id, ok := f.tokens[r.PostFormValue("access_token")]
+		if !ok || r.PostFormValue("client_id") != testVKClientID {
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"error":"invalid_token"}`)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"user":{"user_id":%s,"first_name":"Test","last_name":"User","email":"%s"}}`, id.sub, id.email)
+	})
+	f.srv = httptest.NewServer(mux)
+	return f
+}
+
+func (f *fakeVK) Close() { f.srv.Close() }
+
+// addCode registers a one-time auth code (numeric sub!) and returns it with
+// the device_id the client must echo to the exchange.
+func (f *fakeVK) addCode(sub, email string) (code, deviceID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.n++
+	code = fmt.Sprintf("vk-code-%d", f.n)
+	f.codes[code] = vkCode{id: providerIdentity{sub: sub, email: email}, deviceID: testVKDeviceID}
+	return code, testVKDeviceID
 }
