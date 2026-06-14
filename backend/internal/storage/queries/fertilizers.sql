@@ -1,7 +1,7 @@
 -- name: RecommendFertilizers :many
 -- ARCH §6.4. plant = NULL → no crop filter; universal items (plants IS NULL) always
 -- match. Ranked by priority (highest first), at most 3.
-SELECT id, slug, name, short_desc, image_url, deeplink_url
+SELECT id, slug, name, short_desc, image_url, deeplink_url, price_rub
 FROM fertilizers
 WHERE active
   AND problems @> ARRAY[sqlc.arg('problem')::text]
@@ -36,3 +36,46 @@ ON CONFLICT (slug) DO UPDATE SET
     active = EXCLUDED.active,
     updated_at = NOW()
 RETURNING *;
+
+-- Admin panel catalog CRUD. The catalog is small (tens of items), so the list
+-- is unpaginated and filtered client-side.
+
+-- name: ListFertilizers :many
+SELECT * FROM fertilizers ORDER BY created_at DESC;
+
+-- name: GetFertilizerByID :one
+SELECT * FROM fertilizers WHERE id = $1;
+
+-- name: CreateFertilizer :one
+INSERT INTO fertilizers (
+    slug, name, short_desc, long_desc, image_url, deeplink_url,
+    category, problems, plants, priority, active, price_rub
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING *;
+
+-- name: UpdateFertilizer :one
+UPDATE fertilizers SET
+    slug = $2,
+    name = $3,
+    short_desc = $4,
+    long_desc = $5,
+    image_url = $6,
+    deeplink_url = $7,
+    category = $8,
+    problems = $9,
+    plants = $10,
+    priority = $11,
+    active = $12,
+    price_rub = $13,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: DeleteFertilizer :execrows
+DELETE FROM fertilizers WHERE id = $1;
+
+-- name: CountFertilizers :one
+SELECT
+    COUNT(*)                                  AS total,
+    COUNT(*) FILTER (WHERE active)::bigint    AS active
+FROM fertilizers;

@@ -5,10 +5,12 @@
 package objstore
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -53,6 +55,10 @@ func (Disabled) GetLimited(context.Context, string, int64) ([]byte, string, erro
 	return nil, "", ErrDisabled
 }
 
+func (Disabled) PutPublic(context.Context, string, string, []byte) (string, error) {
+	return "", ErrDisabled
+}
+
 func (Disabled) DeletePrefix(context.Context, string) (int, error) {
 	return 0, ErrDisabled
 }
@@ -76,6 +82,9 @@ type Client struct {
 	s3      *s3.Client
 	presign *s3.PresignClient
 	bucket  string
+	// publicBase is the path-style URL prefix for publicly readable objects
+	// (endpoint/bucket). Empty when no explicit endpoint is configured.
+	publicBase string
 }
 
 // New builds the client. The bucket is required; an empty endpoint falls back
@@ -93,11 +102,37 @@ func New(cfg Config) (*Client, error) {
 		opts.BaseEndpoint = aws.String(cfg.Endpoint)
 	}
 	client := s3.New(opts)
+	publicBase := ""
+	if cfg.Endpoint != "" {
+		publicBase = strings.TrimRight(cfg.Endpoint, "/") + "/" + cfg.Bucket
+	}
 	return &Client{
-		s3:      client,
-		presign: s3.NewPresignClient(client),
-		bucket:  cfg.Bucket,
+		s3:         client,
+		presign:    s3.NewPresignClient(client),
+		bucket:     cfg.Bucket,
+		publicBase: publicBase,
 	}, nil
+}
+
+// PutPublic uploads a small server-side object (admin catalog images) with a
+// public-read ACL and returns its stable public URL. This is NOT the user
+// media path — user uploads always go through presigned PUT (CLAUDE.md #4);
+// catalog images need a permanent URL the mobile card can load without auth.
+func (c *Client) PutPublic(ctx context.Context, key, contentType string, data []byte) (string, error) {
+	if c.publicBase == "" {
+		return "", fmt.Errorf("objstore: public URL base unknown (endpoint not configured)")
+	}
+	_, err := c.s3.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(c.bucket),
+		Key:         aws.String(key),
+		Body:        bytes.NewReader(data),
+		ContentType: aws.String(contentType),
+		ACL:         types.ObjectCannedACLPublicRead,
+	})
+	if err != nil {
+		return "", fmt.Errorf("objstore: put public: %w", err)
+	}
+	return c.publicBase + "/" + key, nil
 }
 
 // PresignPut returns a presigned PUT URL valid for ttl. The content type is

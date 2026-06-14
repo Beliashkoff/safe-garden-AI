@@ -173,9 +173,18 @@ func formatProductsForClaude(products []llm.FertilizerProduct) string {
 	var b strings.Builder
 	b.WriteString("Найдены подходящие удобрения из каталога:\n")
 	for i, pr := range products {
-		fmt.Fprintf(&b, "%d. %s — %s\n", i+1, pr.Name, pr.ShortDesc)
+		fmt.Fprintf(&b, "%d. %s — %s", i+1, pr.Name, pr.ShortDesc)
+		// Price travels in the tool_result so Claude can answer a direct price
+		// question (system prompt: state it only if the user asks). It is also
+		// shown in the structured card; omitting it here would make the prompt's
+		// price rule unsatisfiable.
+		if pr.PriceRub != nil {
+			fmt.Fprintf(&b, " (цена: %d ₽)", *pr.PriceRub)
+		}
+		b.WriteByte('\n')
 	}
-	b.WriteString("Карточки уже показаны пользователю. Кратко порекомендуй их в ответе.")
+	b.WriteString("Карточки уже показаны пользователю. Кратко порекомендуй их в ответе. " +
+		"Цену называй только если пользователь спросил.")
 	return b.String()
 }
 

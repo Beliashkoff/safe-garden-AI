@@ -20,6 +20,9 @@ import (
 const (
 	defaultRetention = 7 * 24 * time.Hour // unused-upload TTL (ROADMAP §3.2)
 	defaultBatch     = 100                // users scanned per purge run
+	// errorEventRetention — admin panel error feed depth. Old 5xx rows carry no
+	// value once investigated; docker logs remain the long-term record.
+	errorEventRetention = 30 * 24 * time.Hour
 )
 
 // store is the subset of storage.Store the cleanup job needs (consumer-side).
@@ -29,6 +32,9 @@ type store interface {
 	ListUnusedUploadsBefore(ctx context.Context, createdAt pgtype.Timestamptz) ([]db.Upload, error)
 	DeleteUpload(ctx context.Context, storageKey string) error
 	InsertAuditLog(ctx context.Context, arg db.InsertAuditLogParams) error
+	DeleteExpiredAdminSessions(ctx context.Context) (int64, error)
+	DeleteExpiredAdminCodes(ctx context.Context) (int64, error)
+	DeleteOldErrorEvents(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
 }
 
 // objDeleter removes objects from object storage (satisfied by *objstore.Client).
@@ -69,8 +75,32 @@ func (s *Service) RunOnce(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("cleanup: gc unused uploads: %w", err)
 	}
-	s.logger.InfoContext(ctx, "cleanup run complete", "users_purged", purged, "uploads_gc", gc)
+	adminGC, err := s.GCAdminArtifacts(ctx)
+	if err != nil {
+		return fmt.Errorf("cleanup: gc admin artifacts: %w", err)
+	}
+	s.logger.InfoContext(ctx, "cleanup run complete",
+		"users_purged", purged, "uploads_gc", gc, "admin_rows_gc", adminGC)
 	return nil
+}
+
+// GCAdminArtifacts removes long-expired admin sessions and codes plus old
+// error-feed rows. Pure DB housekeeping, idempotent.
+func (s *Service) GCAdminArtifacts(ctx context.Context) (int64, error) {
+	sessions, err := s.store.DeleteExpiredAdminSessions(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("delete expired admin sessions: %w", err)
+	}
+	codes, err := s.store.DeleteExpiredAdminCodes(ctx)
+	if err != nil {
+		return sessions, fmt.Errorf("delete expired admin codes: %w", err)
+	}
+	cutoff := pgtype.Timestamptz{Time: s.now().Add(-errorEventRetention), Valid: true}
+	events, err := s.store.DeleteOldErrorEvents(ctx, cutoff)
+	if err != nil {
+		return sessions + codes, fmt.Errorf("delete old error events: %w", err)
+	}
+	return sessions + codes + events, nil
 }
 
 // PurgeDeletedUserMedia deletes the Object Storage prefix u/{user_id}/ for each

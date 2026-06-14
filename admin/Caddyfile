@@ -1,0 +1,22 @@
+# Static file server for the admin SPA, internal to the docker network on :80.
+# The edge Caddy (prod-yandex.Caddyfile) terminates TLS for admin.<domain> and
+# reverse-proxies non-API paths here; /admin/v1/* it sends straight to the api.
+:80 {
+	root * /srv
+	encode gzip zstd
+
+	# Long-cache hashed assets; never cache the HTML shell.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	header /index.html Cache-Control "no-cache"
+
+	# SPA fallback: client-side routes (/catalog, /errors, ...) resolve to the shell.
+	try_files {path} /index.html
+	file_server
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}

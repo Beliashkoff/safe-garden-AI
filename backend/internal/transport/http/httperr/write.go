@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/observability"
 )
 
 // envelope is the §4.7 wire shape: { error: {...}, request_id: "..." }.
@@ -34,6 +36,9 @@ func Write(w http.ResponseWriter, r *http.Request, err error) {
 			"code", string(he.Code),
 			"err", err.Error(),
 		)
+		// Surface the error text to the admin panel's error feed (the
+		// ErrorEvents middleware persists it together with the 5xx).
+		observability.NoteError(r.Context(), err.Error())
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

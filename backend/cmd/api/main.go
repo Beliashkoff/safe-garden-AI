@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/audio"
@@ -28,9 +29,12 @@ import (
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/observability"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/ratelimit"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/storage/db"
 	httptransport "github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http"
+	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/adminapi"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/handler"
 	"github.com/Beliashkoff/safe-garden-AI/backend/internal/transport/http/internalapi"
+	adminuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/admin"
 	authuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/auth"
 	chatuc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/chat"
 	fertilizeruc "github.com/Beliashkoff/safe-garden-AI/backend/internal/usecase/fertilizer"
@@ -45,6 +49,24 @@ type objStore interface {
 	PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error)
 	Get(ctx context.Context, key string) ([]byte, string, error)
 	GetLimited(ctx context.Context, key string, maxBytes int64) ([]byte, string, error)
+	PutPublic(ctx context.Context, key, contentType string, data []byte) (string, error)
+}
+
+// errorSink adapts the store to the observability.ErrorSink interface: every
+// 5xx response lands in admin_error_events for the panel's "Ошибки" tab.
+type errorSink struct{ store *storage.Store }
+
+func (s errorSink) RecordError(ctx context.Context, ev observability.ErrorEvent) {
+	if err := s.store.InsertErrorEvent(ctx, db.InsertErrorEventParams{
+		Source:    ev.Source,
+		Route:     ev.Route,
+		Method:    ev.Method,
+		Status:    int32(ev.Status), //nolint:gosec // HTTP status codes fit int32
+		RequestID: pgtype.Text{String: ev.RequestID, Valid: ev.RequestID != ""},
+		Message:   pgtype.Text{String: ev.Message, Valid: ev.Message != ""},
+	}); err != nil {
+		slog.Warn("error event insert failed", "err", err.Error())
+	}
 }
 
 // buildObjStore returns the configured object store, or a Disabled stub when S3
@@ -204,6 +226,13 @@ func main() { //nolint:gocyclo // composition root: wiring storage, auth, llm, r
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
+	// The 5xx error feed (admin_error_events) is an admin-panel feature, so it is
+	// only installed when the panel is enabled. This also means the api does not
+	// depend on migration 0014 until ADMIN_EMAIL is set (and 0014 applied). Kept
+	// outside Recoverer so panics-turned-500 are captured too.
+	if cfg.AdminEmail != "" {
+		r.Use(observability.ErrorEvents(errorSink{store: store}, "api"))
+	}
 	r.Use(middleware.Recoverer)
 	r.Use(observability.SentryMiddleware)
 	r.Use(observability.AccessLog(logger))
@@ -214,6 +243,29 @@ func main() { //nolint:gocyclo // composition root: wiring storage, auth, llm, r
 		TokenParser: issuer,
 		DocsEnabled: cfg.DocsEnabled,
 	}))
+
+	// Admin panel API (ADMIN_EMAIL pins the single operator). Off when the env
+	// is not configured — the api must never crash-loop over a missing admin
+	// var on deploy.
+	if cfg.AdminEmail != "" {
+		adminMailer, ok := mailerImpl.(mailer.AdminMailer)
+		if !ok {
+			slog.Error("mailer implementation lacks admin code support")
+			os.Exit(1)
+		}
+		if cfg.Env == "prod" && cfg.AdminAllowedOrigin == "" {
+			slog.Warn("ADMIN_ALLOWED_ORIGIN empty in prod — admin Origin (CSRF defense-in-depth) check disabled; rely on SameSite=Strict cookie")
+		}
+		adminService := adminuc.NewService(
+			store, adminMailer, objs, cfg.AdminEmail, cfg.AdminSessionTTL, logger,
+		)
+		r.Mount("/admin/v1", adminapi.New(
+			adminService, cfg.Env == "prod", cfg.AdminAllowedOrigin, logger,
+		).Routes())
+		slog.Info("admin panel enabled")
+	} else if cfg.Env == "prod" {
+		slog.Warn("ADMIN_EMAIL empty — admin panel disabled")
+	}
 
 	// Liveness — succeeds as long as the process is running.
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {

@@ -58,6 +58,14 @@ func (f *fakeStore) InsertAuditLog(_ context.Context, arg db.InsertAuditLogParam
 	return nil
 }
 
+func (f *fakeStore) DeleteExpiredAdminSessions(_ context.Context) (int64, error) { return 0, nil }
+
+func (f *fakeStore) DeleteExpiredAdminCodes(_ context.Context) (int64, error) { return 0, nil }
+
+func (f *fakeStore) DeleteOldErrorEvents(_ context.Context, _ pgtype.Timestamptz) (int64, error) {
+	return 0, nil
+}
+
 type fakeObjs struct {
 	prefixes    []string
 	deletedKeys []string

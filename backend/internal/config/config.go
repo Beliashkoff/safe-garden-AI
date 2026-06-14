@@ -69,6 +69,18 @@ type Config struct {
 	// leave on in prod (the contract is not secret) but available to disable.
 	DocsEnabled bool `envconfig:"DOCS_ENABLED" default:"true"`
 
+	// Admin panel (/admin/v1, served via admin.<domain>). Enabled only when
+	// ADMIN_EMAIL is set; it pins the single operator account — setup, sign-in
+	// and password-reset codes are issued for this address and no other.
+	// Deliberately NOT required in prod so an api deploy never crash-loops on a
+	// missing var (the panel simply stays off until the env is updated).
+	AdminEmail string `envconfig:"ADMIN_EMAIL" default:""`
+	// Sliding session lifetime: activity extends the cookie/session expiry.
+	AdminSessionTTL time.Duration `envconfig:"ADMIN_SESSION_TTL" default:"24h"`
+	// Expected Origin for mutating admin requests (e.g.
+	// https://admin.agronomai.site). Empty disables the check (dev).
+	AdminAllowedOrigin string `envconfig:"ADMIN_ALLOWED_ORIGIN" default:""`
+
 	// RedisAddr — Managed Redis for per-user rate limiting (ARCH §8.2). Empty in
 	// dev → message rate limiting is disabled (allow-all). Required in prod.
 	RedisAddr     string `envconfig:"REDIS_ADDR" default:""`

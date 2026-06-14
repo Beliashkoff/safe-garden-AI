@@ -1,5 +1,5 @@
-# Caddy для api.agronomai.site. Auto-HTTPS через Let's Encrypt.
-# Подменяется при деплое: $DOMAIN передаётся через env.
+# Caddy для api.agronomai.site + admin.agronomai.site. Auto-HTTPS через
+# Let's Encrypt. $DOMAIN и $ADMIN_DOMAIN передаются через env при деплое.
 
 {$DOMAIN} {
 	encode gzip zstd
@@ -20,6 +20,42 @@
 		Strict-Transport-Security "max-age=63072000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "no-referrer"
+		-Server
+	}
+}
+
+# Админ-панель. API под /admin/v1/* идёт в тот же бэкенд (контейнер api);
+# остальное — статика SPA из контейнера admin. Когда ADMIN_DOMAIN не задан,
+# адрес = admin.localhost (внутренний серт, без ACME, без публичного трафика).
+{$ADMIN_DOMAIN} {
+	encode gzip zstd
+
+	handle /admin/v1/* {
+		reverse_proxy api:8080 {
+			# Overwrite client-supplied forwarding headers with Caddy's own view
+			# of the peer, so the backend's per-IP admin brute-force guard cannot
+			# be bypassed by spoofing X-Forwarded-For / X-Real-IP / True-Client-IP.
+			header_up X-Forwarded-For {remote_host}
+			header_up -X-Real-IP
+			header_up -True-Client-IP
+		}
+	}
+
+	handle {
+		reverse_proxy admin:80
+	}
+
+	log {
+		output stdout
+		format json
+		level INFO
+	}
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Frame-Options "DENY"
 		-Server
 	}
 }

@@ -12,8 +12,125 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countFertilizers = `-- name: CountFertilizers :one
+SELECT
+    COUNT(*)                                  AS total,
+    COUNT(*) FILTER (WHERE active)::bigint    AS active
+FROM fertilizers
+`
+
+type CountFertilizersRow struct {
+	Total  int64
+	Active int64
+}
+
+func (q *Queries) CountFertilizers(ctx context.Context) (CountFertilizersRow, error) {
+	row := q.db.QueryRow(ctx, countFertilizers)
+	var i CountFertilizersRow
+	err := row.Scan(&i.Total, &i.Active)
+	return i, err
+}
+
+const createFertilizer = `-- name: CreateFertilizer :one
+INSERT INTO fertilizers (
+    slug, name, short_desc, long_desc, image_url, deeplink_url,
+    category, problems, plants, priority, active, price_rub
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, slug, name, short_desc, long_desc, image_url, deeplink_url, category, problems, plants, priority, active, created_at, updated_at, price_rub
+`
+
+type CreateFertilizerParams struct {
+	Slug        string
+	Name        string
+	ShortDesc   string
+	LongDesc    pgtype.Text
+	ImageUrl    pgtype.Text
+	DeeplinkUrl pgtype.Text
+	Category    string
+	Problems    []string
+	Plants      []string
+	Priority    pgtype.Int4
+	Active      bool
+	PriceRub    pgtype.Int4
+}
+
+func (q *Queries) CreateFertilizer(ctx context.Context, arg CreateFertilizerParams) (Fertilizer, error) {
+	row := q.db.QueryRow(ctx, createFertilizer,
+		arg.Slug,
+		arg.Name,
+		arg.ShortDesc,
+		arg.LongDesc,
+		arg.ImageUrl,
+		arg.DeeplinkUrl,
+		arg.Category,
+		arg.Problems,
+		arg.Plants,
+		arg.Priority,
+		arg.Active,
+		arg.PriceRub,
+	)
+	var i Fertilizer
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.ShortDesc,
+		&i.LongDesc,
+		&i.ImageUrl,
+		&i.DeeplinkUrl,
+		&i.Category,
+		&i.Problems,
+		&i.Plants,
+		&i.Priority,
+		&i.Active,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PriceRub,
+	)
+	return i, err
+}
+
+const deleteFertilizer = `-- name: DeleteFertilizer :execrows
+DELETE FROM fertilizers WHERE id = $1
+`
+
+func (q *Queries) DeleteFertilizer(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteFertilizer, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getFertilizerByID = `-- name: GetFertilizerByID :one
+SELECT id, slug, name, short_desc, long_desc, image_url, deeplink_url, category, problems, plants, priority, active, created_at, updated_at, price_rub FROM fertilizers WHERE id = $1
+`
+
+func (q *Queries) GetFertilizerByID(ctx context.Context, id uuid.UUID) (Fertilizer, error) {
+	row := q.db.QueryRow(ctx, getFertilizerByID, id)
+	var i Fertilizer
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.ShortDesc,
+		&i.LongDesc,
+		&i.ImageUrl,
+		&i.DeeplinkUrl,
+		&i.Category,
+		&i.Problems,
+		&i.Plants,
+		&i.Priority,
+		&i.Active,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PriceRub,
+	)
+	return i, err
+}
+
 const getFertilizerBySlug = `-- name: GetFertilizerBySlug :one
-SELECT id, slug, name, short_desc, long_desc, image_url, deeplink_url, category, problems, plants, priority, active, created_at, updated_at FROM fertilizers WHERE slug = $1
+SELECT id, slug, name, short_desc, long_desc, image_url, deeplink_url, category, problems, plants, priority, active, created_at, updated_at, price_rub FROM fertilizers WHERE slug = $1
 `
 
 func (q *Queries) GetFertilizerBySlug(ctx context.Context, slug string) (Fertilizer, error) {
@@ -34,12 +151,56 @@ func (q *Queries) GetFertilizerBySlug(ctx context.Context, slug string) (Fertili
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PriceRub,
 	)
 	return i, err
 }
 
+const listFertilizers = `-- name: ListFertilizers :many
+
+SELECT id, slug, name, short_desc, long_desc, image_url, deeplink_url, category, problems, plants, priority, active, created_at, updated_at, price_rub FROM fertilizers ORDER BY created_at DESC
+`
+
+// Admin panel catalog CRUD. The catalog is small (tens of items), so the list
+// is unpaginated and filtered client-side.
+func (q *Queries) ListFertilizers(ctx context.Context) ([]Fertilizer, error) {
+	rows, err := q.db.Query(ctx, listFertilizers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Fertilizer
+	for rows.Next() {
+		var i Fertilizer
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.ShortDesc,
+			&i.LongDesc,
+			&i.ImageUrl,
+			&i.DeeplinkUrl,
+			&i.Category,
+			&i.Problems,
+			&i.Plants,
+			&i.Priority,
+			&i.Active,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PriceRub,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recommendFertilizers = `-- name: RecommendFertilizers :many
-SELECT id, slug, name, short_desc, image_url, deeplink_url
+SELECT id, slug, name, short_desc, image_url, deeplink_url, price_rub
 FROM fertilizers
 WHERE active
   AND problems @> ARRAY[$1::text]
@@ -64,6 +225,7 @@ type RecommendFertilizersRow struct {
 	ShortDesc   string
 	ImageUrl    pgtype.Text
 	DeeplinkUrl pgtype.Text
+	PriceRub    pgtype.Int4
 }
 
 // ARCH §6.4. plant = NULL → no crop filter; universal items (plants IS NULL) always
@@ -84,6 +246,7 @@ func (q *Queries) RecommendFertilizers(ctx context.Context, arg RecommendFertili
 			&i.ShortDesc,
 			&i.ImageUrl,
 			&i.DeeplinkUrl,
+			&i.PriceRub,
 		); err != nil {
 			return nil, err
 		}
@@ -93,6 +256,78 @@ func (q *Queries) RecommendFertilizers(ctx context.Context, arg RecommendFertili
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateFertilizer = `-- name: UpdateFertilizer :one
+UPDATE fertilizers SET
+    slug = $2,
+    name = $3,
+    short_desc = $4,
+    long_desc = $5,
+    image_url = $6,
+    deeplink_url = $7,
+    category = $8,
+    problems = $9,
+    plants = $10,
+    priority = $11,
+    active = $12,
+    price_rub = $13,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, slug, name, short_desc, long_desc, image_url, deeplink_url, category, problems, plants, priority, active, created_at, updated_at, price_rub
+`
+
+type UpdateFertilizerParams struct {
+	ID          uuid.UUID
+	Slug        string
+	Name        string
+	ShortDesc   string
+	LongDesc    pgtype.Text
+	ImageUrl    pgtype.Text
+	DeeplinkUrl pgtype.Text
+	Category    string
+	Problems    []string
+	Plants      []string
+	Priority    pgtype.Int4
+	Active      bool
+	PriceRub    pgtype.Int4
+}
+
+func (q *Queries) UpdateFertilizer(ctx context.Context, arg UpdateFertilizerParams) (Fertilizer, error) {
+	row := q.db.QueryRow(ctx, updateFertilizer,
+		arg.ID,
+		arg.Slug,
+		arg.Name,
+		arg.ShortDesc,
+		arg.LongDesc,
+		arg.ImageUrl,
+		arg.DeeplinkUrl,
+		arg.Category,
+		arg.Problems,
+		arg.Plants,
+		arg.Priority,
+		arg.Active,
+		arg.PriceRub,
+	)
+	var i Fertilizer
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.ShortDesc,
+		&i.LongDesc,
+		&i.ImageUrl,
+		&i.DeeplinkUrl,
+		&i.Category,
+		&i.Problems,
+		&i.Plants,
+		&i.Priority,
+		&i.Active,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PriceRub,
+	)
+	return i, err
 }
 
 const upsertFertilizerBySlug = `-- name: UpsertFertilizerBySlug :one
@@ -112,7 +347,7 @@ ON CONFLICT (slug) DO UPDATE SET
     priority = EXCLUDED.priority,
     active = EXCLUDED.active,
     updated_at = NOW()
-RETURNING id, slug, name, short_desc, long_desc, image_url, deeplink_url, category, problems, plants, priority, active, created_at, updated_at
+RETURNING id, slug, name, short_desc, long_desc, image_url, deeplink_url, category, problems, plants, priority, active, created_at, updated_at, price_rub
 `
 
 type UpsertFertilizerBySlugParams struct {
@@ -161,6 +396,7 @@ func (q *Queries) UpsertFertilizerBySlug(ctx context.Context, arg UpsertFertiliz
 		&i.Active,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PriceRub,
 	)
 	return i, err
 }

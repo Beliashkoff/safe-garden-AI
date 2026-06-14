@@ -49,14 +49,19 @@ func (s *Service) Recommend(ctx context.Context, args llm.FertilizerToolArgs) ([
 
 	out := make([]llm.FertilizerProduct, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, llm.FertilizerProduct{
+		p := llm.FertilizerProduct{
 			ID:          r.ID.String(),
 			Slug:        r.Slug,
 			Name:        r.Name,
 			ShortDesc:   r.ShortDesc,
 			ImageURL:    r.ImageUrl.String,    // zero value "" when NULL
 			DeeplinkURL: r.DeeplinkUrl.String, // zero value "" when NULL
-		})
+		}
+		if r.PriceRub.Valid {
+			price := r.PriceRub.Int32
+			p.PriceRub = &price
+		}
+		out = append(out, p)
 	}
 	return out, nil
 }

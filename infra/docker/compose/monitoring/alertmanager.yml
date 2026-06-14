@@ -15,6 +15,12 @@ route:
   group_interval: 5m
   repeat_interval: 4h
   routes:
+    # Алерты админ-панели — отдельный получатель с пометкой в теме письма,
+    # чтобы оператор сразу видел: сломалось/атакуют именно админку.
+    - matchers:
+        - component = admin
+      receiver: admin
+      repeat_interval: 1h
     - matchers:
         - severity = critical
       receiver: team
@@ -31,3 +37,15 @@ receivers:
         auth_password_file: /etc/alertmanager/secrets/smtp_password
         require_tls: true
         send_resolved: true
+
+  - name: admin
+    email_configs:
+      - to: noreply@agronomai.site
+        from: noreply@agronomai.site
+        smarthost: smtp.yandex.ru:587
+        auth_username: noreply@agronomai.site
+        auth_password_file: /etc/alertmanager/secrets/smtp_password
+        require_tls: true
+        send_resolved: true
+        headers:
+          Subject: '[АДМИН-ПАНЕЛЬ] {{ .CommonAnnotations.summary }}'

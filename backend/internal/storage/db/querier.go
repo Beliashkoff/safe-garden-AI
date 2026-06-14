@@ -20,24 +20,52 @@ type Querier interface {
 	ConsumeOAuthState(ctx context.Context, arg ConsumeOAuthStateParams) (OauthState, error)
 	// Anti-flood cap for POST /auth/{provider}/start.
 	CountActiveOAuthStatesByIP(ctx context.Context, ip pgtype.Text) (int64, error)
+	// Aggregates for the admin panel dashboard. All read-only. Day bucketing is
+	// pinned to UTC via date_trunc(field, ts, 'UTC') (PG14+) so it does not depend
+	// on the server session TimeZone and agrees with the Go-side UTC cutoffs.
+	CountActiveUsers(ctx context.Context) (int64, error)
+	// Admin panel queries: operator account, sessions, one-time codes, audit log
+	// and the server error feed.
+	CountAdmins(ctx context.Context) (int64, error)
+	CountErrorEventsSince(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
+	CountFertilizerTapsSince(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
+	CountFertilizers(ctx context.Context) (CountFertilizersRow, error)
+	CountRecentAdminCodes(ctx context.Context, arg CountRecentAdminCodesParams) (int64, error)
 	// DB-level baseline for the ≤3-requests/hour/email rate limit. Redis adds a
 	// faster check in front of this when it lands (stage 2.3).
 	CountRecentEmailCodes(ctx context.Context, email string) (int64, error)
+	// DB-baseline brute-force guard: failed logins from one IP inside the window.
+	CountRecentFailedAdminLogins(ctx context.Context, arg CountRecentFailedAdminLoginsParams) (int64, error)
+	// Account-global guard (IP-independent): closes the per-IP bypass when an
+	// attacker rotates spoofed X-Forwarded-For values. The single-operator panel
+	// has one account, so a global cap is acceptable; it self-heals after the window.
+	CountRecentFailedAdminLoginsGlobal(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
+	CountUserMessages(ctx context.Context) (int64, error)
+	CountUserMessagesSince(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
+	CountUsersCreatedSince(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
+	CreateAdmin(ctx context.Context, arg CreateAdminParams) (AdminUser, error)
+	CreateAdminCode(ctx context.Context, arg CreateAdminCodeParams) (AdminCode, error)
+	CreateAdminSession(ctx context.Context, arg CreateAdminSessionParams) (AdminSession, error)
 	CreateEmailCode(ctx context.Context, arg CreateEmailCodeParams) (EmailCode, error)
+	CreateFertilizer(ctx context.Context, arg CreateFertilizerParams) (Fertilizer, error)
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
 	CreateMessageBlock(ctx context.Context, arg CreateMessageBlockParams) (MessageBlock, error)
 	CreateOAuthState(ctx context.Context, arg CreateOAuthStateParams) error
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateUpload(ctx context.Context, arg CreateUploadParams) (Upload, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteExpiredAdminCodes(ctx context.Context) (int64, error)
+	DeleteExpiredAdminSessions(ctx context.Context) (int64, error)
 	// Opportunistic sweep, called best-effort on each new attempt.
 	DeleteExpiredOAuthStates(ctx context.Context) error
 	// Periodic cleanup job (wired in a later stage). Keeps recently expired rows
 	// for a week to aid debugging reuse incidents.
 	DeleteExpiredRefreshTokens(ctx context.Context) error
+	DeleteFertilizer(ctx context.Context, id uuid.UUID) (int64, error)
 	// DELETE /v1/messages/:id — owner-scoped (user_id in WHERE). execrows lets the
 	// handler distinguish 404 (0 rows) from 204 (1 row). Blocks cascade.
 	DeleteMessage(ctx context.Context, arg DeleteMessageParams) (int64, error)
+	DeleteOldErrorEvents(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
 	// Removes one upload row after its object has been deleted from storage (GC).
 	DeleteUpload(ctx context.Context, storageKey string) error
 	// Hard-deletes the user's conversation; cascades to messages and message_blocks
@@ -46,10 +74,15 @@ type Querier interface {
 	// Hard-deletes the user's upload rows. The objects in Object Storage are removed
 	// asynchronously by the cleanup job (prefix u/{user_id}/).
 	DeleteUserUploads(ctx context.Context, userID uuid.UUID) error
+	GetActiveAdminCode(ctx context.Context, arg GetActiveAdminCodeParams) (AdminCode, error)
 	// Returns the most recent unused, unexpired code for the email. Older codes
 	// become irrelevant the moment a newer code is issued.
 	GetActiveEmailCode(ctx context.Context, email string) (EmailCode, error)
+	GetAdminByEmail(ctx context.Context, email string) (AdminUser, error)
+	GetAdminByID(ctx context.Context, id uuid.UUID) (AdminUser, error)
+	GetAdminSessionByHash(ctx context.Context, tokenHash []byte) (AdminSession, error)
 	GetConversationByUser(ctx context.Context, userID uuid.UUID) (Conversation, error)
+	GetFertilizerByID(ctx context.Context, id uuid.UUID) (Fertilizer, error)
 	GetFertilizerBySlug(ctx context.Context, slug string) (Fertilizer, error)
 	GetMessageByID(ctx context.Context, id uuid.UUID) (Message, error)
 	// Idempotent: one chat per user. The DO UPDATE is a no-op that exists only so
@@ -65,18 +98,27 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByVKSub(ctx context.Context, vkSub pgtype.Text) (User, error)
 	GetUserByYandexSub(ctx context.Context, yandexSub pgtype.Text) (User, error)
+	IncrementAdminCodeAttempts(ctx context.Context, id uuid.UUID) (int32, error)
 	// RETURNING attempts lets the caller atomically enforce the ≤5 attempts cap.
 	IncrementEmailCodeAttempts(ctx context.Context, id uuid.UUID) (int32, error)
+	InsertAdminAudit(ctx context.Context, arg InsertAdminAuditParams) error
 	// user_id is nullable for system-level events (e.g. failed verification of an
 	// id_token before any user could be resolved).
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
+	InsertErrorEvent(ctx context.Context, arg InsertErrorEventParams) error
 	InsertUsage(ctx context.Context, arg InsertUsageParams) error
 	LinkVKSub(ctx context.Context, arg LinkVKSubParams) (User, error)
 	LinkYandexSub(ctx context.Context, arg LinkYandexSubParams) (User, error)
+	ListActiveAdminSessions(ctx context.Context, adminID uuid.UUID) ([]AdminSession, error)
+	ListAdminAudit(ctx context.Context, arg ListAdminAuditParams) ([]AdminAuditLog, error)
 	ListAuditByUser(ctx context.Context, arg ListAuditByUserParams) ([]AuditLog, error)
 	// Batch-loads blocks for a page of messages (avoids N+1). Caller groups by
 	// message_id; rows arrive ordered within each message by order_index.
 	ListBlocksByMessageIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]MessageBlock, error)
+	ListErrorEvents(ctx context.Context, arg ListErrorEventsParams) ([]AdminErrorEvent, error)
+	// Admin panel catalog CRUD. The catalog is small (tens of items), so the list
+	// is unpaginated and filtered client-side.
+	ListFertilizers(ctx context.Context) ([]Fertilizer, error)
 	// Keyset page strictly older than the cursor. The row-value comparison rides
 	// the (conversation_id, created_at, id) index and is stable across created_at
 	// ties. Explicit casts so sqlc types the id cursor as uuid, not timestamptz.
@@ -89,29 +131,43 @@ type Querier interface {
 	// Cleanup work-list: deleted accounts whose Object Storage media has not been
 	// purged yet. Oldest first; bounded by $1.
 	ListUsersPendingMediaPurge(ctx context.Context, limit int32) ([]uuid.UUID, error)
+	MarkAdminCodeUsed(ctx context.Context, id uuid.UUID) error
 	MarkEmailCodeUsed(ctx context.Context, id uuid.UUID) error
 	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
 	MarkUploadUsed(ctx context.Context, storageKey string) error
 	// Marks the user's media prefix as purged so the cleanup job skips it next run.
 	MarkUserMediaPurged(ctx context.Context, id uuid.UUID) error
+	MessagesByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]MessagesByDayRow, error)
 	// ARCH §6.4. plant = NULL → no crop filter; universal items (plants IS NULL) always
 	// match. Ranked by priority (highest first), at most 3.
 	RecommendFertilizers(ctx context.Context, arg RecommendFertilizersParams) ([]RecommendFertilizersRow, error)
+	RevokeAdminSession(ctx context.Context, id uuid.UUID) error
+	RevokeAllAdminSessions(ctx context.Context, adminID uuid.UUID) error
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
+	RevokeOtherAdminSessions(ctx context.Context, arg RevokeOtherAdminSessionsParams) error
 	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
 	SetUserEmail(ctx context.Context, arg SetUserEmailParams) (User, error)
 	// Null out unique identifiers so the user can re-register with the same
 	// email or OAuth subject later. Store review (and 152-FZ erasure requests)
 	// require account deletion to free up identifiers.
 	SoftDeleteUser(ctx context.Context, id uuid.UUID) error
+	SumUsageSince(ctx context.Context, createdAt pgtype.Timestamptz) (SumUsageSinceRow, error)
 	// Backs per-user daily token limits and budget alerts (ARCH §13 cost risk; wired
 	// in Stage 2.3).
 	SumUserTokensSince(ctx context.Context, arg SumUserTokensSinceParams) (SumUserTokensSinceRow, error)
+	TopFertilizerTaps(ctx context.Context, createdAt pgtype.Timestamptz) ([]TopFertilizerTapsRow, error)
+	TouchAdminLogin(ctx context.Context, id uuid.UUID) error
+	// Sliding TTL: bump both the activity stamp and the expiry on use.
+	TouchAdminSession(ctx context.Context, arg TouchAdminSessionParams) error
 	TouchRefreshToken(ctx context.Context, id uuid.UUID) error
+	UpdateAdminPassword(ctx context.Context, arg UpdateAdminPasswordParams) error
+	UpdateFertilizer(ctx context.Context, arg UpdateFertilizerParams) (Fertilizer, error)
 	UpdateMessageStatus(ctx context.Context, arg UpdateMessageStatusParams) error
 	// Idempotent catalog seeding (Stage 5). Updates everything but id/created_at and
 	// bumps updated_at on conflict.
 	UpsertFertilizerBySlug(ctx context.Context, arg UpsertFertilizerBySlugParams) (Fertilizer, error)
+	UsageByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]UsageByDayRow, error)
+	UsersByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]UsersByDayRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -34,6 +34,30 @@ groups:
         annotations:
           summary: "Claude error rate above 5% for 5 minutes"
 
+      # Admin panel: a burst of failed sign-ins (brute-force / credential
+      # stuffing). component=admin routes it to the admin-tagged notification.
+      - alert: AdminLoginBruteForce
+        expr: increase(admin_login_failures_total[10m]) > 10
+        for: 0m
+        labels:
+          severity: critical
+          component: admin
+        annotations:
+          summary: "Админ-панель: >10 неудачных входов за 10 минут"
+          description: "Возможен подбор пароля к админ-панели. Проверьте журнал действий."
+
+      # Admin panel: any server-side 5xx on the /admin surface.
+      - alert: AdminPanel5xx
+        expr: |
+          sum(rate(http_requests_total{route=~"/admin/.*",status=~"5.."}[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: admin
+        annotations:
+          summary: "Админ-панель: серверные ошибки (5xx)"
+          description: "В админ-панели возникают ошибки сервера. Откройте вкладку «Ошибки»."
+
       # ARCH §9: disk usage > 80% (node-exporter).
       - alert: DiskUsageHigh
         expr: |

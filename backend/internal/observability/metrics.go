@@ -77,6 +77,10 @@ var (
 		},
 		[]string{"status"}, // presigned | rejected
 	)
+	adminLoginFailuresTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "admin_login_failures_total",
+		Help: "Failed admin panel sign-in attempts (brute-force alert source).",
+	})
 )
 
 func init() {
@@ -92,6 +96,7 @@ func init() {
 		claudeCostUSDTotal,
 		messageTotal,
 		uploadStatusTotal,
+		adminLoginFailuresTotal,
 	)
 }
 
@@ -147,3 +152,6 @@ func IncMessage(status string) { messageTotal.WithLabelValues(status).Inc() }
 
 // IncUpload records the outcome of an upload presign request.
 func IncUpload(status string) { uploadStatusTotal.WithLabelValues(status).Inc() }
+
+// IncAdminLoginFailure records a failed admin panel sign-in attempt.
+func IncAdminLoginFailure() { adminLoginFailuresTotal.Inc() }

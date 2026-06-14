@@ -11,6 +11,10 @@ type FertilizerProduct struct {
 	ShortDesc   string `json:"short_desc"`
 	ImageURL    string `json:"image_url"`
 	DeeplinkURL string `json:"deeplink_url"`
+	// PriceRub is the optional retail price in whole rubles. The system prompt
+	// instructs the model to mention it only when the user explicitly asks, so
+	// the recommendation itself stays native.
+	PriceRub *int32 `json:"price_rub,omitempty"`
 }
 
 // FertilizerToolArgs are the recommend_fertilizer tool inputs Claude produces

@@ -27,6 +27,15 @@ services:
       retries: 5
       start_period: 10s
 
+  # Admin panel SPA (static bundle). Served only through the edge Caddy on
+  # admin.<domain>; not published directly. Optional — when ADMIN_DOMAIN is
+  # unset the edge Caddy routes admin.localhost here (no public traffic).
+  admin:
+    image: ghcr.io/beliashkoff/safe-garden-ai/admin:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    networks:
+      - internal
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -39,6 +48,9 @@ services:
       - caddy_config:/config
     environment:
       DOMAIN: ${DOMAIN:?DOMAIN env required}
+      # Admin panel host. Defaults to admin.localhost (internal-only, no ACME)
+      # so the site block is valid even before the operator points DNS at it.
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:-admin.localhost}
     depends_on:
       api:
         condition: service_healthy

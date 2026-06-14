@@ -11,6 +11,60 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AdminAuditLog struct {
+	ID        int64
+	AdminID   pgtype.UUID
+	Action    string
+	Entity    pgtype.Text
+	EntityID  pgtype.Text
+	Details   []byte
+	Ip        *netip.Addr
+	CreatedAt pgtype.Timestamptz
+}
+
+type AdminCode struct {
+	ID        uuid.UUID
+	Email     string
+	Purpose   string
+	CodeHash  []byte
+	Attempts  int32
+	ExpiresAt pgtype.Timestamptz
+	UsedAt    pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
+}
+
+type AdminErrorEvent struct {
+	ID        int64
+	Source    string
+	Route     string
+	Method    string
+	Status    int32
+	RequestID pgtype.Text
+	Message   pgtype.Text
+	CreatedAt pgtype.Timestamptz
+}
+
+type AdminSession struct {
+	ID         uuid.UUID
+	AdminID    uuid.UUID
+	TokenHash  []byte
+	Ip         *netip.Addr
+	UserAgent  pgtype.Text
+	CreatedAt  pgtype.Timestamptz
+	LastSeenAt pgtype.Timestamptz
+	ExpiresAt  pgtype.Timestamptz
+	RevokedAt  pgtype.Timestamptz
+}
+
+type AdminUser struct {
+	ID           uuid.UUID
+	Email        string
+	PasswordHash []byte
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	LastLoginAt  pgtype.Timestamptz
+}
+
 type AuditLog struct {
 	ID        int64
 	UserID    pgtype.UUID
@@ -51,6 +105,7 @@ type Fertilizer struct {
 	Active      bool
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
+	PriceRub    pgtype.Int4
 }
 
 type Message struct {

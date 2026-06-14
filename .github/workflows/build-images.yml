@@ -11,6 +11,7 @@ on:
     tags: ['v*']
     paths:
       - 'backend/**'
+      - 'admin/**'
       - '.github/workflows/build-images.yml'
   workflow_dispatch:
 
@@ -30,11 +31,17 @@ jobs:
       matrix:
         include:
           - image: api
+            context: backend
             file: backend/Dockerfile
           - image: llmworker
+            context: backend
             file: backend/Dockerfile.llmworker
           - image: cleanup
+            context: backend
             file: backend/Dockerfile.cleanup
+          - image: admin
+            context: admin
+            file: admin/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +69,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: backend
+          context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -99,21 +106,23 @@ jobs:
         env:
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           DOMAIN: ${{ vars.API_VM_DOMAIN }}
+          ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN }}
         with:
           host: ${{ secrets.API_VM_HOST }}
           username: ${{ vars.API_VM_SSH_USER || 'safegarden' }}
           port: ${{ vars.API_VM_SSH_PORT || '22' }}
           key: ${{ secrets.API_VM_SSH_KEY }}
           fingerprint: ${{ secrets.API_VM_FINGERPRINT }}
-          envs: IMAGE_TAG,DOMAIN
+          envs: IMAGE_TAG,DOMAIN,ADMIN_DOMAIN
           script: |
             set -eu
             cd /etc/safegarden/compose
-            # Pin tag + domain durably: compose reads ./.env for ${IMAGE_TAG} and
-            # ${DOMAIN} interpolation, so manual `up -d` and reboots reuse them.
-            # These are the only two interpolation vars the compose files use.
+            # Pin tag + domains durably: compose reads ./.env for ${IMAGE_TAG},
+            # ${DOMAIN} and ${ADMIN_DOMAIN} interpolation, so manual `up -d` and
+            # reboots reuse them. ADMIN_DOMAIN is optional (empty -> compose
+            # falls back to admin.localhost, panel stays internal-only).
             umask 077
-            printf 'DOMAIN=%s\nIMAGE_TAG=%s\n' "$DOMAIN" "$IMAGE_TAG" > .env
+            printf 'DOMAIN=%s\nIMAGE_TAG=%s\nADMIN_DOMAIN=%s\n' "$DOMAIN" "$IMAGE_TAG" "$ADMIN_DOMAIN" > .env
             docker compose pull
             docker compose up -d
             docker image prune -f
