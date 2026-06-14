@@ -233,6 +233,7 @@ func (s *Service) finalizeComplete(assistantID, userID uuid.UUID, text string, c
 	}
 	if err := s.store.InsertUsage(fctx, db.InsertUsageParams{
 		UserID: userID, Endpoint: "/v1/messages", TokensIn: int4(in), TokensOut: int4(out),
+		CostUsd: numericUSD(llm.EstimateCostUSD(s.model, in, out)),
 	}); err != nil {
 		s.logger.Error("chat: usage insert failed", "err", err.Error())
 	}

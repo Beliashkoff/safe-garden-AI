@@ -191,3 +191,27 @@ func TestPaginate(t *testing.T) {
 	assert.Len(t, page2, 2)
 	assert.Empty(t, next2, "exactly a page, no probe → no cursor")
 }
+
+// TestNumericUSD_RoundTripsCost guards the dashboard cost path
+// (EstimateCostUSD -> numericUSD -> usage_log.cost_usd). Regression cover for
+// the bug where finalizeComplete inserted usage without a cost, so the admin
+// "spent" metric stayed at zero.
+func TestNumericUSD_RoundTripsCost(t *testing.T) {
+	cost := llm.EstimateCostUSD("claude-opus-4-7", 1000, 500) // (1000*15 + 500*75)/1e6
+	assert.InDelta(t, 0.0525, cost, 1e-9)
+
+	n := numericUSD(cost)
+	require.True(t, n.Valid)
+	f, err := n.Float64Value()
+	require.NoError(t, err)
+	require.True(t, f.Valid)
+	assert.InDelta(t, 0.0525, f.Float64, 1e-6) // NUMERIC(10,6) scale
+
+	// Zero cost must still be a valid 0, never NULL.
+	z := numericUSD(0)
+	require.True(t, z.Valid)
+	fz, err := z.Float64Value()
+	require.NoError(t, err)
+	require.True(t, fz.Valid)
+	assert.Equal(t, 0.0, fz.Float64)
+}

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -403,6 +404,14 @@ func int4(n int64) pgtype.Int4 {
 		n = math.MaxInt32
 	}
 	return pgtype.Int4{Int32: int32(n), Valid: true}
+}
+
+// numericUSD converts a USD cost to pgtype.Numeric for usage_log.cost_usd
+// (NUMERIC(10,6)): stored as integer microdollars with Exp -6 so it matches the
+// column scale exactly.
+func numericUSD(usd float64) pgtype.Numeric {
+	micros := int64(math.Round(usd * 1e6))
+	return pgtype.Numeric{Int: big.NewInt(micros), Exp: -6, Valid: true}
 }
 
 // durationMeta builds the JSONB metadata stored on a transcription block.
