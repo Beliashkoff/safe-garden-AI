@@ -35,7 +35,7 @@ func (echoProvider) stream(ctx context.Context, req messageRequest, sink eventSi
 		}
 	}
 
-	if err := sink.usage(0, 0); err != nil {
+	if err := sink.usage(0, 0, 0, 0); err != nil {
 		return err
 	}
 	return sink.done()

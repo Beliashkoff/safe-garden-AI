@@ -43,7 +43,7 @@ func TestHandler_StreamsProviderEvents(t *testing.T) {
 		require.NoError(t, sink.started("msg_1"))
 		require.NoError(t, sink.delta("hello"))
 		require.NoError(t, sink.toolUse("recommend_fertilizer", json.RawMessage(`{"problem":"leaf_yellowing"}`)))
-		require.NoError(t, sink.usage(10, 20))
+		require.NoError(t, sink.usage(10, 0, 0, 20))
 		return sink.done()
 	}}
 	ts := serverWith(p)

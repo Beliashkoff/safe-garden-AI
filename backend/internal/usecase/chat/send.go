@@ -106,35 +106,37 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 
 	res, disconnectErr := relay(ch, sink)
 	dur := time.Since(start)
-	cost := llm.EstimateCostUSD(s.model, res.tokensIn, res.tokensOut)
+	cost := llm.EstimateCostUSD(s.model, res.usage)
+	totalIn := res.usage.TotalInputTokens()
+	out := res.usage.OutputTokens
 	switch {
 	case disconnectErr != nil: // client went away mid-stream — not a Claude error
-		observability.ObserveClaudeTurn(res.tokensIn, res.tokensOut, cost, dur, "")
+		observability.ObserveClaudeTurn(totalIn, out, cost, dur, "")
 		observability.IncMessage("cancelled")
 		s.finalizeIncomplete(assistantID, "cancelled", res.text)
 		return disconnectErr
 	case ctx.Err() != nil: // request context cancelled — not a Claude error
-		observability.ObserveClaudeTurn(res.tokensIn, res.tokensOut, cost, dur, "")
+		observability.ObserveClaudeTurn(totalIn, out, cost, dur, "")
 		observability.IncMessage("cancelled")
 		s.finalizeIncomplete(assistantID, "cancelled", res.text)
 		return ctx.Err()
 	case res.failed: // upstream error already sent to the client
-		observability.ObserveClaudeTurn(res.tokensIn, res.tokensOut, cost, dur, "upstream_error")
+		observability.ObserveClaudeTurn(totalIn, out, cost, dur, "upstream_error")
 		observability.IncMessage("failed")
 		s.finalizeIncomplete(assistantID, "failed", res.text)
 		return nil
 	default:
-		observability.ObserveClaudeTurn(res.tokensIn, res.tokensOut, cost, dur, "")
+		observability.ObserveClaudeTurn(totalIn, out, cost, dur, "")
 		observability.IncMessage("complete")
-		s.finalizeComplete(assistantID, userID, res.text, res.fertilizerCards, res.tokensIn, res.tokensOut)
-		return sink.Done(assistantID.String(), res.tokensIn, res.tokensOut)
+		s.finalizeComplete(assistantID, userID, res.text, res.fertilizerCards, res.usage)
+		return sink.Done(assistantID.String(), totalIn, out)
 	}
 }
 
 type relayResult struct {
-	text                string
-	tokensIn, tokensOut int64
-	failed              bool
+	text   string
+	usage  llm.TokenUsage
+	failed bool
 	// fertilizerCards holds the raw {"products":[...]} payloads emitted during
 	// the turn, in order, so they can be persisted as fertilizer_card blocks.
 	fertilizerCards []json.RawMessage
@@ -176,11 +178,18 @@ func relay(ch <-chan llm.StreamEvent, sink Sink) (relayResult, error) {
 			_ = sink.FertilizerCard(data)
 		case llm.EventUsage:
 			var u struct {
-				In  int64 `json:"tokens_in"`
-				Out int64 `json:"tokens_out"`
+				In         int64 `json:"tokens_in"`
+				CacheWrite int64 `json:"cache_write_tokens"`
+				CacheRead  int64 `json:"cache_read_tokens"`
+				Out        int64 `json:"tokens_out"`
 			}
 			_ = json.Unmarshal(ev.Data, &u)
-			res.tokensIn, res.tokensOut = u.In, u.Out
+			res.usage = llm.TokenUsage{
+				InputTokens:      u.In,
+				CacheWriteTokens: u.CacheWrite,
+				CacheReadTokens:  u.CacheRead,
+				OutputTokens:     u.Out,
+			}
 		case llm.EventError:
 			var e struct {
 				Code    string `json:"code"`
@@ -199,13 +208,15 @@ func relay(ch <-chan llm.StreamEvent, sink Sink) (relayResult, error) {
 // context (so the writes land even if the request context is done). Any
 // fertilizer cards emitted during the turn are stored as fertilizer_card blocks
 // after the text block, so reloading history restores them (ARCH §6.1).
-func (s *Service) finalizeComplete(assistantID, userID uuid.UUID, text string, cards []json.RawMessage, in, out int64) {
+func (s *Service) finalizeComplete(assistantID, userID uuid.UUID, text string, cards []json.RawMessage, usage llm.TokenUsage) {
 	fctx, cancel := context.WithTimeout(context.Background(), finalizeTimeout)
 	defer cancel()
 
+	tokensIn := int4(usage.TotalInputTokens())
+	tokensOut := int4(usage.OutputTokens)
 	err := s.store.ExecTx(fctx, func(q *db.Queries) error {
 		if err := q.CompleteMessage(fctx, db.CompleteMessageParams{
-			ID: assistantID, TokensIn: int4(in), TokensOut: int4(out),
+			ID: assistantID, TokensIn: tokensIn, TokensOut: tokensOut,
 		}); err != nil {
 			return err
 		}
@@ -232,8 +243,8 @@ func (s *Service) finalizeComplete(assistantID, userID uuid.UUID, text string, c
 		s.logger.Error("chat: finalize complete failed", "err", err.Error())
 	}
 	if err := s.store.InsertUsage(fctx, db.InsertUsageParams{
-		UserID: userID, Endpoint: "/v1/messages", TokensIn: int4(in), TokensOut: int4(out),
-		CostUsd: numericUSD(llm.EstimateCostUSD(s.model, in, out)),
+		UserID: userID, Endpoint: "/v1/messages", TokensIn: tokensIn, TokensOut: tokensOut,
+		CostUsd: numericUSD(llm.EstimateCostUSD(s.model, usage)),
 	}); err != nil {
 		s.logger.Error("chat: usage insert failed", "err", err.Error())
 	}

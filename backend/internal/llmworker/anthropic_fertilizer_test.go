@@ -47,9 +47,9 @@ func (s *captureSink) fertilizerCard(data json.RawMessage) error {
 	s.cards = append(s.cards, b)
 	return nil
 }
-func (s *captureSink) usage(int64, int64) error { return nil }
-func (s *captureSink) done() error              { return nil }
-func (s *captureSink) failed(string, string)    {}
+func (s *captureSink) usage(int64, int64, int64, int64) error { return nil }
+func (s *captureSink) done() error                            { return nil }
+func (s *captureSink) failed(string, string)                  {}
 
 func fertProvider(rec fertilizerRecommender) *anthropicProvider {
 	return &anthropicProvider{fertilizer: rec, logger: discardLogger()}

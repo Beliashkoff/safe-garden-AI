@@ -52,7 +52,7 @@ func newAnthropicProvider(apiKey string, maxTokens int, modelOverride string, fe
 // answer or the turn budget is exhausted.
 func (p *anthropicProvider) stream(ctx context.Context, req messageRequest, sink eventSink) error {
 	params := p.buildParams(req)
-	var totalIn, totalOut int64
+	var totalIn, totalCacheWrite, totalCacheRead, totalOut int64
 	startedSent := false
 
 	for turn := 0; turn < maxToolTurns; turn++ {
@@ -90,12 +90,16 @@ func (p *anthropicProvider) stream(ctx context.Context, req messageRequest, sink
 			return err
 		}
 
-		totalIn += acc.Usage.InputTokens + acc.Usage.CacheCreationInputTokens + acc.Usage.CacheReadInputTokens
+		// Keep cache tiers separate so the backend can price them correctly
+		// (cache read 0.1x input, cache write 1.25x input — ARCH §7.3).
+		totalIn += acc.Usage.InputTokens
+		totalCacheWrite += acc.Usage.CacheCreationInputTokens
+		totalCacheRead += acc.Usage.CacheReadInputTokens
 		totalOut += acc.Usage.OutputTokens
 
 		if acc.StopReason != anthropic.StopReasonToolUse {
 			// Final answer — no (more) tool calls.
-			if err := sink.usage(totalIn, totalOut); err != nil {
+			if err := sink.usage(totalIn, totalCacheWrite, totalCacheRead, totalOut); err != nil {
 				return err
 			}
 			return sink.done()
@@ -118,7 +122,7 @@ func (p *anthropicProvider) stream(ctx context.Context, req messageRequest, sink
 
 	// Turn budget exhausted (model kept asking for tools). Report usage so far
 	// and surface a non-fatal error rather than hanging.
-	_ = sink.usage(totalIn, totalOut)
+	_ = sink.usage(totalIn, totalCacheWrite, totalCacheRead, totalOut)
 	sink.failed("tool_loop_exhausted", "the assistant could not complete the request")
 	return nil
 }

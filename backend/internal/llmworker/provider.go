@@ -19,7 +19,7 @@ type eventSink interface {
 	// fertilizerCard streams a recommend_fertilizer result card alongside the
 	// text deltas (ARCH §4.3). data is the raw {"products":[...]} payload.
 	fertilizerCard(data json.RawMessage) error
-	usage(tokensIn, tokensOut int64) error
+	usage(tokensIn, cacheWriteTokens, cacheReadTokens, tokensOut int64) error
 	done() error
 	failed(code, msg string)
 }
@@ -57,8 +57,13 @@ func (s *sseSink) fertilizerCard(data json.RawMessage) error {
 	return writeSSE(s.w, string(llm.EventFertilizerCard), data)
 }
 
-func (s *sseSink) usage(tokensIn, tokensOut int64) error {
-	return writeSSE(s.w, string(llm.EventUsage), map[string]int64{"tokens_in": tokensIn, "tokens_out": tokensOut})
+func (s *sseSink) usage(tokensIn, cacheWriteTokens, cacheReadTokens, tokensOut int64) error {
+	return writeSSE(s.w, string(llm.EventUsage), map[string]int64{
+		"tokens_in":          tokensIn,
+		"cache_write_tokens": cacheWriteTokens,
+		"cache_read_tokens":  cacheReadTokens,
+		"tokens_out":         tokensOut,
+	})
 }
 
 func (s *sseSink) done() error {
