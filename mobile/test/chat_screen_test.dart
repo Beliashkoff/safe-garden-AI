@@ -26,11 +26,9 @@ void main() {
     await tester.pumpWidget(_wrap(FakeChatRepository()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Чат'), findsOneWidget);
-    expect(
-      find.text('Сфотографируйте растение или опишите проблему'),
-      findsOneWidget,
-    );
+    // Header shows the brand title; the empty state shows the greeting.
+    expect(find.text('ИИ Агроном'), findsOneWidget);
+    expect(find.text('Здравствуйте'), findsOneWidget);
     final field = tester.widget<TextField>(find.byType(TextField));
     expect(field.enabled, isNot(false));
   });
@@ -65,7 +63,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'привет');
     await tester.pump(); // let the trailing button switch from mic to send
-    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
     await tester.pumpAndSettle();
 
     expect(find.text('привет'), findsOneWidget);

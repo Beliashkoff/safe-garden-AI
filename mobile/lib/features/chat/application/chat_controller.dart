@@ -17,12 +17,18 @@ class ChatState {
     this.sending = false,
     this.loadingOlder = false,
     this.nextCursor,
+    this.feedback = const {},
   });
 
   final List<ChatMessage> messages;
   final bool sending;
   final bool loadingOlder;
   final String? nextCursor;
+
+  /// Thumbs feedback the user gave this session, keyed by message id
+  /// (`up`/`down`). Client-only: the buttons reflect taps without a reload
+  /// round-trip; the backend persists the row.
+  final Map<String, String> feedback;
 
   bool get hasMore => nextCursor != null;
 
@@ -32,12 +38,14 @@ class ChatState {
     bool? loadingOlder,
     String? nextCursor,
     bool clearCursor = false,
+    Map<String, String>? feedback,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
       sending: sending ?? this.sending,
       loadingOlder: loadingOlder ?? this.loadingOlder,
       nextCursor: clearCursor ? null : (nextCursor ?? this.nextCursor),
+      feedback: feedback ?? this.feedback,
     );
   }
 }
@@ -292,6 +300,46 @@ class ChatController extends AsyncNotifier<ChatState> {
     await sendMessage(text, imageStorageKeys: imageKeys);
   }
 
+  /// Regenerates the answer to the most recent turn: drops the last assistant
+  /// message and re-sends the preceding user message. No-op while sending or if
+  /// the last message is not a finished assistant turn.
+  Future<void> regenerate() async {
+    final current = state.valueOrNull;
+    if (current == null || current.sending || current.messages.isEmpty) {
+      return;
+    }
+    final last = current.messages.last;
+    if (last.role != MessageRole.assistant ||
+        last.status == MessageStatus.pending) {
+      return;
+    }
+    state = AsyncData(
+      current.copyWith(messages: [...current.messages]..removeLast()),
+    );
+    await retry();
+  }
+
+  /// Sets or clears thumbs feedback on an assistant message. Optimistic: the UI
+  /// updates immediately; a failed request (e.g. offline) is swallowed so the
+  /// affordance never blocks. Server-side optimistic messages have no id yet.
+  void setFeedback(String messageId, String? value) {
+    if (messageId.startsWith('local-')) {
+      return;
+    }
+    final current = state.valueOrNull;
+    if (current == null) {
+      return;
+    }
+    final next = Map<String, String>.from(current.feedback);
+    if (value == null) {
+      next.remove(messageId);
+    } else {
+      next[messageId] = value;
+    }
+    state = AsyncData(current.copyWith(feedback: next));
+    unawaited(_repo.setFeedback(messageId, value).catchError((_) {}));
+  }
+
   /// Loads an older page of history (keyset pagination).
   Future<void> loadOlder() async {
     final current = state.valueOrNull;
@@ -354,6 +402,7 @@ class ChatController extends AsyncNotifier<ChatState> {
           nextCursor: page.nextCursor,
           sending: false,
           loadingOlder: current?.loadingOlder ?? false,
+          feedback: current?.feedback ?? const {},
         ),
       );
     } on AppException {

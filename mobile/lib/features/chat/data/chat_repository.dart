@@ -60,6 +60,10 @@ class ChatRepository {
   Future<void> recordFertilizerTap(String slug) =>
       _api.recordFertilizerTap(slug);
 
+  /// Sets or clears thumbs feedback on an assistant message.
+  Future<void> setFeedback(String id, String? value) =>
+      _api.setFeedback(id, value);
+
   /// Drops the local cache (logout / account deletion): both the message cache
   /// and the on-device photo files.
   Future<void> clearCache() async {

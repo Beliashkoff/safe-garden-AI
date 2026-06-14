@@ -54,6 +54,16 @@ class ChatApi {
     }
   }
 
+  /// Sets (or clears) thumbs feedback on an assistant message. [value] is
+  /// `up`/`down`; null clears it. Owner-scoped on the backend; 204 on success.
+  Future<void> setFeedback(String id, String? value) async {
+    try {
+      await _dio.put<dynamic>('/messages/$id/feedback', data: {'value': value});
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
   /// Records a tap on a fertilizer card for internal analytics (ROADMAP §5.3).
   Future<void> recordFertilizerTap(String slug) async {
     try {

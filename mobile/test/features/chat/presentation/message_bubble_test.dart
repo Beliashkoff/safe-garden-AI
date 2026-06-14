@@ -89,7 +89,7 @@ void main() {
       ),
     );
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byKey(const Key('ai-typing')), findsOneWidget);
   });
 
   testWidgets('failed assistant shows the error note and a retry button', (
@@ -193,5 +193,32 @@ void main() {
     );
 
     expect(find.text('Ответ остановлен'), findsOneWidget);
+  });
+
+  testWidgets('completed assistant shows the footer and reports feedback', (
+    tester,
+  ) async {
+    String? reported = 'unset';
+    await tester.pumpWidget(
+      _wrap(
+        MessageBubble(
+          message: _message(
+            role: MessageRole.assistant,
+            status: MessageStatus.complete,
+            text: 'ответ',
+          ),
+          showFooter: true,
+          onFeedback: (v) => reported = v,
+        ),
+      ),
+    );
+
+    expect(find.byIcon(Icons.copy_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.thumb_up_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.thumb_down_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.ios_share_rounded), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.thumb_up_outlined));
+    expect(reported, 'up');
   });
 }

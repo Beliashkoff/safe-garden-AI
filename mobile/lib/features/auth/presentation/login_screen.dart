@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../app/theme.dart';
+import '../../../app/widgets/brand_logo.dart';
 import '../../../core/config/app_config.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../application/auth_controller.dart';
@@ -44,9 +46,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final p = theme.palette;
     final controller = ref.read(authControllerProvider.notifier);
 
     return Scaffold(
+      backgroundColor: p.loftBg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -54,18 +58,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Center(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: p.brandGreen.withValues(alpha: 0.22),
+                        blurRadius: 28,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: const BrandLogo(size: 72),
+                ),
+              ),
+              const SizedBox(height: 28),
               Text(
                 l10n.loginTitle,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.headlineMedium,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 l10n.loginSubtitle,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge,
+                style: theme.textTheme.bodyLarge?.copyWith(color: p.textMuted),
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 40),
               // Provider buttons use the providers' fixed brand colors — an
               // explicit exception to the theme-only rule: VK ID and Yandex ID
               // design guidelines forbid recoloring their sign-in buttons.

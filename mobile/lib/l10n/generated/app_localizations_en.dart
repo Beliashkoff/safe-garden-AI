@@ -124,7 +124,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Take a photo of the plant or describe the problem';
 
   @override
-  String get chatInputPlaceholder => 'Message';
+  String get chatInputPlaceholder => 'Ask the agronomist';
+
+  @override
+  String get chatInputPlaceholderPhoto =>
+      'Describe what\'s wrong with the plant…';
 
   @override
   String get chatLogout => 'Sign out';
@@ -238,4 +242,53 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commonDelete => 'Delete';
+
+  @override
+  String get chatMenu => 'Menu';
+
+  @override
+  String get chatNewConversation => 'New chat';
+
+  @override
+  String get chatGreeting => 'Hello';
+
+  @override
+  String get chatGreetingSubtitle =>
+      'Photograph your plant or describe the problem — I\'ll tell you what\'s going on.';
+
+  @override
+  String get chatSuggestDisease => 'Identify a disease from a photo';
+
+  @override
+  String get chatSuggestDeficiency => 'What the plant is missing';
+
+  @override
+  String get chatSuggestPlan => 'Build a feeding plan';
+
+  @override
+  String get chatPhotoAnalyzed => 'Analyzed';
+
+  @override
+  String get aiReviewedPhoto => 'reviewed the photo';
+
+  @override
+  String get drawerSubtitle => 'Your plant assistant';
+
+  @override
+  String get actionCopy => 'Copy';
+
+  @override
+  String get actionCopied => 'Copied';
+
+  @override
+  String get actionGoodAnswer => 'Good answer';
+
+  @override
+  String get actionBadAnswer => 'Bad answer';
+
+  @override
+  String get actionRegenerate => 'Regenerate';
+
+  @override
+  String get actionShare => 'Share';
 }

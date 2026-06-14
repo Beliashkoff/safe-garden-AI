@@ -317,8 +317,14 @@ abstract class AppLocalizations {
   /// No description provided for @chatInputPlaceholder.
   ///
   /// In ru, this message translates to:
-  /// **'Сообщение'**
+  /// **'Спросить агронома'**
   String get chatInputPlaceholder;
+
+  /// No description provided for @chatInputPlaceholderPhoto.
+  ///
+  /// In ru, this message translates to:
+  /// **'Опишите, что не так с растением…'**
+  String get chatInputPlaceholderPhoto;
 
   /// No description provided for @chatLogout.
   ///
@@ -529,6 +535,102 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Удалить'**
   String get commonDelete;
+
+  /// No description provided for @chatMenu.
+  ///
+  /// In ru, this message translates to:
+  /// **'Меню'**
+  String get chatMenu;
+
+  /// No description provided for @chatNewConversation.
+  ///
+  /// In ru, this message translates to:
+  /// **'Новый чат'**
+  String get chatNewConversation;
+
+  /// No description provided for @chatGreeting.
+  ///
+  /// In ru, this message translates to:
+  /// **'Здравствуйте'**
+  String get chatGreeting;
+
+  /// No description provided for @chatGreetingSubtitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сфотографируйте растение или опишите проблему — подскажу, что с ним.'**
+  String get chatGreetingSubtitle;
+
+  /// No description provided for @chatSuggestDisease.
+  ///
+  /// In ru, this message translates to:
+  /// **'Распознать болезнь по фото'**
+  String get chatSuggestDisease;
+
+  /// No description provided for @chatSuggestDeficiency.
+  ///
+  /// In ru, this message translates to:
+  /// **'Чего не хватает растению'**
+  String get chatSuggestDeficiency;
+
+  /// No description provided for @chatSuggestPlan.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сделать план подкормок'**
+  String get chatSuggestPlan;
+
+  /// No description provided for @chatPhotoAnalyzed.
+  ///
+  /// In ru, this message translates to:
+  /// **'Проанализировано'**
+  String get chatPhotoAnalyzed;
+
+  /// No description provided for @aiReviewedPhoto.
+  ///
+  /// In ru, this message translates to:
+  /// **'разобрал фото'**
+  String get aiReviewedPhoto;
+
+  /// No description provided for @drawerSubtitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Помощник по растениям'**
+  String get drawerSubtitle;
+
+  /// No description provided for @actionCopy.
+  ///
+  /// In ru, this message translates to:
+  /// **'Скопировать'**
+  String get actionCopy;
+
+  /// No description provided for @actionCopied.
+  ///
+  /// In ru, this message translates to:
+  /// **'Скопировано'**
+  String get actionCopied;
+
+  /// No description provided for @actionGoodAnswer.
+  ///
+  /// In ru, this message translates to:
+  /// **'Хороший ответ'**
+  String get actionGoodAnswer;
+
+  /// No description provided for @actionBadAnswer.
+  ///
+  /// In ru, this message translates to:
+  /// **'Плохой ответ'**
+  String get actionBadAnswer;
+
+  /// No description provided for @actionRegenerate.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сгенерировать заново'**
+  String get actionRegenerate;
+
+  /// No description provided for @actionShare.
+  ///
+  /// In ru, this message translates to:
+  /// **'Поделиться'**
+  String get actionShare;
 }
 
 class _AppLocalizationsDelegate

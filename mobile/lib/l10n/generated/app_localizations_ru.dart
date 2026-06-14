@@ -123,7 +123,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get chatEmptyHint => 'Сфотографируйте растение или опишите проблему';
 
   @override
-  String get chatInputPlaceholder => 'Сообщение';
+  String get chatInputPlaceholder => 'Спросить агронома';
+
+  @override
+  String get chatInputPlaceholderPhoto => 'Опишите, что не так с растением…';
 
   @override
   String get chatLogout => 'Выйти';
@@ -240,4 +243,53 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get commonDelete => 'Удалить';
+
+  @override
+  String get chatMenu => 'Меню';
+
+  @override
+  String get chatNewConversation => 'Новый чат';
+
+  @override
+  String get chatGreeting => 'Здравствуйте';
+
+  @override
+  String get chatGreetingSubtitle =>
+      'Сфотографируйте растение или опишите проблему — подскажу, что с ним.';
+
+  @override
+  String get chatSuggestDisease => 'Распознать болезнь по фото';
+
+  @override
+  String get chatSuggestDeficiency => 'Чего не хватает растению';
+
+  @override
+  String get chatSuggestPlan => 'Сделать план подкормок';
+
+  @override
+  String get chatPhotoAnalyzed => 'Проанализировано';
+
+  @override
+  String get aiReviewedPhoto => 'разобрал фото';
+
+  @override
+  String get drawerSubtitle => 'Помощник по растениям';
+
+  @override
+  String get actionCopy => 'Скопировать';
+
+  @override
+  String get actionCopied => 'Скопировано';
+
+  @override
+  String get actionGoodAnswer => 'Хороший ответ';
+
+  @override
+  String get actionBadAnswer => 'Плохой ответ';
+
+  @override
+  String get actionRegenerate => 'Сгенерировать заново';
+
+  @override
+  String get actionShare => 'Поделиться';
 }

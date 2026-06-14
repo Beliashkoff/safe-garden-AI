@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../app/theme.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../domain/chat_models.dart';
 
-/// Renders a vertical stack of fertilizer recommendation cards inside an
-/// assistant bubble (stage 5.3). Each card shows the product photo, name, short
-/// description and a "Learn more" button that opens the deeplink in the browser.
+/// Renders a vertical stack of fertilizer recommendation cards under an
+/// assistant answer (stage 5.3). Each card shows the product photo, name, short
+/// description and a "Learn more" action that opens the deeplink in the browser.
 /// Catalog images are public URLs (not presigned storage), so they load via
 /// [Image.network] directly. [onOpen] reports a tap for internal analytics.
 class FertilizerCardList extends StatelessWidget {
@@ -53,59 +54,85 @@ class _FertilizerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final p = theme.palette;
     final l10n = AppLocalizations.of(context)!;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      color: theme.colorScheme.surface,
+    return Material(
+      color: p.softer,
+      borderRadius: BorderRadius.circular(AppRadius.card),
       child: InkWell(
         onTap: _open,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (product.imageUrl.isNotEmpty) _image(theme),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    product.name,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (product.shortDesc.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      product.shortDesc,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            border: Border.all(color: p.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (product.imageUrl.isNotEmpty) _image(p),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(product.name, style: theme.textTheme.titleMedium),
+                    if (product.shortDesc.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        product.shortDesc,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: p.textMuted,
+                        ),
                       ),
-                    ),
+                    ],
+                    const SizedBox(height: 12),
+                    _moreButton(p, theme, l10n),
                   ],
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.tonalIcon(
-                      onPressed: _open,
-                      icon: const Icon(Icons.open_in_new, size: 18),
-                      label: Text(l10n.fertilizerCardMore),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _image(ThemeData theme) {
+  Widget _moreButton(AppPalette p, ThemeData theme, AppLocalizations l10n) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Material(
+        color: p.brandGreenSoft,
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          onTap: _open,
+          borderRadius: BorderRadius.circular(999),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.fertilizerCardMore,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: p.brandGreen,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.open_in_new_rounded, size: 16, color: p.brandGreen),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _image(AppPalette p) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Image.network(
@@ -116,7 +143,7 @@ class _FertilizerCard extends StatelessWidget {
             return child;
           }
           return Container(
-            color: theme.colorScheme.surfaceContainerHighest,
+            color: p.soft,
             child: const Center(
               child: SizedBox(
                 height: 20,
@@ -127,12 +154,9 @@ class _FertilizerCard extends StatelessWidget {
           );
         },
         errorBuilder: (context, _, _) => Container(
-          color: theme.colorScheme.surfaceContainerHighest,
+          color: p.soft,
           alignment: Alignment.center,
-          child: Icon(
-            Icons.local_florist_outlined,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          child: Icon(Icons.local_florist_outlined, color: p.textSubtle),
         ),
       ),
     );

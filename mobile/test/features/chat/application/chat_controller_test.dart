@@ -240,4 +240,77 @@ void main() {
     expect(repo.lastSendText, 'look');
     expect(repo.lastSendImageKeys, ['u/a/img/1.jpg']);
   });
+
+  test('setFeedback updates state and records the call; null clears', () async {
+    final repo = FakeChatRepository()
+      ..fetchError = null
+      ..fetchResult = ConversationPage(
+        messages: [
+          textMessage(id: 'u1', role: MessageRole.user),
+          textMessage(id: 'a1', role: MessageRole.assistant),
+        ],
+      );
+    final container = ProviderContainer(overrides: chatTestOverrides(repo));
+    addTearDown(container.dispose);
+    final notifier = await _boot(container);
+
+    notifier.setFeedback('a1', 'up');
+    await pumpEventQueue();
+    expect(_state(container).feedback['a1'], 'up');
+    expect(repo.feedbackCalls, contains(('a1', 'up')));
+
+    notifier.setFeedback('a1', null);
+    await pumpEventQueue();
+    expect(_state(container).feedback.containsKey('a1'), isFalse);
+    expect(repo.feedbackCalls, contains(('a1', null)));
+  });
+
+  test('setFeedback ignores optimistic (local-) messages', () async {
+    final repo = FakeChatRepository();
+    final container = ProviderContainer(overrides: chatTestOverrides(repo));
+    addTearDown(container.dispose);
+    final notifier = await _boot(container);
+
+    notifier.setFeedback('local-assistant-1', 'up');
+    await pumpEventQueue();
+    expect(repo.feedbackCalls, isEmpty);
+  });
+
+  test('regenerate drops the last assistant turn and resends', () async {
+    final repo = FakeChatRepository()
+      ..fetchError = null
+      ..fetchResult = ConversationPage(
+        messages: [
+          textMessage(id: 'u1', role: MessageRole.user, text: 'почему вянет'),
+          textMessage(
+            id: 'a1',
+            role: MessageRole.assistant,
+            text: 'старый ответ',
+          ),
+        ],
+      );
+    final container = ProviderContainer(overrides: chatTestOverrides(repo));
+    addTearDown(container.dispose);
+    final notifier = await _boot(container);
+    expect(_state(container).messages, hasLength(2));
+
+    // Keep local state after the turn (offline refresh) and script the new reply.
+    repo.fetchError = const NetworkException();
+    repo.scriptedStream = () => Stream.fromIterable([
+      const SseMessageStarted('s2'),
+      const SseDelta('новый ответ'),
+      const SseDone(messageId: 's2', tokensIn: 0, tokensOut: 0),
+    ]);
+    await notifier.regenerate();
+    await pumpEventQueue();
+
+    expect(repo.lastSendText, 'почему вянет');
+    final msgs = _state(container).messages;
+    expect(msgs.last.role, MessageRole.assistant);
+    expect(msgs.last.content.single.text, 'новый ответ');
+    expect(
+      msgs.where((m) => m.content.any((b) => b.text == 'старый ответ')),
+      isEmpty,
+    );
+  });
 }

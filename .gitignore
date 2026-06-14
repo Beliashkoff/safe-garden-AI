@@ -3,6 +3,10 @@
 # Объединение шаблонов: Go + Flutter + Terraform + macOS/Windows/Linux
 # =====================================================================
 
+# === Design reference (local only, never committed) ===
+AiagroDesign/
+**/AiagroDesign/
+
 # === Secrets ===
 .env
 .env.*

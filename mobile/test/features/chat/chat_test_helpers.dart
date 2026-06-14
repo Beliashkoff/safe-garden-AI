@@ -79,6 +79,13 @@ class FakeChatRepository implements ChatRepository {
   Future<void> recordFertilizerTap(String slug) async =>
       fertilizerTaps.add(slug);
 
+  /// Feedback set via [setFeedback], keyed by message id (null clears).
+  final List<(String, String?)> feedbackCalls = [];
+
+  @override
+  Future<void> setFeedback(String id, String? value) async =>
+      feedbackCalls.add((id, value));
+
   @override
   Future<void> clearCache() async => clearCacheCount++;
 }

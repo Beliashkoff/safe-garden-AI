@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/theme.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../application/onboarding_controller.dart';
 
@@ -43,6 +44,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final p = theme.palette;
     final pages = <(IconData, String, String)>[
       (
         Icons.photo_camera_outlined,
@@ -55,6 +57,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final last = pages.length - 1;
 
     return Scaffold(
+      backgroundColor: p.loftBg,
       body: SafeArea(
         child: Column(
           children: [
@@ -77,18 +80,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(icon, size: 96, color: theme.colorScheme.primary),
-                        const SizedBox(height: 32),
+                        Container(
+                          width: 132,
+                          height: 132,
+                          decoration: BoxDecoration(
+                            color: p.brandGreenSoft,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(icon, size: 56, color: p.brandGreen),
+                        ),
+                        const SizedBox(height: 36),
                         Text(
                           title,
                           textAlign: TextAlign.center,
-                          style: theme.textTheme.headlineSmall,
+                          style: theme.textTheme.headlineMedium,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         Text(
                           body,
                           textAlign: TextAlign.center,
-                          style: theme.textTheme.bodyLarge,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: p.textMuted,
+                          ),
                         ),
                       ],
                     ),

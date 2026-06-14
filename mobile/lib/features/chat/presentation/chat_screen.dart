@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../app/theme.dart';
+import '../../../app/widgets/brand_logo.dart';
+import '../../../core/config/app_config.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/auth_error_message.dart';
@@ -12,9 +16,9 @@ import '../domain/chat_models.dart';
 import 'chat_error_message.dart';
 import 'message_bubble.dart';
 import 'widgets/attachment_strip.dart';
+import 'widgets/chat_drawer.dart';
+import 'widgets/empty_state.dart';
 import 'widgets/voice_recorder_bar.dart';
-
-enum _ChatMenuAction { logout, deleteAccount }
 
 enum _AttachSource { camera, gallery }
 
@@ -28,6 +32,8 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
+  final _inputFocus = FocusNode();
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -40,6 +46,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scroll.removeListener(_onScroll);
     _input.dispose();
     _scroll.dispose();
+    _inputFocus.dispose();
     super.dispose();
   }
 
@@ -47,6 +54,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // reverse:true → older messages sit at the top, i.e. max scroll extent.
     if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 200) {
       ref.read(chatControllerProvider.notifier).loadOlder();
+    }
+  }
+
+  void _scrollToLatest() {
+    if (_scroll.hasClients) {
+      _scroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -74,12 +91,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     await ref.read(chatControllerProvider.notifier).sendMessage(text);
   }
 
+  void _onSuggestion(ChatSuggestion s) {
+    switch (s) {
+      case ChatSuggestion.disease:
+        _showAttachSheet();
+      case ChatSuggestion.deficiency:
+        _input.text = AppLocalizations.of(context)!.chatSuggestDeficiency;
+        _inputFocus.requestFocus();
+      case ChatSuggestion.plan:
+        _input.text = AppLocalizations.of(context)!.chatSuggestPlan;
+        _inputFocus.requestFocus();
+    }
+  }
+
   Future<void> _showAttachSheet() async {
     final l10n = AppLocalizations.of(context)!;
     final source = await showModalBottomSheet<_AttachSource>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Wrap(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
@@ -91,6 +122,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               title: Text(l10n.chatAttachGallery),
               onTap: () => Navigator.of(ctx).pop(_AttachSource.gallery),
             ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -162,6 +194,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _logout() => ref.read(authControllerProvider.notifier).logout();
 
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri != null) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> _confirmDeleteAccount() async {
     final l10n = AppLocalizations.of(context)!;
     final messenger = ScaffoldMessenger.of(context);
@@ -176,6 +215,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: Text(l10n.commonCancel),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(l10n.commonDelete),
           ),
@@ -210,6 +252,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: Text(l10n.commonCancel),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(l10n.commonDelete),
           ),
@@ -231,35 +276,56 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
     final asyncState = ref.watch(chatControllerProvider);
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: ChatDrawer(
+        onLogout: () {
+          Navigator.of(context).pop();
+          _logout();
+        },
+        onDeleteAccount: () {
+          Navigator.of(context).pop();
+          _confirmDeleteAccount();
+        },
+        onOpenPrivacy: () => _openUrl(AppConfig.privacyPolicyUrl),
+        onOpenTerms: () => _openUrl(AppConfig.termsOfServiceUrl),
+      ),
       appBar: AppBar(
-        title: Text(l10n.chatTitle),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded),
+          tooltip: l10n.chatMenu,
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const BrandLogo(size: 24),
+            const SizedBox(width: 8),
+            Text(l10n.appTitle, style: theme.appBarTheme.titleTextStyle),
+            const SizedBox(width: 2),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 20,
+              color: theme.palette.textSubtle,
+            ),
+          ],
+        ),
         actions: [
-          PopupMenuButton<_ChatMenuAction>(
-            onSelected: (action) {
-              switch (action) {
-                case _ChatMenuAction.logout:
-                  _logout();
-                case _ChatMenuAction.deleteAccount:
-                  _confirmDeleteAccount();
-              }
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: l10n.chatNewConversation,
+            onPressed: () {
+              _inputFocus.requestFocus();
+              _scrollToLatest();
             },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: _ChatMenuAction.logout,
-                child: Text(l10n.chatLogout),
-              ),
-              PopupMenuItem(
-                value: _ChatMenuAction.deleteAccount,
-                child: Text(l10n.chatDeleteAccount),
-              ),
-            ],
           ),
         ],
       ),
       body: SafeArea(
+        top: false,
         child: Column(
           children: [
             Expanded(
@@ -287,22 +353,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _messageList(AppLocalizations l10n, ChatState state) {
     if (state.messages.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Text(
-            l10n.chatEmptyHint,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-        ),
-      );
+      return ChatEmptyState(onSuggestion: _onSuggestion);
+    }
+    // A user message is "analysed" once a completed assistant turn follows it
+    // (stamps the photo badge); an assistant turn "reviewed a photo" when the
+    // preceding user turn carried an image (shows the author subtitle).
+    final analysedUserIds = <String>{};
+    final reviewedPhotoIds = <String>{};
+    bool hasImage(ChatMessage m) =>
+        m.content.any((b) => b.type == 'image' && b.storageKey.isNotEmpty);
+    for (var i = 0; i < state.messages.length; i++) {
+      final m = state.messages[i];
+      if (m.role == MessageRole.user && i + 1 < state.messages.length) {
+        final next = state.messages[i + 1];
+        if (next.role == MessageRole.assistant &&
+            next.status == MessageStatus.complete) {
+          analysedUserIds.add(m.id);
+        }
+      }
+      if (m.role == MessageRole.assistant && i > 0) {
+        final prev = state.messages[i - 1];
+        if (prev.role == MessageRole.user && hasImage(prev)) {
+          reviewedPhotoIds.add(m.id);
+        }
+      }
     }
     final reversed = state.messages.reversed.toList();
     return ListView.builder(
       controller: _scroll,
       reverse: true,
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.only(top: 8, bottom: 8),
       itemCount: reversed.length + (state.loadingOlder ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == reversed.length) {
@@ -318,10 +398,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           );
         }
         final message = reversed[index];
+        final isAssistant = message.role == MessageRole.assistant;
+        final isComplete = message.status == MessageStatus.complete;
+        // The newest assistant turn (reversed index 0) may be regenerated.
+        final isLatest = index == 0;
         return GestureDetector(
           onLongPress: () => _confirmDeleteMessage(message),
           child: MessageBubble(
             message: message,
+            photoAnalysed: analysedUserIds.contains(message.id),
+            reviewedPhoto: reviewedPhotoIds.contains(message.id),
+            showFooter: isAssistant && isComplete && !message.streaming,
+            feedbackValue: state.feedback[message.id],
+            onFeedback: (value) => ref
+                .read(chatControllerProvider.notifier)
+                .setFeedback(message.id, value),
+            onRegenerate: (isLatest && !state.sending)
+                ? () => ref.read(chatControllerProvider.notifier).regenerate()
+                : null,
             onRetry: message.status == MessageStatus.failed
                 ? () => ref.read(chatControllerProvider.notifier).retry()
                 : null,
@@ -335,52 +429,113 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _inputBar(AppLocalizations l10n, bool sending) {
+    final theme = Theme.of(context);
+    final p = theme.palette;
     final composer = ref.watch(messageComposerProvider);
     final uploading = composer.uploading;
     final voicePhase = ref.watch(voiceRecorderProvider).phase;
+    final attached = composer.hasAttachments;
 
     // A recorded voice note awaiting confirmation (or being sent) takes over the
     // whole input row.
     if (voicePhase == VoicePhase.preview ||
         voicePhase == VoicePhase.uploading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: VoiceRecorderBar(),
-      );
+      return _composerShell(p, const VoiceRecorderBar());
     }
 
     final recording = voicePhase == VoicePhase.recording;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
+    if (recording) {
+      // The level/waveform display takes the row, but the mic button stays
+      // mounted — the active long-press gesture lives on it.
+      return _composerShell(
+        p,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Expanded(child: VoiceRecorderBar()),
+            const SizedBox(width: 2),
+            _micButton(l10n, true),
+          ],
+        ),
+      );
+    }
+
+    return _composerShell(
+      p,
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!recording)
-            IconButton(
-              onPressed: (sending || uploading || !composer.canAddMore)
-                  ? null
-                  : _showAttachSheet,
-              icon: const Icon(Icons.attach_file_rounded),
-              tooltip: l10n.chatAttach,
-            ),
-          Expanded(
-            child: recording
-                ? const VoiceRecorderBar()
-                : TextField(
-                    controller: _input,
-                    minLines: 1,
-                    maxLines: 5,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
-                    decoration: InputDecoration(
-                      hintText: l10n.chatInputPlaceholder,
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
+          _circleIcon(
+            icon: Icons.add_rounded,
+            color: p.text,
+            onTap: (sending || uploading || !composer.canAddMore)
+                ? null
+                : _showAttachSheet,
+            tooltip: l10n.chatAttach,
           ),
-          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _input,
+              focusNode: _inputFocus,
+              minLines: 1,
+              maxLines: 5,
+              textInputAction: TextInputAction.send,
+              onSubmitted: (_) => _send(),
+              style: theme.textTheme.bodyLarge,
+              decoration: InputDecoration(
+                isCollapsed: true,
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 10,
+                ),
+                hintText: attached
+                    ? l10n.chatInputPlaceholderPhoto
+                    : l10n.chatInputPlaceholder,
+              ),
+            ),
+          ),
+          const SizedBox(width: 2),
           _trailingButton(l10n, sending, uploading, recording),
         ],
       ),
+    );
+  }
+
+  /// The rounded pill that wraps the composer row (or the voice recorder).
+  Widget _composerShell(AppPalette p, Widget child) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      decoration: BoxDecoration(
+        color: p.surface,
+        border: Border(top: BorderSide(color: p.border)),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: p.inputBg,
+          border: Border.all(color: p.inputBorder),
+          borderRadius: BorderRadius.circular(AppRadius.composer),
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _circleIcon({
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onTap,
+    String? tooltip,
+  }) {
+    return IconButton(
+      onPressed: onTap,
+      icon: Icon(icon, color: onTap == null ? color.withValues(alpha: 0.4) : color),
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
     );
   }
 
@@ -390,32 +545,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     bool uploading,
     bool recording,
   ) {
+    final p = Theme.of(context).palette;
     if (sending) {
-      return IconButton.filledTonal(
-        onPressed: () => ref.read(chatControllerProvider.notifier).cancel(),
-        icon: const Icon(Icons.stop_rounded),
+      return _filledCircle(
+        bg: p.soft,
+        child: Icon(Icons.stop_rounded, color: p.text, size: 22),
+        onTap: () => ref.read(chatControllerProvider.notifier).cancel(),
         tooltip: l10n.chatStop,
       );
     }
     if (uploading) {
-      return IconButton.filled(
-        onPressed: null,
-        icon: const SizedBox(
+      return _filledCircle(
+        bg: p.accent,
+        child: SizedBox(
           height: 18,
           width: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
+          child: CircularProgressIndicator(strokeWidth: 2, color: p.onAccent),
         ),
+        onTap: null,
         tooltip: l10n.chatSend,
       );
     }
-    // Mic while recording or when the text field is empty; send otherwise.
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: _input,
       builder: (context, value, _) {
         if (!recording && value.text.trim().isNotEmpty) {
-          return IconButton.filled(
-            onPressed: _send,
-            icon: const Icon(Icons.send_rounded),
+          return _filledCircle(
+            bg: p.accent,
+            child: Icon(Icons.arrow_upward_rounded, color: p.onAccent, size: 22),
+            onTap: _send,
             tooltip: l10n.chatSend,
           );
         }
@@ -424,8 +582,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  Widget _filledCircle({
+    required Color bg,
+    required Widget child,
+    required VoidCallback? onTap,
+    String? tooltip,
+  }) {
+    final btn = Material(
+      color: bg,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(width: 38, height: 38, child: Center(child: child)),
+      ),
+    );
+    return tooltip == null ? btn : Tooltip(message: tooltip, child: btn);
+  }
+
   Widget _micButton(AppLocalizations l10n, bool recording) {
-    final theme = Theme.of(context);
+    final p = Theme.of(context).palette;
     return GestureDetector(
       onTap: () => ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -439,19 +615,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           .updateDrag(d.offsetFromOrigin.dx),
       onLongPressEnd: (_) => _endVoice(),
       child: Container(
-        width: 48,
-        height: 48,
+        width: 38,
+        height: 38,
         decoration: BoxDecoration(
-          color: recording
-              ? theme.colorScheme.error
-              : theme.colorScheme.primary,
+          color: recording ? p.danger : p.soft,
           shape: BoxShape.circle,
         ),
         child: Icon(
-          recording ? Icons.mic : Icons.mic_none_rounded,
-          color: recording
-              ? theme.colorScheme.onError
-              : theme.colorScheme.onPrimary,
+          Icons.mic_none_rounded,
+          color: recording ? Colors.white : p.text,
+          size: 22,
         ),
       ),
     );
