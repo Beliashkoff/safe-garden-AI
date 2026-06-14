@@ -34,7 +34,7 @@ func TestBuildParams_ModelSelection(t *testing.T) {
 	}
 
 	// Empty req.Model + no override → DefaultModel.
-	assert.Contains(t, marshalParams(t, testProvider(2048, ""), req), `"model":"claude-opus-4-7"`)
+	assert.Contains(t, marshalParams(t, testProvider(2048, ""), req), `"model":"claude-opus-4-8"`)
 
 	// req.Model honoured when set.
 	req.Model = "claude-sonnet-4-6"
@@ -100,4 +100,16 @@ func TestBuildParams_ToolsConverted(t *testing.T) {
 	assert.Contains(t, out, "recommend_fertilizer")
 	assert.Contains(t, out, `"problem"`)
 	assert.Contains(t, out, `"cache_control"`, "last tool is cache-controlled")
+}
+
+func TestBuildParams_MessagePrefixCacheControlled(t *testing.T) {
+	// No system, no tools: the only cache_control is the top-level breakpoint
+	// that caches the message prefix (history + images) — the real cost driver.
+	// Without it the sub-4096-token system+tools breakpoints never reach Opus's
+	// minimum cacheable prefix, so caching is a silent no-op.
+	req := messageRequest{
+		Messages: []messageItem{{Role: "user", Content: []contentBlock{{Type: "text", Text: "hi"}}}},
+	}
+	out := marshalParams(t, testProvider(2048, ""), req)
+	assert.Contains(t, out, `"cache_control"`, "message prefix must be cache-controlled via top-level cache_control")
 }

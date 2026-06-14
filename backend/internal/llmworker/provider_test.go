@@ -32,7 +32,7 @@ func serverWith(p provider) *httptest.Server {
 }
 
 const validBody = `{
-	"model":"claude-opus-4-7",
+	"model":"claude-opus-4-8",
 	"messages":[{"role":"user","content":[{"type":"text","text":"hi"}]}],
 	"metadata":{"uid_hash":"abc","request_id":"req_1"}
 }`

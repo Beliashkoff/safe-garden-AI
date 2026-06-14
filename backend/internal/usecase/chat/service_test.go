@@ -197,8 +197,8 @@ func TestPaginate(t *testing.T) {
 // the bug where finalizeComplete inserted usage without a cost, so the admin
 // "spent" metric stayed at zero.
 func TestNumericUSD_RoundTripsCost(t *testing.T) {
-	// Base rate: opus-4-7 is $5 in / $25 out per MTok.
-	cost := llm.EstimateCostUSD("claude-opus-4-7", llm.TokenUsage{InputTokens: 1000, OutputTokens: 500})
+	// Base rate: opus-4-8 is $5 in / $25 out per MTok.
+	cost := llm.EstimateCostUSD("claude-opus-4-8", llm.TokenUsage{InputTokens: 1000, OutputTokens: 500})
 	assert.InDelta(t, 0.0175, cost, 1e-9) // (1000*5 + 500*25)/1e6
 
 	n := numericUSD(cost)
@@ -209,7 +209,7 @@ func TestNumericUSD_RoundTripsCost(t *testing.T) {
 	assert.InDelta(t, 0.0175, f.Float64, 1e-6) // NUMERIC(10,6) scale
 
 	// Cache tiers are priced separately: read 0.1x input, write 1.25x input.
-	cacheCost := llm.EstimateCostUSD("claude-opus-4-7", llm.TokenUsage{
+	cacheCost := llm.EstimateCostUSD("claude-opus-4-8", llm.TokenUsage{
 		CacheWriteTokens: 1_000_000,
 		CacheReadTokens:  1_000_000,
 	})

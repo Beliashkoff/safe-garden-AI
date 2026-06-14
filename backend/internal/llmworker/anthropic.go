@@ -207,6 +207,13 @@ func (p *anthropicProvider) buildParams(req messageRequest) anthropic.MessageNew
 		Model:     model, // anthropic.Model is a string alias
 		MaxTokens: p.maxTokens,
 		Messages:  toAnthropicMessages(req.Messages),
+		// Top-level cache_control marks the last cacheable block — the newest
+		// message — so the whole prefix (system + tools + history + images)
+		// becomes a 0.1x cache read on turns 2+. The system/tools breakpoints
+		// below sit under Opus's 4096-token minimum cacheable prefix and never
+		// cache on their own; this is the breakpoint that actually caches the
+		// expensive history+image prefix (ARCH §7.3).
+		CacheControl: anthropic.NewCacheControlEphemeralParam(),
 	}
 
 	// System prompt with ephemeral cache_control (ARCH §7.3 prompt caching).

@@ -356,7 +356,7 @@ POST /v1/audio/transcribe
    - Делает `POST /v1/llm/messages` на worker по mTLS, открывает SSE-стрим.
 6. **LLM-worker (HostKey Frankfurt):**
    - Получает payload, вызывает `client.Messages.NewStreaming(...)` через `anthropic-sdk-go`.
-   - Параметры: `system` (см. §7), `messages` (история + текущее), `tools: [recommend_fertilizer]`, `model: claude-opus-4-7` (актуальный ID — проверить через ctx7 при имплементации), `cache_control: ephemeral` для system+tools.
+   - Параметры: `system` (см. §7), `messages` (история + текущее), `tools: [recommend_fertilizer]`, `model: claude-opus-4-8` (актуальный ID — проверить через ctx7 при имплементации), `cache_control: ephemeral` для system+tools.
    - При `tool_use` от Claude (`recommend_fertilizer`) — делает обратный RPC в РФ-бэкенд (`POST /internal/v1/tools/fertilizer` по mTLS), получает результат из БД каталога, передаёт в Claude как `tool_result`, продолжает стрим.
    - Ретранслирует SSE обратно в РФ-бэкенд.
 7. **Backend (РФ):** ретранслирует SSE на mobile. По `stop_reason: end_turn` — сохраняет финальное `assistant`-сообщение, блоки и `usage_log` (токены, стоимость).
@@ -718,7 +718,7 @@ Anthropic блокирует доступ из РФ многоуровнево:
 ```
 POST /v1/llm/messages              (приватный, mTLS)
   body: {
-    model: "claude-opus-4-7",
+    model: "claude-opus-4-8",
     system: "...",
     messages: [...],
     tools: [...],
