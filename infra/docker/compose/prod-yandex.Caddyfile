@@ -2,7 +2,15 @@
 # Let's Encrypt. $DOMAIN и $ADMIN_DOMAIN передаются через env при деплое.
 
 {$DOMAIN} {
-	encode gzip zstd
+	# Do not compress the SSE endpoint (POST /v1/messages): the default encode
+	# matcher includes text/*, which covers text/event-stream, and gzip/zstd
+	# buffering breaks the streamed assistant reply — the client only sees the
+	# answer after an app restart. Everything else (JSON, Swagger UI) is still
+	# compressed.
+	@compressible {
+		not path /v1/messages
+	}
+	encode @compressible gzip zstd
 
 	reverse_proxy api:8080 {
 		health_uri /healthz
