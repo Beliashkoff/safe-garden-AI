@@ -128,8 +128,8 @@ func applyMigrations(dsn string) error {
 func truncateAll(t *testing.T) {
 	t.Helper()
 	_, err := adminDB.Exec("TRUNCATE users, refresh_tokens, email_codes, audit_log, " +
-		"conversations, messages, message_blocks, uploads, fertilizers, usage_log, " +
-		"oauth_states RESTART IDENTITY CASCADE")
+		"conversations, messages, message_blocks, message_feedback, uploads, fertilizers, " +
+		"usage_log, oauth_states RESTART IDENTITY CASCADE")
 	require.NoError(t, err)
 }
 

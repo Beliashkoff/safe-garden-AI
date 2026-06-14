@@ -25,4 +25,6 @@ var (
 	// ErrTranscriptionFailed — the transcription pipeline failed (download /
 	// convert / recognize). Treated as a transient/upstream failure.
 	ErrTranscriptionFailed = errors.New("chat: transcription failed")
+	// ErrInvalidFeedback — feedback value is neither a known verdict nor a clear.
+	ErrInvalidFeedback = errors.New("chat: invalid feedback value")
 )

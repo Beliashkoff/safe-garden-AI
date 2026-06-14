@@ -42,6 +42,7 @@ func NewRouter(d Deps) chi.Router {
 		// Chat (stage 2.3).
 		r.Post("/messages", d.Handler.PostMessage)
 		r.Delete("/messages/{id}", d.Handler.DeleteMessage)
+		r.Put("/messages/{id}/feedback", d.Handler.SetMessageFeedback)
 		r.Get("/conversation", d.Handler.GetConversation)
 		r.Get("/conversation/messages", d.Handler.ListMessages)
 

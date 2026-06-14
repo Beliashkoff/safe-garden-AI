@@ -223,3 +223,32 @@ func TestNumericUSD_RoundTripsCost(t *testing.T) {
 	require.True(t, fz.Valid)
 	assert.Equal(t, 0.0, fz.Float64)
 }
+
+func TestNormalizeFeedback(t *testing.T) {
+	cases := []struct {
+		in        string
+		wantVerd  string
+		wantClear bool
+		wantErr   error
+	}{
+		{"up", "up", false, nil},
+		{"down", "down", false, nil},
+		{"UP", "up", false, nil},       // case-insensitive
+		{" down ", "down", false, nil}, // trimmed
+		{"", "", true, nil},
+		{"none", "", true, nil},
+		{"null", "", true, nil},
+		{"meh", "", false, ErrInvalidFeedback},
+		{"thumbsup", "", false, ErrInvalidFeedback},
+	}
+	for _, tc := range cases {
+		verdict, clear, err := normalizeFeedback(tc.in)
+		if tc.wantErr != nil {
+			assert.ErrorIs(t, err, tc.wantErr, "in=%q", tc.in)
+			continue
+		}
+		require.NoErrorf(t, err, "in=%q", tc.in)
+		assert.Equalf(t, tc.wantVerd, verdict, "in=%q", tc.in)
+		assert.Equalf(t, tc.wantClear, clear, "in=%q", tc.in)
+	}
+}

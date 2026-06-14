@@ -130,6 +130,14 @@ type MessageBlock struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type MessageFeedback struct {
+	MessageID uuid.UUID
+	UserID    uuid.UUID
+	Value     string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
 type OauthState struct {
 	StateHash    []byte
 	Provider     string

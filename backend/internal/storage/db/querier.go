@@ -65,6 +65,8 @@ type Querier interface {
 	// DELETE /v1/messages/:id — owner-scoped (user_id in WHERE). execrows lets the
 	// handler distinguish 404 (0 rows) from 204 (1 row). Blocks cascade.
 	DeleteMessage(ctx context.Context, arg DeleteMessageParams) (int64, error)
+	// Clears the caller's verdict on a message. Idempotent (no-op if absent).
+	DeleteMessageFeedback(ctx context.Context, arg DeleteMessageFeedbackParams) error
 	DeleteOldErrorEvents(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
 	// Removes one upload row after its object has been deleted from storage (GC).
 	DeleteUpload(ctx context.Context, storageKey string) error
@@ -166,6 +168,9 @@ type Querier interface {
 	// Idempotent catalog seeding (Stage 5). Updates everything but id/created_at and
 	// bumps updated_at on conflict.
 	UpsertFertilizerBySlug(ctx context.Context, arg UpsertFertilizerBySlugParams) (Fertilizer, error)
+	// PUT /v1/messages/:id/feedback — owner-scoped (user_id in the key). Idempotent:
+	// re-voting the same value just refreshes updated_at.
+	UpsertMessageFeedback(ctx context.Context, arg UpsertMessageFeedbackParams) error
 	UsageByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]UsageByDayRow, error)
 	UsersByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]UsersByDayRow, error)
 }

@@ -144,6 +144,42 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// feedbackRequest carries the thumbs verdict. Value is a pointer so an explicit
+// null is distinguishable from a missing field; both clear the verdict, as does
+// "" / "none".
+type feedbackRequest struct {
+	Value *string `json:"value"`
+}
+
+// SetMessageFeedback handles PUT /v1/messages/{id}/feedback — owner-scoped
+// thumbs up/down on an assistant message. Idempotent; 204 on success.
+func (h *Handler) SetMessageFeedback(w http.ResponseWriter, r *http.Request) {
+	userID, ok := ctxkey.UserID(r.Context())
+	if !ok {
+		httperr.Write(w, r, httperr.Unauthorized("authentication required"))
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httperr.Write(w, r, httperr.ValidationFailed("invalid message id"))
+		return
+	}
+	var req feedbackRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		httperr.Write(w, r, err)
+		return
+	}
+	var value string
+	if req.Value != nil {
+		value = *req.Value
+	}
+	if err := h.chat.SetFeedback(r.Context(), userID, id, value); err != nil {
+		respondError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type fertilizerTapRequest struct {
 	Slug string `json:"slug"`
 }

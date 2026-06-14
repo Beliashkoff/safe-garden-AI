@@ -111,6 +111,8 @@ func mapResourceErr(err error) error {
 		return httperr.ValidationFailed("speech was not recognized, please type your message")
 	case errors.Is(err, chatuc.ErrTranscriptionFailed):
 		return httperr.ServiceUnavailable("transcription is temporarily unavailable")
+	case errors.Is(err, chatuc.ErrInvalidFeedback):
+		return httperr.ValidationFailed("feedback must be \"up\", \"down\", or null")
 	case errors.Is(err, uploaduc.ErrUnsupportedType):
 		return httperr.UnsupportedMedia("unsupported content type")
 	case errors.Is(err, uploaduc.ErrTooLarge):
