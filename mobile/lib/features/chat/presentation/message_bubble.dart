@@ -7,7 +7,9 @@ import '../../../app/theme.dart';
 import '../../../app/widgets/brand_logo.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../domain/chat_models.dart';
+import 'answer_segments.dart';
 import 'chat_error_message.dart';
+import 'widgets/action_steps_card.dart';
 import 'widgets/fertilizer_card.dart';
 import 'widgets/message_photos.dart';
 import 'widgets/voice_message_player.dart';
@@ -146,16 +148,7 @@ class MessageBubble extends StatelessWidget {
 
     for (final b in message.content) {
       if (b.type == 'text' && b.text.isNotEmpty) {
-        body.add(
-          MarkdownBody(
-            data: b.text,
-            selectable: true,
-            styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-              p: theme.textTheme.bodyLarge,
-              listBullet: theme.textTheme.bodyLarge,
-            ),
-          ),
-        );
+        body.addAll(_answerSegments(theme, b.text));
       } else if (b.type == 'fertilizer_card' && b.products.isNotEmpty) {
         body.add(
           Padding(
@@ -204,6 +197,35 @@ class MessageBubble extends StatelessWidget {
         children: body,
       ),
     );
+  }
+
+  /// Renders an assistant text block: ordinary Markdown, with the actionable
+  /// "Что делать" section lifted out of the prose into a highlighted
+  /// [ActionStepsCard] (see [parseAnswerSegments]).
+  List<Widget> _answerSegments(ThemeData theme, String text) {
+    final segments = parseAnswerSegments(text);
+    final widgets = <Widget>[];
+    for (var i = 0; i < segments.length; i++) {
+      if (i > 0) {
+        widgets.add(const SizedBox(height: 12));
+      }
+      switch (segments[i]) {
+        case MarkdownSegment(:final text):
+          widgets.add(
+            MarkdownBody(
+              data: text,
+              selectable: true,
+              styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                p: theme.textTheme.bodyLarge,
+                listBullet: theme.textTheme.bodyLarge,
+              ),
+            ),
+          );
+        case StepsSegment(:final title, :final steps):
+          widgets.add(ActionStepsCard(title: title, steps: steps));
+      }
+    }
+    return widgets;
   }
 
   Widget _authorRow(ThemeData theme, AppPalette p, AppLocalizations l10n) {

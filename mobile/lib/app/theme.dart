@@ -49,7 +49,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
   /// Subtle filled backgrounds: suggestion chips, attachment chips, meters.
   final Color soft;
 
-  /// Even subtler fill for inset cards ("что сделать на этой неделе").
+  /// Even subtler fill for inset cards (fertilizer recommendations). The
+  /// "что делать" action card uses the stronger [soft] fill so it stands out.
   final Color softer;
   final Color border;
   final Color borderStrong;

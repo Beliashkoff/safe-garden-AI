@@ -4,6 +4,7 @@ import 'package:agronom_ai/features/chat/data/audio_ports.dart';
 import 'package:agronom_ai/features/chat/data/media_cache.dart';
 import 'package:agronom_ai/features/chat/domain/chat_models.dart';
 import 'package:agronom_ai/features/chat/presentation/message_bubble.dart';
+import 'package:agronom_ai/features/chat/presentation/widgets/action_steps_card.dart';
 import 'package:agronom_ai/features/chat/presentation/widgets/voice_message_player.dart';
 import 'package:agronom_ai/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -193,6 +194,51 @@ void main() {
     );
 
     expect(find.text('Ответ остановлен'), findsOneWidget);
+  });
+
+  testWidgets('assistant action steps render as a highlighted card', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        MessageBubble(
+          message: _message(
+            role: MessageRole.assistant,
+            status: MessageStatus.complete,
+            text: '**Что делать**\n'
+                '1. Опрыскать листья сульфатом магния\n'
+                '2. Сократить полив',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(ActionStepsCard), findsOneWidget);
+    expect(find.text('Что делать'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(
+      find.textContaining('Опрыскать листья сульфатом магния'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a plain assistant answer renders no action card', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        MessageBubble(
+          message: _message(
+            role: MessageRole.assistant,
+            status: MessageStatus.complete,
+            text: 'Просто ответ без шагов.',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(ActionStepsCard), findsNothing);
   });
 
   testWidgets('completed assistant shows the footer and reports feedback', (
