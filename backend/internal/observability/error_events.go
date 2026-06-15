@@ -77,7 +77,7 @@ func ErrorEvents(sink ErrorSink, source string) func(http.Handler) http.Handler 
 			}
 			// Detached from the request lifecycle: recording must not delay the
 			// response, and a cancelled request context must not lose the event.
-			go func() {
+			go func() { //nolint:gosec // G118: detached on purpose; context.Background with its own timeout so a cancelled request never drops the event
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
 				sink.RecordError(ctx, ev)

@@ -150,7 +150,7 @@ func sessionIDFrom(ctx context.Context) uuid.UUID {
 // --- cookies ---
 
 func (h *Handler) setSessionCookie(w http.ResponseWriter, token string, expires time.Time) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: HttpOnly + SameSiteStrict set below; Secure is env-driven (true in prod, false for local http dev)
 		Name:     sessionCookie,
 		Value:    token,
 		Path:     "/admin",
@@ -162,7 +162,7 @@ func (h *Handler) setSessionCookie(w http.ResponseWriter, token string, expires 
 }
 
 func (h *Handler) clearSessionCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: HttpOnly + SameSiteStrict set below; Secure is env-driven (true in prod, false for local http dev)
 		Name:     sessionCookie,
 		Value:    "",
 		Path:     "/admin",

@@ -89,7 +89,7 @@ func mapErr(err error) error {
 
 // mapResourceErr maps chat + upload sentinels. Split from mapErr to keep each
 // function's cyclomatic complexity within the linter budget.
-func mapResourceErr(err error) error {
+func mapResourceErr(err error) error { //nolint:gocyclo // flat sentinel->HTTP mapping; one branch per error, no real branching complexity
 	switch {
 	case errors.Is(err, chatuc.ErrEmptyContent):
 		return httperr.ValidationFailed("message content is empty")

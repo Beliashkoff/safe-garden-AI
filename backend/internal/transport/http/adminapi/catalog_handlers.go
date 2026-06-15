@@ -175,7 +175,7 @@ func (h *Handler) getProblemKeys(w http.ResponseWriter, r *http.Request) {
 // postProductImage — POST /admin/v1/fertilizers/image (multipart "file").
 func (h *Handler) postProductImage(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxImageUploadBytes)
-	if err := r.ParseMultipartForm(maxImageUploadBytes); err != nil {
+	if err := r.ParseMultipartForm(maxImageUploadBytes); err != nil { //nolint:gosec // G120: body already bounded by MaxBytesReader above and the form size arg
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
 			httperr.Write(w, r, httperr.PayloadTooLarge("image is too large (max 5 MB)"))

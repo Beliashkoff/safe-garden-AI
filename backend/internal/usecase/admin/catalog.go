@@ -247,7 +247,7 @@ func (s *Service) UploadProductImage(ctx context.Context, adminID uuid.UUID, con
 }
 
 // normalizeProduct trims, derives the slug and validates every field.
-func normalizeProduct(in ProductInput) (ProductInput, error) {
+func normalizeProduct(in ProductInput) (ProductInput, error) { //nolint:gocyclo // sequential per-field trim + validate; each field adds a branch, no real complexity
 	in.Name = strings.TrimSpace(in.Name)
 	in.Slug = strings.TrimSpace(strings.ToLower(in.Slug))
 	in.ShortDesc = strings.TrimSpace(in.ShortDesc)
