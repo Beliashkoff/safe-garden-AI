@@ -308,6 +308,21 @@ export interface StalePurge {
   pending_hours: number;
 }
 
+// --- Ассортимент (catalog analytics) ---
+
+export interface ProblemStat {
+  problem: string;
+  total: number;
+  misses: number;
+}
+
+export interface CatalogProduct {
+  slug: string;
+  name: string;
+  impressions: number;
+  taps: number;
+}
+
 export interface ComplianceOverview {
   uploads: { unused_total: number; stale_total: number; stale_bytes: number };
   retention: { expired_otp: number; expired_oauth: number; old_revoked: number };

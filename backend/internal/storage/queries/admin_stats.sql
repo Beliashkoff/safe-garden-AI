@@ -344,6 +344,49 @@ SELECT
 FROM seq;
 
 -- ============================================================================
+-- Catalog & assortment.
+-- ============================================================================
+
+-- name: ProblemDistributionSince :many
+-- How often each diagnosed problem is queried and how often the catalog had no
+-- match (assortment gap). problem is a closed enum (non-PII).
+SELECT
+    problem,
+    COUNT(*)::bigint                            AS total,
+    COUNT(*) FILTER (WHERE NOT matched)::bigint AS misses
+FROM diag_events
+WHERE created_at >= $1
+GROUP BY problem
+ORDER BY total DESC;
+
+-- name: CatalogPerformanceSince :many
+-- Every ACTIVE catalog product with its impressions (card shows) and taps over
+-- the window. Products with 0/0 are dead assortment. Impressions come from the
+-- fertilizer_card block metadata; taps from usage_log.
+WITH imp AS (
+    SELECT (p->>'slug')::text AS slug, COUNT(*)::bigint AS impressions
+    FROM message_blocks mb, LATERAL jsonb_array_elements(mb.metadata->'products') AS p
+    WHERE mb.type = 'fertilizer_card' AND mb.created_at >= $1
+    GROUP BY 1
+),
+taps AS (
+    SELECT split_part(endpoint, ':', 2) AS slug, COUNT(*)::bigint AS taps
+    FROM usage_log
+    WHERE endpoint LIKE 'fertilizer_tap:%' AND created_at >= $1
+    GROUP BY 1
+)
+SELECT
+    f.slug,
+    f.name,
+    COALESCE(imp.impressions, 0)::bigint AS impressions,
+    COALESCE(taps.taps, 0)::bigint       AS taps
+FROM fertilizers f
+LEFT JOIN imp ON imp.slug = f.slug
+LEFT JOIN taps ON taps.slug = f.slug
+WHERE f.active = TRUE
+ORDER BY impressions DESC, taps DESC, f.name;
+
+-- ============================================================================
 -- Data lifecycle & compliance (152-FZ / 406-FZ). user/conversation ids masked in
 -- the usecase before leaving the backend.
 -- ============================================================================

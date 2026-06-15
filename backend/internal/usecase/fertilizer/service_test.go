@@ -14,11 +14,17 @@ import (
 type fakeStore struct {
 	rows      []db.RecommendFertilizersRow
 	gotParams db.RecommendFertilizersParams
+	diag      db.InsertDiagEventParams
 }
 
 func (f *fakeStore) RecommendFertilizers(_ context.Context, arg db.RecommendFertilizersParams) ([]db.RecommendFertilizersRow, error) {
 	f.gotParams = arg
 	return f.rows, nil
+}
+
+func (f *fakeStore) InsertDiagEvent(_ context.Context, arg db.InsertDiagEventParams) error {
+	f.diag = arg
+	return nil
 }
 
 func TestRecommend_MapsRowsAndNullableFields(t *testing.T) {

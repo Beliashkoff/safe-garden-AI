@@ -25,6 +25,7 @@ import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import SecurityIcon from '@mui/icons-material/Security';
 import GavelIcon from '@mui/icons-material/Gavel';
 import YardIcon from '@mui/icons-material/Yard';
+import InsightsIcon from '@mui/icons-material/Insights';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -44,6 +45,7 @@ const NAV = [
   { path: '/security', label: 'Безопасность', icon: <SecurityIcon /> },
   { path: '/compliance', label: 'Данные и комплаенс', icon: <GavelIcon /> },
   { path: '/catalog', label: 'Каталог удобрений', icon: <YardIcon /> },
+  { path: '/assortment', label: 'Ассортимент', icon: <InsightsIcon /> },
   { path: '/errors', label: 'Ошибки', icon: <ReportProblemIcon /> },
   { path: '/audit', label: 'Журнал действий', icon: <HistoryIcon /> },
   { path: '/settings', label: 'Настройки', icon: <SettingsIcon /> },

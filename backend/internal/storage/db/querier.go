@@ -36,6 +36,10 @@ type Querier interface {
 	// Answer quality (качество ответов и обратная связь).
 	// ============================================================================
 	CardImpressionsSince(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
+	// Every ACTIVE catalog product with its impressions (card shows) and taps over
+	// the window. Products with 0/0 are dead assortment. Impressions come from the
+	// fertilizer_card block metadata; taps from usage_log.
+	CatalogPerformanceSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]CatalogPerformanceSinceRow, error)
 	// Finalises an assistant message: status + token counts (from the worker's SSE
 	// `usage` event, ARCH §11.3).
 	CompleteMessage(ctx context.Context, arg CompleteMessageParams) error
@@ -157,6 +161,10 @@ type Querier interface {
 	// Heartbeat written by the cleanup cron at the end of each run; details is the
 	// JSONB count summary. No PII (counts only).
 	InsertCleanupRun(ctx context.Context, details []byte) error
+	// One row per recommend_fertilizer call: the problem key the model queried and
+	// whether the catalog matched. No PII (problem is a closed enum). Written
+	// best-effort from the tool callback (fertilizer.Service.Recommend).
+	InsertDiagEvent(ctx context.Context, arg InsertDiagEventParams) error
 	InsertErrorEvent(ctx context.Context, arg InsertErrorEventParams) error
 	InsertUsage(ctx context.Context, arg InsertUsageParams) error
 	LinkVKSub(ctx context.Context, arg LinkVKSubParams) (User, error)
@@ -222,6 +230,12 @@ type Querier interface {
 	// email-OTP delivery + abuse. delivery_rate = used/issued (silent SMTP failure
 	// shows as a drop); exhausted = codes that hit the attempt cap (brute force).
 	OtpStatsSince(ctx context.Context, createdAt pgtype.Timestamptz) (OtpStatsSinceRow, error)
+	// ============================================================================
+	// Catalog & assortment.
+	// ============================================================================
+	// How often each diagnosed problem is queried and how often the catalog had no
+	// match (assortment gap). problem is a closed enum (non-PII).
+	ProblemDistributionSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ProblemDistributionSinceRow, error)
 	// ARCH §6.4. plant = NULL → no crop filter; universal items (plants IS NULL) always
 	// match. Ranked by priority (highest first), at most 3.
 	RecommendFertilizers(ctx context.Context, arg RecommendFertilizersParams) ([]RecommendFertilizersRow, error)

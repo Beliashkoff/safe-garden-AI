@@ -80,6 +80,13 @@ type Conversation struct {
 	CreatedAt pgtype.Timestamptz
 }
 
+type DiagEvent struct {
+	ID        int64
+	Problem   string
+	Matched   bool
+	CreatedAt pgtype.Timestamptz
+}
+
 type EmailCode struct {
 	ID        uuid.UUID
 	Email     string

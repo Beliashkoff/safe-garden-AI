@@ -123,6 +123,10 @@ func (h *Handler) Routes() chi.Router {
 		r.Get("/compliance/stale-purges", h.getStalePurges)
 		r.Get("/compliance/overview", h.getComplianceOverview)
 
+		// Catalog & assortment ("Ассортимент").
+		r.Get("/stats/problems", h.getProblemDistribution)
+		r.Get("/stats/catalog-performance", h.getCatalogPerformance)
+
 		r.Get("/errors", h.getErrors)
 		r.Get("/audit", h.getAudit)
 	})

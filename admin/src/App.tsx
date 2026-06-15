@@ -24,6 +24,9 @@ const SecurityPage = lazy(() =>
 const CompliancePage = lazy(() =>
   import('./pages/CompliancePage').then((m) => ({ default: m.CompliancePage })),
 );
+const AssortmentPage = lazy(() =>
+  import('./pages/AssortmentPage').then((m) => ({ default: m.AssortmentPage })),
+);
 const CatalogPage = lazy(() =>
   import('./pages/CatalogPage').then((m) => ({ default: m.CatalogPage })),
 );
@@ -72,6 +75,7 @@ export function App() {
           <Route path="/security" element={<SecurityPage />} />
           <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/catalog" element={<CatalogPage />} />
+          <Route path="/assortment" element={<AssortmentPage />} />
           <Route path="/errors" element={<ErrorsPage />} />
           <Route path="/audit" element={<AuditPage />} />
           <Route path="/settings" element={<SettingsPage />} />

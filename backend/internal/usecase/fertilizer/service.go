@@ -17,6 +17,7 @@ import (
 // consumer side, per the project's interface convention).
 type Store interface {
 	RecommendFertilizers(ctx context.Context, arg db.RecommendFertilizersParams) ([]db.RecommendFertilizersRow, error)
+	InsertDiagEvent(ctx context.Context, arg db.InsertDiagEventParams) error
 }
 
 // Service selects catalog products for a diagnosed problem.
@@ -63,5 +64,10 @@ func (s *Service) Recommend(ctx context.Context, args llm.FertilizerToolArgs) ([
 		}
 		out = append(out, p)
 	}
+
+	// Record the diagnosis for catalog analytics (problem distribution + miss-rate).
+	// Best-effort, non-PII (problem is a closed enum); never fails the recommendation.
+	_ = s.store.InsertDiagEvent(ctx, db.InsertDiagEventParams{Problem: args.Problem, Matched: len(out) > 0})
+
 	return out, nil
 }

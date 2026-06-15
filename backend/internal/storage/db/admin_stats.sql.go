@@ -240,6 +240,66 @@ func (q *Queries) CardImpressionsSince(ctx context.Context, createdAt pgtype.Tim
 	return impressions, err
 }
 
+const catalogPerformanceSince = `-- name: CatalogPerformanceSince :many
+WITH imp AS (
+    SELECT (p->>'slug')::text AS slug, COUNT(*)::bigint AS impressions
+    FROM message_blocks mb, LATERAL jsonb_array_elements(mb.metadata->'products') AS p
+    WHERE mb.type = 'fertilizer_card' AND mb.created_at >= $1
+    GROUP BY 1
+),
+taps AS (
+    SELECT split_part(endpoint, ':', 2) AS slug, COUNT(*)::bigint AS taps
+    FROM usage_log
+    WHERE endpoint LIKE 'fertilizer_tap:%' AND created_at >= $1
+    GROUP BY 1
+)
+SELECT
+    f.slug,
+    f.name,
+    COALESCE(imp.impressions, 0)::bigint AS impressions,
+    COALESCE(taps.taps, 0)::bigint       AS taps
+FROM fertilizers f
+LEFT JOIN imp ON imp.slug = f.slug
+LEFT JOIN taps ON taps.slug = f.slug
+WHERE f.active = TRUE
+ORDER BY impressions DESC, taps DESC, f.name
+`
+
+type CatalogPerformanceSinceRow struct {
+	Slug        string
+	Name        string
+	Impressions int64
+	Taps        int64
+}
+
+// Every ACTIVE catalog product with its impressions (card shows) and taps over
+// the window. Products with 0/0 are dead assortment. Impressions come from the
+// fertilizer_card block metadata; taps from usage_log.
+func (q *Queries) CatalogPerformanceSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]CatalogPerformanceSinceRow, error) {
+	rows, err := q.db.Query(ctx, catalogPerformanceSince, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CatalogPerformanceSinceRow
+	for rows.Next() {
+		var i CatalogPerformanceSinceRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.Impressions,
+			&i.Taps,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const conversationDepthSince = `-- name: ConversationDepthSince :one
 WITH per_user AS (
     SELECT user_id, COUNT(*) AS msgs
@@ -1104,6 +1164,49 @@ func (q *Queries) OtpStatsSince(ctx context.Context, createdAt pgtype.Timestampt
 		&i.ExpiredUnused,
 	)
 	return i, err
+}
+
+const problemDistributionSince = `-- name: ProblemDistributionSince :many
+
+SELECT
+    problem,
+    COUNT(*)::bigint                            AS total,
+    COUNT(*) FILTER (WHERE NOT matched)::bigint AS misses
+FROM diag_events
+WHERE created_at >= $1
+GROUP BY problem
+ORDER BY total DESC
+`
+
+type ProblemDistributionSinceRow struct {
+	Problem string
+	Total   int64
+	Misses  int64
+}
+
+// ============================================================================
+// Catalog & assortment.
+// ============================================================================
+// How often each diagnosed problem is queried and how often the catalog had no
+// match (assortment gap). problem is a closed enum (non-PII).
+func (q *Queries) ProblemDistributionSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ProblemDistributionSinceRow, error) {
+	rows, err := q.db.Query(ctx, problemDistributionSince, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProblemDistributionSinceRow
+	for rows.Next() {
+		var i ProblemDistributionSinceRow
+		if err := rows.Scan(&i.Problem, &i.Total, &i.Misses); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const responseLengthByVerdictSince = `-- name: ResponseLengthByVerdictSince :one
