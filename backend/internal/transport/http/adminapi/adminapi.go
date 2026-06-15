@@ -88,6 +88,8 @@ func (h *Handler) Routes() chi.Router {
 		r.Get("/stats/errors-breakdown", h.getErrorsBreakdown)
 
 		// Growth analytics ("Рост").
+		r.Get("/stats/input-funnel", h.getInputFunnel)
+		r.Get("/stats/input-by-day", h.getInputByDay)
 		r.Get("/stats/activation", h.getActivation)
 		r.Get("/stats/retention", h.getRetention)
 		r.Get("/stats/conversation-depth", h.getConversationDepth)

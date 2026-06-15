@@ -154,6 +154,7 @@ type Querier interface {
 	IncrementAdminCodeAttempts(ctx context.Context, id uuid.UUID) (int32, error)
 	// RETURNING attempts lets the caller atomically enforce the ≤5 attempts cap.
 	IncrementEmailCodeAttempts(ctx context.Context, id uuid.UUID) (int32, error)
+	InputTypeByDaySince(ctx context.Context, createdAt pgtype.Timestamptz) ([]InputTypeByDaySinceRow, error)
 	InsertAdminAudit(ctx context.Context, arg InsertAdminAuditParams) error
 	// user_id is nullable for system-level events (e.g. failed verification of an
 	// id_token before any user could be resolved).
@@ -231,6 +232,11 @@ type Querier interface {
 	// shows as a drop); exhausted = codes that hit the attempt cap (brute force).
 	OtpStatsSince(ctx context.Context, createdAt pgtype.Timestamptz) (OtpStatsSinceRow, error)
 	// ============================================================================
+	// Photo & voice funnel (product core). The assistant reply is the next message
+	// after the user message in the same conversation (LEAD over created_at).
+	// ============================================================================
+	PhotoVoiceFunnelSince(ctx context.Context, createdAt pgtype.Timestamptz) (PhotoVoiceFunnelSinceRow, error)
+	// ============================================================================
 	// Catalog & assortment.
 	// ============================================================================
 	// How often each diagnosed problem is queried and how often the catalog had no
@@ -281,6 +287,8 @@ type Querier interface {
 	// Sliding TTL: bump both the activity stamp and the expiry on use.
 	TouchAdminSession(ctx context.Context, arg TouchAdminSessionParams) error
 	TouchRefreshToken(ctx context.Context, id uuid.UUID) error
+	// SpeechKit transcription volume (post-0017 rows carry duration_ms).
+	TranscriptionVolumeSince(ctx context.Context, createdAt pgtype.Timestamptz) (TranscriptionVolumeSinceRow, error)
 	// ============================================================================
 	// Cost / FinOps. Claude rows are endpoint='/v1/messages'; taps and 'transcribe'
 	// carry no Claude cost (cost_usd NULL → ignored by the SUMs).

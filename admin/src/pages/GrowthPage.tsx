@@ -27,9 +27,22 @@ import {
 } from 'recharts';
 import { api, humanError } from '../api/client';
 import { StatCard } from '../components/StatCard';
-import type { Activation, ConversationDepth, HeatCell, RetentionCohort, WeekPoint } from '../api/types';
+import type {
+  Activation,
+  ConversationDepth,
+  HeatCell,
+  InputFunnel,
+  InputTypePoint,
+  RetentionCohort,
+  WeekPoint,
+} from '../api/types';
 
 const nf = new Intl.NumberFormat('ru-RU');
+
+function pct(part: number, whole: number): string {
+  if (whole <= 0) return '—';
+  return `${Math.round((part / whole) * 100)}%`;
+}
 
 // Дни недели Postgres: 0=Вс..6=Сб. Показываем с понедельника.
 const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -64,24 +77,30 @@ export function GrowthPage() {
   const [depth, setDepth] = useState<ConversationDepth | null>(null);
   const [heat, setHeat] = useState<HeatCell[]>([]);
   const [weekly, setWeekly] = useState<WeekPoint[]>([]);
+  const [funnel, setFunnel] = useState<InputFunnel | null>(null);
+  const [inputSeries, setInputSeries] = useState<InputTypePoint[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     void (async () => {
       try {
-        const [a, ret, d, hm, wk] = await Promise.all([
+        const [a, ret, d, hm, wk, fn, is] = await Promise.all([
           api.get<Activation>('/stats/activation?days=30'),
           api.get<{ cohorts: RetentionCohort[] }>('/stats/retention?days=84'),
           api.get<ConversationDepth>('/stats/conversation-depth?days=30'),
           api.get<{ cells: HeatCell[] }>('/stats/heatmap?days=30'),
           api.get<{ points: WeekPoint[] }>('/stats/activity-weekly?days=180'),
+          api.get<InputFunnel>('/stats/input-funnel?days=30'),
+          api.get<{ points: InputTypePoint[] }>('/stats/input-by-day?days=30'),
         ]);
         setActivation(a);
         setCohorts(ret.cohorts);
         setDepth(d);
         setHeat(hm.cells);
         setWeekly(wk.points);
+        setFunnel(fn);
+        setInputSeries(is.points);
       } catch (err) {
         setError(humanError(err));
       } finally {
@@ -142,6 +161,71 @@ export function GrowthPage() {
           />
         </Grid>
       </Grid>
+
+      {funnel && (
+        <>
+          <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>
+            Воронка ввода: фото / голос / текст (30 дней) — ядро продукта
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <StatCard
+                title="Доля фото-вопросов"
+                value={pct(funnel.photo, funnel.total)}
+                hint={`${nf.format(funnel.photo)} из ${nf.format(funnel.total)} вопросов`}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <StatCard
+                title="Успех фото-пути"
+                value={pct(funnel.photo_ok, funnel.photo_answered)}
+                hint={`${nf.format(funnel.photo_ok)} из ${nf.format(funnel.photo_answered)} ответов complete`}
+                valueColor={
+                  funnel.photo_answered > 0 && funnel.photo_ok / funnel.photo_answered < 0.9
+                    ? 'warning.main'
+                    : undefined
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <StatCard
+                title="Голосовых вопросов"
+                value={pct(funnel.voice, funnel.total)}
+                hint={`${nf.format(funnel.voice)} шт · успех ${pct(funnel.voice_ok, funnel.voice_answered)}`}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <StatCard
+                title="Транскрипция (30д)"
+                value={`${nf.format(funnel.transcribe_sec)} сек`}
+                hint={`${nf.format(funnel.transcriptions)} распознаваний · SpeechKit (₽)`}
+              />
+            </Grid>
+          </Grid>
+
+          <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
+            <Typography variant="subtitle1" sx={{ mb: 1 }}>
+              Типы ввода по дням
+            </Typography>
+            {inputSeries.length === 0 ? (
+              <Typography color="text.secondary">Пока нет данных за период.</Typography>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={inputSeries} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E0E8E0" />
+                  <XAxis dataKey="day" tick={{ fontSize: 12 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                  <ReTooltip />
+                  <Legend />
+                  <Bar dataKey="photo" name="Фото" stackId="in" fill="#2E7D32" />
+                  <Bar dataKey="voice" name="Голос" stackId="in" fill="#EF6C00" />
+                  <Bar dataKey="text" name="Текст" stackId="in" fill="#9E9E9E" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Paper>
+        </>
+      )}
 
       <Paper variant="outlined" sx={{ mt: 3, p: 2 }}>
         <Typography variant="h6" sx={{ mb: 0.5 }}>

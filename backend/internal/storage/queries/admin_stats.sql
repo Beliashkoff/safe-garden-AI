@@ -344,6 +344,50 @@ SELECT
 FROM seq;
 
 -- ============================================================================
+-- Photo & voice funnel (product core). The assistant reply is the next message
+-- after the user message in the same conversation (LEAD over created_at).
+-- ============================================================================
+
+-- name: PhotoVoiceFunnelSince :one
+WITH seq AS (
+    SELECT
+        m.id, m.role,
+        EXISTS (SELECT 1 FROM message_blocks b WHERE b.message_id = m.id AND b.type = 'image') AS has_image,
+        EXISTS (SELECT 1 FROM message_blocks b WHERE b.message_id = m.id AND b.type = 'audio') AS has_audio,
+        LEAD(m.role)   OVER w AS next_role,
+        LEAD(m.status) OVER w AS next_status
+    FROM messages m
+    WHERE m.created_at >= $1 AND m.role IN ('user', 'assistant')
+    WINDOW w AS (PARTITION BY m.conversation_id ORDER BY m.created_at)
+)
+SELECT
+    COUNT(*) FILTER (WHERE role = 'user')::bigint                                    AS total,
+    COUNT(*) FILTER (WHERE role = 'user' AND has_image)::bigint                      AS photo,
+    COUNT(*) FILTER (WHERE role = 'user' AND has_audio)::bigint                      AS voice,
+    COUNT(*) FILTER (WHERE role = 'user' AND has_image AND next_role = 'assistant')::bigint                          AS photo_answered,
+    COUNT(*) FILTER (WHERE role = 'user' AND has_image AND next_role = 'assistant' AND next_status = 'complete')::bigint AS photo_ok,
+    COUNT(*) FILTER (WHERE role = 'user' AND has_audio AND next_role = 'assistant')::bigint                          AS voice_answered,
+    COUNT(*) FILTER (WHERE role = 'user' AND has_audio AND next_role = 'assistant' AND next_status = 'complete')::bigint AS voice_ok
+FROM seq;
+
+-- name: TranscriptionVolumeSince :one
+-- SpeechKit transcription volume (post-0017 rows carry duration_ms).
+SELECT COUNT(*)::bigint AS count, COALESCE(SUM(duration_ms), 0)::bigint AS total_ms
+FROM usage_log
+WHERE endpoint = 'transcribe' AND created_at >= $1;
+
+-- name: InputTypeByDaySince :many
+SELECT
+    date_trunc('day', m.created_at, 'UTC')::timestamptz AS day,
+    COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM message_blocks b WHERE b.message_id = m.id AND b.type = 'image'))::bigint AS photo,
+    COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM message_blocks b WHERE b.message_id = m.id AND b.type = 'audio'))::bigint AS voice,
+    COUNT(*)::bigint AS total
+FROM messages m
+WHERE m.role = 'user' AND m.created_at >= $1
+GROUP BY 1
+ORDER BY 1;
+
+-- ============================================================================
 -- Catalog & assortment.
 -- ============================================================================
 

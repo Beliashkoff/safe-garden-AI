@@ -156,6 +156,25 @@ export interface WeekPoint {
   active_users: number;
 }
 
+export interface InputFunnel {
+  total: number;
+  photo: number;
+  voice: number;
+  photo_answered: number;
+  photo_ok: number;
+  voice_answered: number;
+  voice_ok: number;
+  transcriptions: number;
+  transcribe_sec: number;
+}
+
+export interface InputTypePoint {
+  day: string;
+  photo: number;
+  voice: number;
+  text: number;
+}
+
 // --- Качество ответов (answer quality) ---
 
 export interface CTRSlug {
