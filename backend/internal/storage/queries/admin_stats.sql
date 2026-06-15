@@ -138,7 +138,7 @@ SELECT
     COALESCE(SUM(tokens_out), 0)::bigint   AS tokens_out,
     COALESCE(SUM(cost_usd), 0)::numeric    AS cost_usd
 FROM usage_log
-WHERE created_at >= $1 AND endpoint NOT LIKE 'fertilizer_tap:%'
+WHERE created_at >= $1 AND endpoint NOT LIKE 'fertilizer_tap:%' AND endpoint <> 'transcribe'
 GROUP BY user_id
 ORDER BY cost_usd DESC
 LIMIT 20;
@@ -342,6 +342,54 @@ SELECT
           AND next_at <= created_at + interval '5 minutes'
     )::bigint AS followups
 FROM seq;
+
+-- ============================================================================
+-- Cost / FinOps. Claude rows are endpoint='/v1/messages'; taps and 'transcribe'
+-- carry no Claude cost (cost_usd NULL → ignored by the SUMs).
+-- ============================================================================
+
+-- name: UnitEconomicsSince :one
+SELECT
+    COALESCE(SUM(cost_usd), 0)::numeric                                      AS cost_usd,
+    COALESCE(SUM(tokens_in), 0)::bigint                                      AS tokens_in,
+    COALESCE(SUM(tokens_out), 0)::bigint                                     AS tokens_out,
+    COUNT(*) FILTER (WHERE endpoint = '/v1/messages')::bigint                AS messages,
+    COUNT(DISTINCT user_id) FILTER (WHERE endpoint = '/v1/messages')::bigint AS users
+FROM usage_log
+WHERE created_at >= $1 AND endpoint NOT LIKE 'fertilizer_tap:%' AND endpoint <> 'transcribe';
+
+-- name: CacheStatsSince :one
+-- Only rows written after migration 0017 carry the cache split; older rows have
+-- NULLs and are excluded from the denominator via rows_with_data.
+SELECT
+    COALESCE(SUM(input_uncached_tokens), 0)::bigint              AS input_uncached,
+    COALESCE(SUM(cache_write_tokens), 0)::bigint                 AS cache_write,
+    COALESCE(SUM(cache_read_tokens), 0)::bigint                  AS cache_read,
+    COUNT(*) FILTER (WHERE cache_read_tokens IS NOT NULL)::bigint AS rows_with_data
+FROM usage_log
+WHERE created_at >= $1 AND endpoint = '/v1/messages';
+
+-- name: CostByModelSince :many
+SELECT
+    COALESCE(model, 'до версионирования')::text AS model,
+    COALESCE(SUM(cost_usd), 0)::numeric         AS cost_usd,
+    COALESCE(SUM(tokens_in), 0)::bigint         AS tokens_in,
+    COALESCE(SUM(tokens_out), 0)::bigint        AS tokens_out,
+    COUNT(*)::bigint                            AS requests
+FROM usage_log
+WHERE created_at >= $1 AND endpoint = '/v1/messages'
+GROUP BY 1
+ORDER BY 2 DESC;
+
+-- name: CostByKindSince :one
+SELECT
+    COALESCE(SUM(cost_usd) FILTER (WHERE endpoint = '/v1/messages'), 0)::numeric AS claude_cost,
+    COUNT(*) FILTER (WHERE endpoint = '/v1/messages')::bigint                    AS claude_calls,
+    COUNT(*) FILTER (WHERE endpoint LIKE 'fertilizer_tap:%')::bigint             AS taps,
+    COUNT(*) FILTER (WHERE endpoint = 'transcribe')::bigint                      AS transcriptions,
+    COALESCE(SUM(duration_ms) FILTER (WHERE endpoint = 'transcribe'), 0)::bigint AS transcribe_ms
+FROM usage_log
+WHERE created_at >= $1;
 
 -- name: FailCodesSince :many
 -- Breakdown of failed assistant turns by reason for the reliability widget.

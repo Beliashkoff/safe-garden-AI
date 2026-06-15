@@ -13,16 +13,23 @@ import (
 )
 
 const insertUsage = `-- name: InsertUsage :exec
-INSERT INTO usage_log (user_id, endpoint, tokens_in, tokens_out, cost_usd)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO usage_log (
+    user_id, endpoint, tokens_in, tokens_out, cost_usd,
+    input_uncached_tokens, cache_write_tokens, cache_read_tokens, model, duration_ms
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 `
 
 type InsertUsageParams struct {
-	UserID    uuid.UUID
-	Endpoint  string
-	TokensIn  pgtype.Int4
-	TokensOut pgtype.Int4
-	CostUsd   pgtype.Numeric
+	UserID              uuid.UUID
+	Endpoint            string
+	TokensIn            pgtype.Int4
+	TokensOut           pgtype.Int4
+	CostUsd             pgtype.Numeric
+	InputUncachedTokens pgtype.Int4
+	CacheWriteTokens    pgtype.Int4
+	CacheReadTokens     pgtype.Int4
+	Model               pgtype.Text
+	DurationMs          pgtype.Int4
 }
 
 func (q *Queries) InsertUsage(ctx context.Context, arg InsertUsageParams) error {
@@ -32,6 +39,11 @@ func (q *Queries) InsertUsage(ctx context.Context, arg InsertUsageParams) error 
 		arg.TokensIn,
 		arg.TokensOut,
 		arg.CostUsd,
+		arg.InputUncachedTokens,
+		arg.CacheWriteTokens,
+		arg.CacheReadTokens,
+		arg.Model,
+		arg.DurationMs,
 	)
 	return err
 }

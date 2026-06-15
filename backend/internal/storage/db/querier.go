@@ -27,6 +27,9 @@ type Querier interface {
 	ActivityByWeekSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ActivityByWeekSinceRow, error)
 	// Question volume by Moscow day-of-week (0=Sun..6=Sat) and hour-of-day.
 	ActivityHeatmapSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ActivityHeatmapSinceRow, error)
+	// Only rows written after migration 0017 carry the cache split; older rows have
+	// NULLs and are excluded from the denominator via rows_with_data.
+	CacheStatsSince(ctx context.Context, createdAt pgtype.Timestamptz) (CacheStatsSinceRow, error)
 	// Per-slug impressions from the {"products":[{"slug":...}]} card metadata.
 	CardImpressionsBySlugSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]CardImpressionsBySlugSinceRow, error)
 	// ============================================================================
@@ -43,6 +46,8 @@ type Querier interface {
 	ConversationDepthSince(ctx context.Context, createdAt pgtype.Timestamptz) (ConversationDepthSinceRow, error)
 	// Chats accumulating dislikes (1 chat per user in v1, so this flags unhappy users).
 	ConversationsWithNegativeFeedbackSince(ctx context.Context, arg ConversationsWithNegativeFeedbackSinceParams) ([]ConversationsWithNegativeFeedbackSinceRow, error)
+	CostByKindSince(ctx context.Context, createdAt pgtype.Timestamptz) (CostByKindSinceRow, error)
+	CostByModelSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]CostByModelSinceRow, error)
 	// Anti-flood cap for POST /auth/{provider}/start.
 	CountActiveOAuthStatesByIP(ctx context.Context, ip pgtype.Text) (int64, error)
 	// Aggregates for the admin panel dashboard. All read-only. Day bucketing is
@@ -228,6 +233,11 @@ type Querier interface {
 	// Sliding TTL: bump both the activity stamp and the expiry on use.
 	TouchAdminSession(ctx context.Context, arg TouchAdminSessionParams) error
 	TouchRefreshToken(ctx context.Context, id uuid.UUID) error
+	// ============================================================================
+	// Cost / FinOps. Claude rows are endpoint='/v1/messages'; taps and 'transcribe'
+	// carry no Claude cost (cost_usd NULL → ignored by the SUMs).
+	// ============================================================================
+	UnitEconomicsSince(ctx context.Context, createdAt pgtype.Timestamptz) (UnitEconomicsSinceRow, error)
 	UpdateAdminPassword(ctx context.Context, arg UpdateAdminPasswordParams) error
 	UpdateFertilizer(ctx context.Context, arg UpdateFertilizerParams) (Fertilizer, error)
 	UpdateMessageStatus(ctx context.Context, arg UpdateMessageStatusParams) error

@@ -228,6 +228,43 @@ export interface AlertItem {
   message: string;
 }
 
+// --- Стоимость / FinOps ---
+
+export interface UnitEconomics {
+  cost_usd: number;
+  messages: number;
+  users: number;
+  tokens_in: number;
+  tokens_out: number;
+  cost_per_message: number;
+  cost_per_user: number;
+}
+
+export interface CacheStats {
+  input_uncached: number;
+  cache_write: number;
+  cache_read: number;
+  hit_rate: number;
+  savings_usd: number;
+  has_data: boolean;
+}
+
+export interface ModelCost {
+  model: string;
+  cost_usd: number;
+  tokens_in: number;
+  tokens_out: number;
+  requests: number;
+}
+
+export interface CostByKind {
+  claude_cost: number;
+  claude_calls: number;
+  taps: number;
+  transcriptions: number;
+  transcribe_sec: number;
+}
+
 export interface DayPoint {
   day: string;
   users: number;

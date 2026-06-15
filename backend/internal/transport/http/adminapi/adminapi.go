@@ -101,6 +101,12 @@ func (h *Handler) Routes() chi.Router {
 		r.Get("/stats/followup", h.getFollowup)
 		r.Get("/stats/downvoted", h.getDownvoted)
 
+		// Cost / FinOps ("Стоимость").
+		r.Get("/stats/unit-economics", h.getUnitEconomics)
+		r.Get("/stats/cache", h.getCacheStats)
+		r.Get("/stats/cost-by-model", h.getCostByModel)
+		r.Get("/stats/cost-by-kind", h.getCostByKind)
+
 		// Reliability & ops ("Надёжность").
 		r.Get("/health/worker", h.getWorkerHealth)
 		r.Get("/health/deps", h.getDependencies)

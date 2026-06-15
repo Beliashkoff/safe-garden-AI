@@ -46,6 +46,7 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 	if err := s.transcribeAudio(ctx, blocks); err != nil {
 		return err
 	}
+	s.logTranscriptions(ctx, userID, blocks)
 
 	conv, err := s.store.GetOrCreateConversation(ctx, userID)
 	if err != nil {
@@ -247,9 +248,31 @@ func (s *Service) finalizeComplete(assistantID, userID uuid.UUID, text string, c
 	}
 	if err := s.store.InsertUsage(fctx, db.InsertUsageParams{
 		UserID: userID, Endpoint: "/v1/messages", TokensIn: tokensIn, TokensOut: tokensOut,
-		CostUsd: numericUSD(llm.EstimateCostUSD(s.model, usage)),
+		CostUsd:             numericUSD(llm.EstimateCostUSD(s.model, usage)),
+		InputUncachedTokens: int4(usage.InputTokens),
+		CacheWriteTokens:    int4(usage.CacheWriteTokens),
+		CacheReadTokens:     int4(usage.CacheReadTokens),
+		Model:               textVal(s.model),
 	}); err != nil {
 		s.logger.Error("chat: usage insert failed", "err", err.Error())
+	}
+}
+
+// logTranscriptions records one usage_log row per transcribed voice block
+// (endpoint='transcribe', duration only) so SpeechKit (ruble) volume is visible
+// in the admin FinOps view. Best-effort: a failure must not fail the message.
+func (s *Service) logTranscriptions(ctx context.Context, userID uuid.UUID, blocks []validatedBlock) {
+	for _, b := range blocks {
+		if b.kind != "audio" || b.durationMs <= 0 {
+			continue
+		}
+		if err := s.store.InsertUsage(ctx, db.InsertUsageParams{
+			UserID:     userID,
+			Endpoint:   "transcribe",
+			DurationMs: int4(b.durationMs),
+		}); err != nil {
+			s.logger.WarnContext(ctx, "chat: transcription usage insert failed", "err", err.Error())
+		}
 	}
 }
 

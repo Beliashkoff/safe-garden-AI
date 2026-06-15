@@ -1,6 +1,8 @@
 -- name: InsertUsage :exec
-INSERT INTO usage_log (user_id, endpoint, tokens_in, tokens_out, cost_usd)
-VALUES ($1, $2, $3, $4, $5);
+INSERT INTO usage_log (
+    user_id, endpoint, tokens_in, tokens_out, cost_usd,
+    input_uncached_tokens, cache_write_tokens, cache_read_tokens, model, duration_ms
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 
 -- name: SumUserTokensSince :one
 -- Backs per-user daily token limits and budget alerts (ARCH §13 cost risk; wired

@@ -171,13 +171,18 @@ type Upload struct {
 }
 
 type UsageLog struct {
-	ID        int64
-	UserID    uuid.UUID
-	Endpoint  string
-	TokensIn  pgtype.Int4
-	TokensOut pgtype.Int4
-	CostUsd   pgtype.Numeric
-	CreatedAt pgtype.Timestamptz
+	ID                  int64
+	UserID              uuid.UUID
+	Endpoint            string
+	TokensIn            pgtype.Int4
+	TokensOut           pgtype.Int4
+	CostUsd             pgtype.Numeric
+	CreatedAt           pgtype.Timestamptz
+	InputUncachedTokens pgtype.Int4
+	CacheWriteTokens    pgtype.Int4
+	CacheReadTokens     pgtype.Int4
+	Model               pgtype.Text
+	DurationMs          pgtype.Int4
 }
 
 type User struct {

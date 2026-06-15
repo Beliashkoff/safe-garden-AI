@@ -20,6 +20,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ThumbsUpDownIcon from '@mui/icons-material/ThumbsUpDown';
+import PaidIcon from '@mui/icons-material/Paid';
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import YardIcon from '@mui/icons-material/Yard';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
@@ -36,6 +37,7 @@ const NAV = [
   { path: '/', label: 'Дашборд', icon: <DashboardIcon /> },
   { path: '/growth', label: 'Рост', icon: <TrendingUpIcon /> },
   { path: '/quality', label: 'Качество ответов', icon: <ThumbsUpDownIcon /> },
+  { path: '/cost', label: 'Стоимость', icon: <PaidIcon /> },
   { path: '/reliability', label: 'Надёжность', icon: <MonitorHeartIcon /> },
   { path: '/catalog', label: 'Каталог удобрений', icon: <YardIcon /> },
   { path: '/errors', label: 'Ошибки', icon: <ReportProblemIcon /> },

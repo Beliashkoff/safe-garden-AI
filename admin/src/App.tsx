@@ -17,6 +17,7 @@ const QualityPage = lazy(() =>
 const ReliabilityPage = lazy(() =>
   import('./pages/ReliabilityPage').then((m) => ({ default: m.ReliabilityPage })),
 );
+const CostPage = lazy(() => import('./pages/CostPage').then((m) => ({ default: m.CostPage })));
 const CatalogPage = lazy(() =>
   import('./pages/CatalogPage').then((m) => ({ default: m.CatalogPage })),
 );
@@ -60,6 +61,7 @@ export function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/growth" element={<GrowthPage />} />
           <Route path="/quality" element={<QualityPage />} />
+          <Route path="/cost" element={<CostPage />} />
           <Route path="/reliability" element={<ReliabilityPage />} />
           <Route path="/catalog" element={<CatalogPage />} />
           <Route path="/errors" element={<ErrorsPage />} />
