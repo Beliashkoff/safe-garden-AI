@@ -114,6 +114,16 @@ func New(cfg Config) (*Client, error) {
 	}, nil
 }
 
+// Ping verifies the configured bucket is reachable (HeadBucket). Used by the
+// admin dependency health check; the caller supplies the timeout via ctx.
+func (c *Client) Ping(ctx context.Context) error {
+	_, err := c.s3.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(c.bucket)})
+	if err != nil {
+		return fmt.Errorf("objstore: head bucket: %w", err)
+	}
+	return nil
+}
+
 // PutPublic uploads a small server-side object (admin catalog images) with a
 // public-read ACL and returns its stable public URL. This is NOT the user
 // media path — user uploads always go through presigned PUT (CLAUDE.md #4);

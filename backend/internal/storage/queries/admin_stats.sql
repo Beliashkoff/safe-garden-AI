@@ -343,6 +343,14 @@ SELECT
     )::bigint AS followups
 FROM seq;
 
+-- name: FailCodesSince :many
+-- Breakdown of failed assistant turns by reason for the reliability widget.
+SELECT COALESCE(fail_code, 'unknown')::text AS fail_code, COUNT(*)::bigint AS count
+FROM messages
+WHERE role = 'assistant' AND status = 'failed' AND created_at >= $1
+GROUP BY 1
+ORDER BY 2 DESC;
+
 -- name: ListDownvotedMessages :many
 -- Feed of disliked answers for the operator-agronomist to review. Returns message
 -- CONTENT (question + answer text): this is a per-request read into the

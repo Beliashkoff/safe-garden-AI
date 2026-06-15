@@ -117,6 +117,7 @@ type Message struct {
 	TokensIn       pgtype.Int4
 	TokensOut      pgtype.Int4
 	CreatedAt      pgtype.Timestamptz
+	FailCode       pgtype.Text
 }
 
 type MessageBlock struct {

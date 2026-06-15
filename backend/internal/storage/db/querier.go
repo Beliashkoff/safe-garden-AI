@@ -103,6 +103,11 @@ type Querier interface {
 	DeleteUserUploads(ctx context.Context, userID uuid.UUID) error
 	ErrorsByDaySince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ErrorsByDaySinceRow, error)
 	ErrorsByRouteSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ErrorsByRouteSinceRow, error)
+	// Breakdown of failed assistant turns by reason for the reliability widget.
+	FailCodesSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]FailCodesSinceRow, error)
+	// Marks an assistant turn failed and records why (fail_code), for the admin
+	// reliability breakdown. Used instead of UpdateMessageStatus on the failed path.
+	FailMessage(ctx context.Context, arg FailMessageParams) error
 	FeedbackByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]FeedbackByDayRow, error)
 	// One verdict per (message, user), so up+down equals the number of rated answers.
 	FeedbackTotalsSince(ctx context.Context, createdAt pgtype.Timestamptz) (FeedbackTotalsSinceRow, error)

@@ -81,6 +81,13 @@ type Config struct {
 	// https://admin.agronomai.site). Empty disables the check (dev).
 	AdminAllowedOrigin string `envconfig:"ADMIN_ALLOWED_ORIGIN" default:""`
 
+	// Admin banner alert thresholds (in-panel, until Grafana/Alertmanager land).
+	// All optional; a zero threshold disables that rule. The worker-offline alert
+	// has no threshold and fires whenever the worker is wired but unreachable.
+	AlertErrorsPerHour int     `envconfig:"ALERT_ERRORS_PER_HOUR" default:"20"`
+	AlertFailRatePct   int     `envconfig:"ALERT_FAIL_RATE_PCT" default:"30"`
+	AlertDailyCostUSD  float64 `envconfig:"ALERT_DAILY_COST_USD" default:"0"`
+
 	// RedisAddr — Managed Redis for per-user rate limiting (ARCH §8.2). Empty in
 	// dev → message rate limiting is disabled (allow-all). Required in prod.
 	RedisAddr     string `envconfig:"REDIS_ADDR" default:""`

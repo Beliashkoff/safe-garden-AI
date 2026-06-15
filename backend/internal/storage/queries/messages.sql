@@ -27,6 +27,11 @@ LIMIT sqlc.arg('limit');
 -- name: UpdateMessageStatus :exec
 UPDATE messages SET status = $2 WHERE id = $1;
 
+-- name: FailMessage :exec
+-- Marks an assistant turn failed and records why (fail_code), for the admin
+-- reliability breakdown. Used instead of UpdateMessageStatus on the failed path.
+UPDATE messages SET status = 'failed', fail_code = $2 WHERE id = $1;
+
 -- name: CompleteMessage :exec
 -- Finalises an assistant message: status + token counts (from the worker's SSE
 -- `usage` event, ARCH §11.3).

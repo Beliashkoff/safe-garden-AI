@@ -199,6 +199,35 @@ export interface DownvotedMessage {
   created_at: string;
 }
 
+// --- Надёжность (reliability & ops) ---
+
+export interface WorkerHealth {
+  configured: boolean;
+  online: boolean;
+  latency_ms: number;
+  model: string;
+  checked_at?: string;
+}
+
+export interface DepStatus {
+  name: string;
+  configured: boolean;
+  up: boolean;
+  latency_ms: number;
+  detail?: string;
+}
+
+export interface FailCodeStat {
+  code: string;
+  count: number;
+}
+
+export interface AlertItem {
+  level: string;
+  metric: string;
+  message: string;
+}
+
 export interface DayPoint {
   day: string;
   users: number;

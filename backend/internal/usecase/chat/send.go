@@ -77,13 +77,13 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 			continue
 		}
 		if err := sink.Transcription(userMsgID.String(), b.storageKey, b.transcriptText, b.durationMs); err != nil {
-			s.finalizeIncomplete(assistantID, "cancelled", "")
+			s.finalizeIncomplete(assistantID, "cancelled", "", "")
 			return err
 		}
 	}
 
 	if err := sink.MessageStarted(assistantID.String()); err != nil {
-		s.finalizeIncomplete(assistantID, "cancelled", "")
+		s.finalizeIncomplete(assistantID, "cancelled", "", "")
 		return err
 	}
 
@@ -100,7 +100,7 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 		observability.ObserveClaudeTurn(0, 0, 0, time.Since(start), "upstream_error")
 		observability.IncMessage("failed")
 		sink.Failed("upstream_error", "the assistant is unavailable")
-		s.finalizeIncomplete(assistantID, "failed", "")
+		s.finalizeIncomplete(assistantID, "failed", "upstream_error", "")
 		return fmt.Errorf("chat: llm send: %w", err)
 	}
 
@@ -113,17 +113,17 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 	case disconnectErr != nil: // client went away mid-stream — not a Claude error
 		observability.ObserveClaudeTurn(totalIn, out, cost, dur, "")
 		observability.IncMessage("cancelled")
-		s.finalizeIncomplete(assistantID, "cancelled", res.text)
+		s.finalizeIncomplete(assistantID, "cancelled", "", res.text)
 		return disconnectErr
 	case ctx.Err() != nil: // request context cancelled — not a Claude error
 		observability.ObserveClaudeTurn(totalIn, out, cost, dur, "")
 		observability.IncMessage("cancelled")
-		s.finalizeIncomplete(assistantID, "cancelled", res.text)
+		s.finalizeIncomplete(assistantID, "cancelled", "", res.text)
 		return ctx.Err()
 	case res.failed: // upstream error already sent to the client
 		observability.ObserveClaudeTurn(totalIn, out, cost, dur, "upstream_error")
 		observability.IncMessage("failed")
-		s.finalizeIncomplete(assistantID, "failed", res.text)
+		s.finalizeIncomplete(assistantID, "failed", res.failCode, res.text)
 		return nil
 	default:
 		observability.ObserveClaudeTurn(totalIn, out, cost, dur, "")
@@ -134,9 +134,10 @@ func (s *Service) SendMessage(ctx context.Context, userID uuid.UUID, in SendInpu
 }
 
 type relayResult struct {
-	text   string
-	usage  llm.TokenUsage
-	failed bool
+	text     string
+	usage    llm.TokenUsage
+	failed   bool
+	failCode string // populated alongside failed: upstream_error, tool_loop_exhausted, ...
 	// fertilizerCards holds the raw {"products":[...]} payloads emitted during
 	// the turn, in order, so they can be persisted as fertilizer_card blocks.
 	fertilizerCards []json.RawMessage
@@ -196,8 +197,10 @@ func relay(ch <-chan llm.StreamEvent, sink Sink) (relayResult, error) {
 				Message string `json:"message"`
 			}
 			_ = json.Unmarshal(ev.Data, &e)
-			sink.Failed(orDefault(e.Code, "upstream_error"), orDefault(e.Message, "the assistant failed"))
+			code := orDefault(e.Code, "upstream_error")
+			sink.Failed(code, orDefault(e.Message, "the assistant failed"))
 			res.failed = true
+			res.failCode = code
 		}
 	}
 	res.text = acc.String()
@@ -251,13 +254,18 @@ func (s *Service) finalizeComplete(assistantID, userID uuid.UUID, text string, c
 }
 
 // finalizeIncomplete marks the assistant message cancelled/failed and saves any
-// partial text, on a detached context.
-func (s *Service) finalizeIncomplete(assistantID uuid.UUID, status, partial string) {
+// partial text, on a detached context. failCode is recorded only on the failed
+// path (empty for cancellations) for the admin reliability breakdown.
+func (s *Service) finalizeIncomplete(assistantID uuid.UUID, status, failCode, partial string) {
 	fctx, cancel := context.WithTimeout(context.Background(), finalizeTimeout)
 	defer cancel()
 
 	err := s.store.ExecTx(fctx, func(q *db.Queries) error {
-		if err := q.UpdateMessageStatus(fctx, db.UpdateMessageStatusParams{ID: assistantID, Status: status}); err != nil {
+		if status == "failed" {
+			if err := q.FailMessage(fctx, db.FailMessageParams{ID: assistantID, FailCode: textVal(failCode)}); err != nil {
+				return err
+			}
+		} else if err := q.UpdateMessageStatus(fctx, db.UpdateMessageStatusParams{ID: assistantID, Status: status}); err != nil {
 			return err
 		}
 		if partial != "" {

@@ -426,6 +426,40 @@ func (q *Queries) ErrorsByRouteSince(ctx context.Context, createdAt pgtype.Times
 	return items, nil
 }
 
+const failCodesSince = `-- name: FailCodesSince :many
+SELECT COALESCE(fail_code, 'unknown')::text AS fail_code, COUNT(*)::bigint AS count
+FROM messages
+WHERE role = 'assistant' AND status = 'failed' AND created_at >= $1
+GROUP BY 1
+ORDER BY 2 DESC
+`
+
+type FailCodesSinceRow struct {
+	FailCode string
+	Count    int64
+}
+
+// Breakdown of failed assistant turns by reason for the reliability widget.
+func (q *Queries) FailCodesSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]FailCodesSinceRow, error) {
+	rows, err := q.db.Query(ctx, failCodesSince, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FailCodesSinceRow
+	for rows.Next() {
+		var i FailCodesSinceRow
+		if err := rows.Scan(&i.FailCode, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const feedbackByDay = `-- name: FeedbackByDay :many
 SELECT
     date_trunc('day', created_at, 'UTC')::timestamptz AS day,

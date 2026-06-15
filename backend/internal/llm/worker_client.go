@@ -105,6 +105,26 @@ func (c *WorkerClient) Send(ctx context.Context, req SendRequest) (<-chan Stream
 	return ch, nil
 }
 
+// Ping checks worker liveness via GET /healthz over the same (mTLS in prod)
+// transport used for chat, so a green light confirms the РФ→Frankfurt channel is
+// actually usable. The caller supplies the timeout through ctx.
+func (c *WorkerClient) Ping(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/healthz", nil)
+	if err != nil {
+		return fmt.Errorf("llm.worker: build healthz request: %w", err)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("llm.worker: healthz: %w", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("llm.worker: healthz status %d", resp.StatusCode)
+	}
+	return nil
+}
+
 func (c *WorkerClient) parseStream(ctx context.Context, body io.ReadCloser, ch chan<- StreamEvent) {
 	defer close(ch)
 	defer body.Close()

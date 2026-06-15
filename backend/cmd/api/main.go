@@ -173,12 +173,14 @@ func main() { //nolint:gocyclo // composition root: wiring storage, auth, llm, r
 	}
 
 	// Per-user message rate limit (ARCH §8.2). Redis when configured; otherwise a
-	// no-op allow-all for local dev without Redis.
+	// no-op allow-all for local dev without Redis. rdb is hoisted so the admin
+	// dependency health check can probe the same client (nil when unconfigured).
+	var rdb *redis.Client
 	var msgLimiter interface {
 		AllowMessage(ctx context.Context, userID uuid.UUID) (bool, error)
 	}
 	if cfg.RedisAddr != "" {
-		rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
+		rdb = redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
 		defer func() { _ = rdb.Close() }()
 		pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		if err := rdb.Ping(pingCtx).Err(); err != nil {
@@ -259,6 +261,37 @@ func main() { //nolint:gocyclo // composition root: wiring storage, auth, llm, r
 		adminService := adminuc.NewService(
 			store, adminMailer, objs, cfg.AdminEmail, cfg.AdminSessionTTL, logger,
 		)
+
+		// Reliability/ops wiring for the "Надёжность" page and the alert banner.
+		var workerPinger adminuc.WorkerPinger
+		if p, ok := llmClient.(adminuc.WorkerPinger); ok {
+			workerPinger = p
+		}
+		var s3p s3Pinger
+		if p, ok := objs.(s3Pinger); ok {
+			s3p = p
+		}
+		speechkitAddr := ""
+		if audioCfg.Kind == "speechkit" {
+			speechkitAddr = audioCfg.SpeechKitEndpoint
+		}
+		adminService.SetOps(adminuc.Ops{
+			WorkerPinger: workerPinger,
+			WorkerModel:  llm.DefaultModel,
+			Deps: &depChecker{
+				store:     store,
+				redis:     rdb,
+				objs:      s3p,
+				speechkit: speechkitAddr,
+				smtp:      fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort),
+			},
+			Alerts: adminuc.AlertThresholds{
+				ErrorsPerHour: cfg.AlertErrorsPerHour,
+				FailRatePct:   cfg.AlertFailRatePct,
+				DailyCostUSD:  cfg.AlertDailyCostUSD,
+			},
+		})
+
 		r.Mount("/admin/v1", adminapi.New(
 			adminService, cfg.Env == "prod", cfg.AdminAllowedOrigin, logger,
 		).Routes())

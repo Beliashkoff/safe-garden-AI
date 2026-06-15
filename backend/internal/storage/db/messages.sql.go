@@ -32,7 +32,7 @@ func (q *Queries) CompleteMessage(ctx context.Context, arg CompleteMessageParams
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO messages (conversation_id, user_id, role, status)
 VALUES ($1, $2, $3, $4)
-RETURNING id, conversation_id, user_id, role, status, tokens_in, tokens_out, created_at
+RETURNING id, conversation_id, user_id, role, status, tokens_in, tokens_out, created_at, fail_code
 `
 
 type CreateMessageParams struct {
@@ -59,6 +59,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 		&i.TokensIn,
 		&i.TokensOut,
 		&i.CreatedAt,
+		&i.FailCode,
 	)
 	return i, err
 }
@@ -82,8 +83,24 @@ func (q *Queries) DeleteMessage(ctx context.Context, arg DeleteMessageParams) (i
 	return result.RowsAffected(), nil
 }
 
+const failMessage = `-- name: FailMessage :exec
+UPDATE messages SET status = 'failed', fail_code = $2 WHERE id = $1
+`
+
+type FailMessageParams struct {
+	ID       uuid.UUID
+	FailCode pgtype.Text
+}
+
+// Marks an assistant turn failed and records why (fail_code), for the admin
+// reliability breakdown. Used instead of UpdateMessageStatus on the failed path.
+func (q *Queries) FailMessage(ctx context.Context, arg FailMessageParams) error {
+	_, err := q.db.Exec(ctx, failMessage, arg.ID, arg.FailCode)
+	return err
+}
+
 const getMessageByID = `-- name: GetMessageByID :one
-SELECT id, conversation_id, user_id, role, status, tokens_in, tokens_out, created_at FROM messages WHERE id = $1
+SELECT id, conversation_id, user_id, role, status, tokens_in, tokens_out, created_at, fail_code FROM messages WHERE id = $1
 `
 
 func (q *Queries) GetMessageByID(ctx context.Context, id uuid.UUID) (Message, error) {
@@ -98,12 +115,13 @@ func (q *Queries) GetMessageByID(ctx context.Context, id uuid.UUID) (Message, er
 		&i.TokensIn,
 		&i.TokensOut,
 		&i.CreatedAt,
+		&i.FailCode,
 	)
 	return i, err
 }
 
 const listMessagesBefore = `-- name: ListMessagesBefore :many
-SELECT id, conversation_id, user_id, role, status, tokens_in, tokens_out, created_at FROM messages
+SELECT id, conversation_id, user_id, role, status, tokens_in, tokens_out, created_at, fail_code FROM messages
 WHERE conversation_id = $1
   AND (created_at, id) < ($2::timestamptz, $3::uuid)
 ORDER BY created_at DESC, id DESC
@@ -143,6 +161,7 @@ func (q *Queries) ListMessagesBefore(ctx context.Context, arg ListMessagesBefore
 			&i.TokensIn,
 			&i.TokensOut,
 			&i.CreatedAt,
+			&i.FailCode,
 		); err != nil {
 			return nil, err
 		}
@@ -155,7 +174,7 @@ func (q *Queries) ListMessagesBefore(ctx context.Context, arg ListMessagesBefore
 }
 
 const listRecentMessages = `-- name: ListRecentMessages :many
-SELECT id, conversation_id, user_id, role, status, tokens_in, tokens_out, created_at FROM messages
+SELECT id, conversation_id, user_id, role, status, tokens_in, tokens_out, created_at, fail_code FROM messages
 WHERE conversation_id = $1
 ORDER BY created_at DESC, id DESC
 LIMIT $2
@@ -186,6 +205,7 @@ func (q *Queries) ListRecentMessages(ctx context.Context, arg ListRecentMessages
 			&i.TokensIn,
 			&i.TokensOut,
 			&i.CreatedAt,
+			&i.FailCode,
 		); err != nil {
 			return nil, err
 		}

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  Alert,
   AppBar,
   Box,
   Divider,
@@ -11,6 +12,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Stack,
   Toolbar,
   Typography,
 } from '@mui/material';
@@ -18,12 +20,14 @@ import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ThumbsUpDownIcon from '@mui/icons-material/ThumbsUpDown';
+import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import YardIcon from '@mui/icons-material/Yard';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { api } from '../api/client';
+import type { AlertItem } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 
 const DRAWER_WIDTH = 248;
@@ -32,6 +36,7 @@ const NAV = [
   { path: '/', label: 'Дашборд', icon: <DashboardIcon /> },
   { path: '/growth', label: 'Рост', icon: <TrendingUpIcon /> },
   { path: '/quality', label: 'Качество ответов', icon: <ThumbsUpDownIcon /> },
+  { path: '/reliability', label: 'Надёжность', icon: <MonitorHeartIcon /> },
   { path: '/catalog', label: 'Каталог удобрений', icon: <YardIcon /> },
   { path: '/errors', label: 'Ошибки', icon: <ReportProblemIcon /> },
   { path: '/audit', label: 'Журнал действий', icon: <HistoryIcon /> },
@@ -43,6 +48,27 @@ export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { setAdmin } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+
+  // Опрос пороговых алертов раз в минуту. Тихо игнорируем ошибки — баннер
+  // вторичен и не должен мешать работе с панелью.
+  useEffect(() => {
+    let active = true;
+    const poll = async () => {
+      try {
+        const res = await api.get<{ alerts: AlertItem[] }>('/alerts');
+        if (active) setAlerts(res.alerts ?? []);
+      } catch {
+        // игнорируем
+      }
+    };
+    void poll();
+    const id = setInterval(() => void poll(), 60_000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, []);
 
   const logout = async () => {
     try {
@@ -144,6 +170,15 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, minHeight: '100vh' }}>
         <Toolbar />
+        {alerts.length > 0 && (
+          <Stack spacing={1} sx={{ mb: 2 }}>
+            {alerts.map((a) => (
+              <Alert key={a.metric} severity={a.level === 'error' ? 'error' : 'warning'}>
+                {a.message}
+              </Alert>
+            ))}
+          </Stack>
+        )}
         {children}
       </Box>
     </Box>

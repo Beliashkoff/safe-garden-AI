@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -81,6 +82,18 @@ type Service struct {
 	// the work factor is constant regardless of whether the email matched,
 	// closing the email-enumeration timing oracle.
 	dummyHash []byte
+
+	// Reliability/ops, wired post-construction via SetOps (all optional; nil/zero
+	// degrades the corresponding widget to "not configured"). See reliability.go.
+	workerPinger  WorkerPinger
+	workerModel   string
+	deps          DependencyChecker
+	alerts        AlertThresholds
+	healthMu      sync.Mutex
+	workerCache   *WorkerHealth
+	workerCacheAt time.Time
+	depCache      []DepStatus
+	depCacheAt    time.Time
 }
 
 // NewService wires the usecase. adminEmail is the pinned operator address
