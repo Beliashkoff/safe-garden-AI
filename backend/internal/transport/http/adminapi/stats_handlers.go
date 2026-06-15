@@ -37,6 +37,26 @@ func (h *Handler) getOverview(w http.ResponseWriter, r *http.Request) {
 		"catalog_total":  o.CatalogTotal,
 		"catalog_active": o.CatalogActive,
 		"errors_24h":     o.Errors24h,
+
+		"dau": o.DAU,
+		"wau": o.WAU,
+		"mau": o.MAU,
+
+		"feedback_up_30d":       o.FeedbackUp30d,
+		"feedback_down_30d":     o.FeedbackDown30d,
+		"feedback_coverage_30d": o.FeedbackCoverage30d,
+
+		"answers_complete_7d":  o.AnswersComplete7d,
+		"answers_failed_7d":    o.AnswersFailed7d,
+		"answers_cancelled_7d": o.AnswersCancelled7d,
+
+		"accounts_deleted_total":   o.AccountsDeletedTotal,
+		"media_purge_pending":      o.MediaPurgePending,
+		"media_purge_oldest_hours": o.MediaPurgeOldestHours,
+
+		"cost_mtd":            o.CostMTD,
+		"cost_forecast_month": o.CostForecastMonth,
+		"cost_prev_month":     o.CostPrevMonth,
 	})
 }
 
@@ -149,4 +169,121 @@ func (h *Handler) getAudit(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, r, http.StatusOK, map[string]any{"audit": out})
+}
+
+// getFeedback — GET /admin/v1/stats/feedback?days=30.
+func (h *Handler) getFeedback(w http.ResponseWriter, r *http.Request) {
+	points, err := h.svc.GetFeedbackSeries(r.Context(), queryInt(r, "days", 30))
+	if err != nil {
+		respondError(w, r, err)
+		return
+	}
+	type pointDTO struct {
+		Day  string `json:"day"`
+		Up   int64  `json:"up"`
+		Down int64  `json:"down"`
+	}
+	out := make([]pointDTO, 0, len(points))
+	for _, p := range points {
+		out = append(out, pointDTO{Day: p.Day.Format("2006-01-02"), Up: p.Up, Down: p.Down})
+	}
+	writeJSON(w, r, http.StatusOK, map[string]any{"points": out})
+}
+
+// getMessageStatus — GET /admin/v1/stats/message-status?days=30.
+func (h *Handler) getMessageStatus(w http.ResponseWriter, r *http.Request) {
+	points, err := h.svc.GetMessageStatusSeries(r.Context(), queryInt(r, "days", 30))
+	if err != nil {
+		respondError(w, r, err)
+		return
+	}
+	type pointDTO struct {
+		Day       string `json:"day"`
+		Complete  int64  `json:"complete"`
+		Failed    int64  `json:"failed"`
+		Cancelled int64  `json:"cancelled"`
+	}
+	out := make([]pointDTO, 0, len(points))
+	for _, p := range points {
+		out = append(out, pointDTO{
+			Day:       p.Day.Format("2006-01-02"),
+			Complete:  p.Complete,
+			Failed:    p.Failed,
+			Cancelled: p.Cancelled,
+		})
+	}
+	writeJSON(w, r, http.StatusOK, map[string]any{"points": out})
+}
+
+// getLoginBreakdown — GET /admin/v1/stats/login-breakdown?days=30.
+func (h *Handler) getLoginBreakdown(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.svc.GetLoginBreakdown(r.Context(), queryInt(r, "days", 30))
+	if err != nil {
+		respondError(w, r, err)
+		return
+	}
+	type providerDTO struct {
+		Provider string `json:"provider"`
+		Logins   int64  `json:"logins"`
+		Users    int64  `json:"users"`
+	}
+	out := make([]providerDTO, 0, len(stats))
+	for _, s := range stats {
+		out = append(out, providerDTO{Provider: s.Provider, Logins: s.Logins, Users: s.Users})
+	}
+	writeJSON(w, r, http.StatusOK, map[string]any{"providers": out})
+}
+
+// getTopUsers — GET /admin/v1/stats/top-users?days=7.
+func (h *Handler) getTopUsers(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.svc.GetTopCostUsers(r.Context(), queryInt(r, "days", 7))
+	if err != nil {
+		respondError(w, r, err)
+		return
+	}
+	type userDTO struct {
+		User      string  `json:"user"`
+		Requests  int64   `json:"requests"`
+		TokensIn  int64   `json:"tokens_in"`
+		TokensOut int64   `json:"tokens_out"`
+		CostUSD   float64 `json:"cost_usd"`
+	}
+	out := make([]userDTO, 0, len(stats))
+	for _, s := range stats {
+		out = append(out, userDTO{
+			User:      s.User,
+			Requests:  s.Requests,
+			TokensIn:  s.TokensIn,
+			TokensOut: s.TokensOut,
+			CostUSD:   s.CostUSD,
+		})
+	}
+	writeJSON(w, r, http.StatusOK, map[string]any{"users": out})
+}
+
+// getErrorsBreakdown — GET /admin/v1/stats/errors-breakdown?days=7.
+func (h *Handler) getErrorsBreakdown(w http.ResponseWriter, r *http.Request) {
+	b, err := h.svc.GetErrorBreakdown(r.Context(), queryInt(r, "days", 7))
+	if err != nil {
+		respondError(w, r, err)
+		return
+	}
+	type routeDTO struct {
+		Route  string `json:"route"`
+		Status int32  `json:"status"`
+		Count  int64  `json:"count"`
+	}
+	type dayDTO struct {
+		Day   string `json:"day"`
+		Count int64  `json:"count"`
+	}
+	routes := make([]routeDTO, 0, len(b.ByRoute))
+	for _, rr := range b.ByRoute {
+		routes = append(routes, routeDTO{Route: rr.Route, Status: rr.Status, Count: rr.Count})
+	}
+	days := make([]dayDTO, 0, len(b.ByDay))
+	for _, d := range b.ByDay {
+		days = append(days, dayDTO{Day: d.Day.Format("2006-01-02"), Count: d.Count})
+	}
+	writeJSON(w, r, http.StatusOK, map[string]any{"by_route": routes, "by_day": days})
 }

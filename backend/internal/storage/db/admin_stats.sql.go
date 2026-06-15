@@ -8,8 +8,39 @@ package db
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const activeUserWindows = `-- name: ActiveUserWindows :one
+SELECT
+    COUNT(DISTINCT user_id) FILTER (WHERE created_at >= $1)::bigint  AS dau,
+    COUNT(DISTINCT user_id) FILTER (WHERE created_at >= $2)::bigint AS wau,
+    COUNT(DISTINCT user_id)::bigint                                          AS mau
+FROM messages
+WHERE role = 'user' AND created_at >= $3
+`
+
+type ActiveUserWindowsParams struct {
+	DaySince   pgtype.Timestamptz
+	WeekSince  pgtype.Timestamptz
+	MonthSince pgtype.Timestamptz
+}
+
+type ActiveUserWindowsRow struct {
+	Dau int64
+	Wau int64
+	Mau int64
+}
+
+// DAU/WAU/MAU: distinct users who sent a message inside each trailing window.
+// All three read the same 30-day scan; the narrower windows are FILTERed.
+func (q *Queries) ActiveUserWindows(ctx context.Context, arg ActiveUserWindowsParams) (ActiveUserWindowsRow, error) {
+	row := q.db.QueryRow(ctx, activeUserWindows, arg.DaySince, arg.WeekSince, arg.MonthSince)
+	var i ActiveUserWindowsRow
+	err := row.Scan(&i.Dau, &i.Wau, &i.Mau)
+	return i, err
+}
 
 const countActiveUsers = `-- name: CountActiveUsers :one
 
@@ -71,6 +102,267 @@ func (q *Queries) CountUsersCreatedSince(ctx context.Context, createdAt pgtype.T
 	return count, err
 }
 
+const errorsByDaySince = `-- name: ErrorsByDaySince :many
+SELECT date_trunc('day', created_at, 'UTC')::timestamptz AS day, COUNT(*)::bigint AS count
+FROM admin_error_events
+WHERE created_at >= $1
+GROUP BY 1
+ORDER BY 1
+`
+
+type ErrorsByDaySinceRow struct {
+	Day   pgtype.Timestamptz
+	Count int64
+}
+
+func (q *Queries) ErrorsByDaySince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ErrorsByDaySinceRow, error) {
+	rows, err := q.db.Query(ctx, errorsByDaySince, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ErrorsByDaySinceRow
+	for rows.Next() {
+		var i ErrorsByDaySinceRow
+		if err := rows.Scan(&i.Day, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const errorsByRouteSince = `-- name: ErrorsByRouteSince :many
+SELECT route, status, COUNT(*)::bigint AS count
+FROM admin_error_events
+WHERE created_at >= $1
+GROUP BY route, status
+ORDER BY count DESC
+LIMIT 20
+`
+
+type ErrorsByRouteSinceRow struct {
+	Route  string
+	Status int32
+	Count  int64
+}
+
+func (q *Queries) ErrorsByRouteSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ErrorsByRouteSinceRow, error) {
+	rows, err := q.db.Query(ctx, errorsByRouteSince, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ErrorsByRouteSinceRow
+	for rows.Next() {
+		var i ErrorsByRouteSinceRow
+		if err := rows.Scan(&i.Route, &i.Status, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const feedbackByDay = `-- name: FeedbackByDay :many
+SELECT
+    date_trunc('day', created_at, 'UTC')::timestamptz AS day,
+    COUNT(*) FILTER (WHERE value = 'up')::bigint      AS up,
+    COUNT(*) FILTER (WHERE value = 'down')::bigint    AS down
+FROM message_feedback
+WHERE created_at >= $1
+GROUP BY 1
+ORDER BY 1
+`
+
+type FeedbackByDayRow struct {
+	Day  pgtype.Timestamptz
+	Up   int64
+	Down int64
+}
+
+func (q *Queries) FeedbackByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]FeedbackByDayRow, error) {
+	rows, err := q.db.Query(ctx, feedbackByDay, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FeedbackByDayRow
+	for rows.Next() {
+		var i FeedbackByDayRow
+		if err := rows.Scan(&i.Day, &i.Up, &i.Down); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const feedbackTotalsSince = `-- name: FeedbackTotalsSince :one
+SELECT
+    COUNT(*) FILTER (WHERE value = 'up')::bigint   AS up,
+    COUNT(*) FILTER (WHERE value = 'down')::bigint AS down
+FROM message_feedback
+WHERE created_at >= $1
+`
+
+type FeedbackTotalsSinceRow struct {
+	Up   int64
+	Down int64
+}
+
+// One verdict per (message, user), so up+down equals the number of rated answers.
+func (q *Queries) FeedbackTotalsSince(ctx context.Context, createdAt pgtype.Timestamptz) (FeedbackTotalsSinceRow, error) {
+	row := q.db.QueryRow(ctx, feedbackTotalsSince, createdAt)
+	var i FeedbackTotalsSinceRow
+	err := row.Scan(&i.Up, &i.Down)
+	return i, err
+}
+
+const getDeletionPipeline = `-- name: GetDeletionPipeline :one
+SELECT
+    COUNT(*) FILTER (WHERE deleted_at IS NOT NULL)::bigint                             AS deleted_total,
+    COUNT(*) FILTER (WHERE deleted_at IS NOT NULL AND media_purged_at IS NULL)::bigint AS purge_pending,
+    COALESCE(
+        EXTRACT(EPOCH FROM (NOW() - MIN(deleted_at) FILTER (WHERE media_purged_at IS NULL))) / 3600,
+        0
+    )::float8 AS oldest_pending_hours
+FROM users
+`
+
+type GetDeletionPipelineRow struct {
+	DeletedTotal       int64
+	PurgePending       int64
+	OldestPendingHours float64
+}
+
+// Account-deletion -> media-purge pipeline health. oldest_pending_hours surfaces a
+// stalled cleanup cron (deleted but Object Storage prefix not yet wiped).
+func (q *Queries) GetDeletionPipeline(ctx context.Context) (GetDeletionPipelineRow, error) {
+	row := q.db.QueryRow(ctx, getDeletionPipeline)
+	var i GetDeletionPipelineRow
+	err := row.Scan(&i.DeletedTotal, &i.PurgePending, &i.OldestPendingHours)
+	return i, err
+}
+
+const loginsByProviderSince = `-- name: LoginsByProviderSince :many
+SELECT action, COUNT(*)::bigint AS logins, COUNT(DISTINCT user_id)::bigint AS users
+FROM audit_log
+WHERE action IN ('sign_in_yandex', 'sign_in_vk', 'sign_in_email') AND created_at >= $1
+GROUP BY action
+ORDER BY logins DESC
+`
+
+type LoginsByProviderSinceRow struct {
+	Action string
+	Logins int64
+	Users  int64
+}
+
+// Sign-in events by RU provider (406-FZ: yandex / vk / email-OTP).
+func (q *Queries) LoginsByProviderSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]LoginsByProviderSinceRow, error) {
+	rows, err := q.db.Query(ctx, loginsByProviderSince, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LoginsByProviderSinceRow
+	for rows.Next() {
+		var i LoginsByProviderSinceRow
+		if err := rows.Scan(&i.Action, &i.Logins, &i.Users); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const messageStatusByDay = `-- name: MessageStatusByDay :many
+SELECT
+    date_trunc('day', created_at, 'UTC')::timestamptz    AS day,
+    COUNT(*) FILTER (WHERE status = 'complete')::bigint  AS complete,
+    COUNT(*) FILTER (WHERE status = 'failed')::bigint    AS failed,
+    COUNT(*) FILTER (WHERE status = 'cancelled')::bigint AS cancelled
+FROM messages
+WHERE role = 'assistant' AND created_at >= $1
+GROUP BY 1
+ORDER BY 1
+`
+
+type MessageStatusByDayRow struct {
+	Day       pgtype.Timestamptz
+	Complete  int64
+	Failed    int64
+	Cancelled int64
+}
+
+func (q *Queries) MessageStatusByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]MessageStatusByDayRow, error) {
+	rows, err := q.db.Query(ctx, messageStatusByDay, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MessageStatusByDayRow
+	for rows.Next() {
+		var i MessageStatusByDayRow
+		if err := rows.Scan(
+			&i.Day,
+			&i.Complete,
+			&i.Failed,
+			&i.Cancelled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const messageStatusCountsSince = `-- name: MessageStatusCountsSince :one
+SELECT
+    COUNT(*) FILTER (WHERE status = 'complete')::bigint  AS complete,
+    COUNT(*) FILTER (WHERE status = 'failed')::bigint    AS failed,
+    COUNT(*) FILTER (WHERE status = 'cancelled')::bigint AS cancelled,
+    COUNT(*) FILTER (WHERE status = 'pending')::bigint   AS pending
+FROM messages
+WHERE role = 'assistant' AND created_at >= $1
+`
+
+type MessageStatusCountsSinceRow struct {
+	Complete  int64
+	Failed    int64
+	Cancelled int64
+	Pending   int64
+}
+
+// Terminal-status breakdown of assistant turns; success_rate = complete / (complete+failed+cancelled).
+func (q *Queries) MessageStatusCountsSince(ctx context.Context, createdAt pgtype.Timestamptz) (MessageStatusCountsSinceRow, error) {
+	row := q.db.QueryRow(ctx, messageStatusCountsSince, createdAt)
+	var i MessageStatusCountsSinceRow
+	err := row.Scan(
+		&i.Complete,
+		&i.Failed,
+		&i.Cancelled,
+		&i.Pending,
+	)
+	return i, err
+}
+
 const messagesByDay = `-- name: MessagesByDay :many
 SELECT date_trunc('day', created_at, 'UTC')::timestamptz AS day, COUNT(*) AS count
 FROM messages
@@ -104,6 +396,25 @@ func (q *Queries) MessagesByDay(ctx context.Context, createdAt pgtype.Timestampt
 	return items, nil
 }
 
+const sumCostBetween = `-- name: SumCostBetween :one
+SELECT COALESCE(SUM(cost_usd), 0)::numeric AS cost_usd
+FROM usage_log
+WHERE created_at >= $1 AND created_at < $2 AND endpoint NOT LIKE 'fertilizer_tap:%'
+`
+
+type SumCostBetweenParams struct {
+	FromTs pgtype.Timestamptz
+	ToTs   pgtype.Timestamptz
+}
+
+// Bounded-window Claude spend for month-to-date vs previous-month comparison.
+func (q *Queries) SumCostBetween(ctx context.Context, arg SumCostBetweenParams) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, sumCostBetween, arg.FromTs, arg.ToTs)
+	var cost_usd pgtype.Numeric
+	err := row.Scan(&cost_usd)
+	return cost_usd, err
+}
+
 const sumUsageSince = `-- name: SumUsageSince :one
 SELECT
     COALESCE(SUM(tokens_in), 0)::bigint    AS tokens_in,
@@ -124,6 +435,56 @@ func (q *Queries) SumUsageSince(ctx context.Context, createdAt pgtype.Timestampt
 	var i SumUsageSinceRow
 	err := row.Scan(&i.TokensIn, &i.TokensOut, &i.CostUsd)
 	return i, err
+}
+
+const topCostUsersSince = `-- name: TopCostUsersSince :many
+SELECT
+    user_id,
+    COUNT(*)::bigint                       AS requests,
+    COALESCE(SUM(tokens_in), 0)::bigint    AS tokens_in,
+    COALESCE(SUM(tokens_out), 0)::bigint   AS tokens_out,
+    COALESCE(SUM(cost_usd), 0)::numeric    AS cost_usd
+FROM usage_log
+WHERE created_at >= $1 AND endpoint NOT LIKE 'fertilizer_tap:%'
+GROUP BY user_id
+ORDER BY cost_usd DESC
+LIMIT 20
+`
+
+type TopCostUsersSinceRow struct {
+	UserID    uuid.UUID
+	Requests  int64
+	TokensIn  int64
+	TokensOut int64
+	CostUsd   pgtype.Numeric
+}
+
+// Most expensive users by Claude spend (taps excluded). user_id is masked to a hex
+// prefix in the usecase before it leaves the backend (CLAUDE.md invariant #3/#10).
+func (q *Queries) TopCostUsersSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]TopCostUsersSinceRow, error) {
+	rows, err := q.db.Query(ctx, topCostUsersSince, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TopCostUsersSinceRow
+	for rows.Next() {
+		var i TopCostUsersSinceRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Requests,
+			&i.TokensIn,
+			&i.TokensOut,
+			&i.CostUsd,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const topFertilizerTaps = `-- name: TopFertilizerTaps :many

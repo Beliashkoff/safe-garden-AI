@@ -12,6 +12,9 @@ import (
 )
 
 type Querier interface {
+	// DAU/WAU/MAU: distinct users who sent a message inside each trailing window.
+	// All three read the same 30-day scan; the narrower windows are FILTERed.
+	ActiveUserWindows(ctx context.Context, arg ActiveUserWindowsParams) (ActiveUserWindowsRow, error)
 	// Finalises an assistant message: status + token counts (from the worker's SSE
 	// `usage` event, ARCH §11.3).
 	CompleteMessage(ctx context.Context, arg CompleteMessageParams) error
@@ -76,6 +79,11 @@ type Querier interface {
 	// Hard-deletes the user's upload rows. The objects in Object Storage are removed
 	// asynchronously by the cleanup job (prefix u/{user_id}/).
 	DeleteUserUploads(ctx context.Context, userID uuid.UUID) error
+	ErrorsByDaySince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ErrorsByDaySinceRow, error)
+	ErrorsByRouteSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ErrorsByRouteSinceRow, error)
+	FeedbackByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]FeedbackByDayRow, error)
+	// One verdict per (message, user), so up+down equals the number of rated answers.
+	FeedbackTotalsSince(ctx context.Context, createdAt pgtype.Timestamptz) (FeedbackTotalsSinceRow, error)
 	GetActiveAdminCode(ctx context.Context, arg GetActiveAdminCodeParams) (AdminCode, error)
 	// Returns the most recent unused, unexpired code for the email. Older codes
 	// become irrelevant the moment a newer code is issued.
@@ -84,6 +92,9 @@ type Querier interface {
 	GetAdminByID(ctx context.Context, id uuid.UUID) (AdminUser, error)
 	GetAdminSessionByHash(ctx context.Context, tokenHash []byte) (AdminSession, error)
 	GetConversationByUser(ctx context.Context, userID uuid.UUID) (Conversation, error)
+	// Account-deletion -> media-purge pipeline health. oldest_pending_hours surfaces a
+	// stalled cleanup cron (deleted but Object Storage prefix not yet wiped).
+	GetDeletionPipeline(ctx context.Context) (GetDeletionPipelineRow, error)
 	GetFertilizerByID(ctx context.Context, id uuid.UUID) (Fertilizer, error)
 	GetFertilizerBySlug(ctx context.Context, slug string) (Fertilizer, error)
 	GetMessageByID(ctx context.Context, id uuid.UUID) (Message, error)
@@ -133,12 +144,17 @@ type Querier interface {
 	// Cleanup work-list: deleted accounts whose Object Storage media has not been
 	// purged yet. Oldest first; bounded by $1.
 	ListUsersPendingMediaPurge(ctx context.Context, limit int32) ([]uuid.UUID, error)
+	// Sign-in events by RU provider (406-FZ: yandex / vk / email-OTP).
+	LoginsByProviderSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]LoginsByProviderSinceRow, error)
 	MarkAdminCodeUsed(ctx context.Context, id uuid.UUID) error
 	MarkEmailCodeUsed(ctx context.Context, id uuid.UUID) error
 	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
 	MarkUploadUsed(ctx context.Context, storageKey string) error
 	// Marks the user's media prefix as purged so the cleanup job skips it next run.
 	MarkUserMediaPurged(ctx context.Context, id uuid.UUID) error
+	MessageStatusByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]MessageStatusByDayRow, error)
+	// Terminal-status breakdown of assistant turns; success_rate = complete / (complete+failed+cancelled).
+	MessageStatusCountsSince(ctx context.Context, createdAt pgtype.Timestamptz) (MessageStatusCountsSinceRow, error)
 	MessagesByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]MessagesByDayRow, error)
 	// ARCH §6.4. plant = NULL → no crop filter; universal items (plants IS NULL) always
 	// match. Ranked by priority (highest first), at most 3.
@@ -153,10 +169,15 @@ type Querier interface {
 	// email or OAuth subject later. Store review (and 152-FZ erasure requests)
 	// require account deletion to free up identifiers.
 	SoftDeleteUser(ctx context.Context, id uuid.UUID) error
+	// Bounded-window Claude spend for month-to-date vs previous-month comparison.
+	SumCostBetween(ctx context.Context, arg SumCostBetweenParams) (pgtype.Numeric, error)
 	SumUsageSince(ctx context.Context, createdAt pgtype.Timestamptz) (SumUsageSinceRow, error)
 	// Backs per-user daily token limits and budget alerts (ARCH §13 cost risk; wired
 	// in Stage 2.3).
 	SumUserTokensSince(ctx context.Context, arg SumUserTokensSinceParams) (SumUserTokensSinceRow, error)
+	// Most expensive users by Claude spend (taps excluded). user_id is masked to a hex
+	// prefix in the usecase before it leaves the backend (CLAUDE.md invariant #3/#10).
+	TopCostUsersSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]TopCostUsersSinceRow, error)
 	TopFertilizerTaps(ctx context.Context, createdAt pgtype.Timestamptz) ([]TopFertilizerTapsRow, error)
 	TouchAdminLogin(ctx context.Context, id uuid.UUID) error
 	// Sliding TTL: bump both the activity stamp and the expiry on use.

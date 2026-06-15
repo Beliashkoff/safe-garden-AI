@@ -5,6 +5,7 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Grid,
   Paper,
   Stack,
   Table,
@@ -16,11 +17,21 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as ReTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { api, humanError } from '../api/client';
-import type { ServerError } from '../api/types';
+import type { ErrorBreakdown, ServerError } from '../api/types';
 
 const PAGE = 50;
+const nf = new Intl.NumberFormat('ru-RU');
 
 function statusColor(status: number): 'error' | 'warning' | 'default' {
   if (status >= 500) return 'error';
@@ -34,6 +45,7 @@ function formatTime(iso: string): string {
 
 export function ErrorsPage() {
   const [events, setEvents] = useState<ServerError[]>([]);
+  const [breakdown, setBreakdown] = useState<ErrorBreakdown | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
@@ -57,8 +69,23 @@ export function ErrorsPage() {
     }
   };
 
+  const loadSummary = async () => {
+    try {
+      const res = await api.get<ErrorBreakdown>('/stats/errors-breakdown?days=7');
+      setBreakdown(res);
+    } catch {
+      // Сводка вторична: ошибку показывает основная загрузка ленты.
+    }
+  };
+
+  const refresh = () => {
+    void load(0, false);
+    void loadSummary();
+  };
+
   useEffect(() => {
     void load(0, false);
+    void loadSummary();
   }, []);
 
   return (
@@ -67,7 +94,7 @@ export function ErrorsPage() {
         <Typography variant="body2" color="text.secondary">
           Серверные ошибки (5xx) бэкенда. Содержимое сообщений пользователей сюда не попадает.
         </Typography>
-        <Button startIcon={<RefreshIcon />} onClick={() => void load(0, false)} disabled={loading}>
+        <Button startIcon={<RefreshIcon />} onClick={refresh} disabled={loading}>
           Обновить
         </Button>
       </Stack>
@@ -76,6 +103,71 @@ export function ErrorsPage() {
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
+      )}
+
+      {breakdown && (breakdown.by_route.length > 0 || breakdown.by_day.length > 0) && (
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+              <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                Сводка по маршрутам (7 дней)
+              </Typography>
+              {breakdown.by_route.length === 0 ? (
+                <Typography color="text.secondary">Ошибок за период не было.</Typography>
+              ) : (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Маршрут</TableCell>
+                      <TableCell>Код</TableCell>
+                      <TableCell align="right">Кол-во</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {breakdown.by_route.map((r) => (
+                      <TableRow key={`${r.route}-${r.status}`} hover>
+                        <TableCell>
+                          <code>{r.route}</code>
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={r.status} size="small" color={statusColor(r.status)} />
+                        </TableCell>
+                        <TableCell align="right">{nf.format(r.count)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+              <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                Ошибки по дням (7 дней)
+              </Typography>
+              {breakdown.by_day.length === 0 ? (
+                <Typography color="text.secondary">Ошибок за период не было.</Typography>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={breakdown.by_day} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E0E8E0" />
+                    <XAxis dataKey="day" tick={{ fontSize: 12 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                    <ReTooltip />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      name="Ошибки"
+                      stroke="#C62828"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
       )}
 
       {events.length === 0 && !loading ? (

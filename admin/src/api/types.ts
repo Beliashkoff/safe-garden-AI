@@ -50,6 +50,69 @@ export interface Overview {
   catalog_total: number;
   catalog_active: number;
   errors_24h: number;
+
+  dau: number;
+  wau: number;
+  mau: number;
+
+  feedback_up_30d: number;
+  feedback_down_30d: number;
+  feedback_coverage_30d: number;
+
+  answers_complete_7d: number;
+  answers_failed_7d: number;
+  answers_cancelled_7d: number;
+
+  accounts_deleted_total: number;
+  media_purge_pending: number;
+  media_purge_oldest_hours: number;
+
+  cost_mtd: number;
+  cost_forecast_month: number;
+  cost_prev_month: number;
+}
+
+export interface FeedbackPoint {
+  day: string;
+  up: number;
+  down: number;
+}
+
+export interface MessageStatusPoint {
+  day: string;
+  complete: number;
+  failed: number;
+  cancelled: number;
+}
+
+export interface ProviderStat {
+  provider: string;
+  logins: number;
+  users: number;
+}
+
+export interface CostUser {
+  user: string;
+  requests: number;
+  tokens_in: number;
+  tokens_out: number;
+  cost_usd: number;
+}
+
+export interface ErrorRouteStat {
+  route: string;
+  status: number;
+  count: number;
+}
+
+export interface ErrorDayPoint {
+  day: string;
+  count: number;
+}
+
+export interface ErrorBreakdown {
+  by_route: ErrorRouteStat[];
+  by_day: ErrorDayPoint[];
 }
 
 export interface DayPoint {
