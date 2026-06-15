@@ -533,7 +533,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }) {
     return IconButton(
       onPressed: onTap,
-      icon: Icon(icon, color: onTap == null ? color.withValues(alpha: 0.4) : color),
+      icon: Icon(
+        icon,
+        color: onTap == null ? color.withValues(alpha: 0.4) : color,
+      ),
       tooltip: tooltip,
       visualDensity: VisualDensity.compact,
     );
@@ -572,7 +575,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         if (!recording && value.text.trim().isNotEmpty) {
           return _filledCircle(
             bg: p.accent,
-            child: Icon(Icons.arrow_upward_rounded, color: p.onAccent, size: 22),
+            child: Icon(
+              Icons.arrow_upward_rounded,
+              color: p.onAccent,
+              size: 22,
+            ),
             onTap: _send,
             tooltip: l10n.chatSend,
           );

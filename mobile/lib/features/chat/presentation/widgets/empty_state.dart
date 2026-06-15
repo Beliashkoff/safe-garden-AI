@@ -22,12 +22,12 @@ class ChatEmptyState extends StatelessWidget {
 
     final items = <(IconData, String, ChatSuggestion)>[
       (Icons.image_outlined, l10n.chatSuggestDisease, ChatSuggestion.disease),
-      (Icons.eco_outlined, l10n.chatSuggestDeficiency, ChatSuggestion.deficiency),
       (
-        Icons.auto_awesome_outlined,
-        l10n.chatSuggestPlan,
-        ChatSuggestion.plan,
+        Icons.eco_outlined,
+        l10n.chatSuggestDeficiency,
+        ChatSuggestion.deficiency,
       ),
+      (Icons.auto_awesome_outlined, l10n.chatSuggestPlan, ChatSuggestion.plan),
     ];
 
     return Center(
@@ -109,9 +109,7 @@ class _SuggestionChip extends StatelessWidget {
             children: [
               Icon(icon, size: 20, color: p.textMuted),
               const SizedBox(width: 12),
-              Expanded(
-                child: Text(label, style: theme.textTheme.bodyLarge),
-              ),
+              Expanded(child: Text(label, style: theme.textTheme.bodyLarge)),
             ],
           ),
         ),

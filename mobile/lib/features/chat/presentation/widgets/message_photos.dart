@@ -31,13 +31,22 @@ class MessagePhotos extends ConsumerWidget {
       alignment: WrapAlignment.end,
       children: [
         for (var i = 0; i < storageKeys.length; i++)
-          _tile(context, ref, storageKeys[i], size: 120, badge: analysed && i == 0),
+          _tile(
+            context,
+            ref,
+            storageKeys[i],
+            size: 120,
+            badge: analysed && i == 0,
+          ),
       ],
     );
   }
 
   Widget _single(BuildContext context, WidgetRef ref, String key) {
-    final width = (MediaQuery.of(context).size.width * 0.62).clamp(180.0, 260.0);
+    final width = (MediaQuery.of(context).size.width * 0.62).clamp(
+      180.0,
+      260.0,
+    );
     return _frame(
       context,
       ref,
@@ -85,8 +94,7 @@ class MessagePhotos extends ConsumerWidget {
               loading: () => _placeholder(context, broken: false),
               error: (_, _) => _placeholder(context, broken: true),
             ),
-            if (badge)
-              Positioned(top: 10, left: 10, child: _AnalysedBadge()),
+            if (badge) Positioned(top: 10, left: 10, child: _AnalysedBadge()),
           ],
         ),
       ),

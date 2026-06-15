@@ -155,9 +155,7 @@ class _VoiceRecorderBarState extends ConsumerState<VoiceRecorderBar> {
         ),
         const SizedBox(width: 6),
         _softCircle(
-          icon: _playing
-              ? Icons.pause_rounded
-              : Icons.play_arrow_rounded,
+          icon: _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
           color: p.text,
           bg: p.soft,
           onTap: uploading ? null : _togglePreview,
@@ -263,7 +261,11 @@ class _RecordDotState extends State<_RecordDot>
 /// echoing the reference recorder. Bars to the left of the playhead use the
 /// active colour, the rest the idle colour.
 class _Waveform extends StatefulWidget {
-  const _Waveform({required this.level, required this.color, required this.idle});
+  const _Waveform({
+    required this.level,
+    required this.color,
+    required this.idle,
+  });
 
   final double level;
   final Color color;

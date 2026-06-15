@@ -372,9 +372,7 @@ class AppTheme {
           borderRadius: BorderRadius.horizontal(right: Radius.circular(28)),
         ),
       ),
-      progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: p.brandGreen,
-      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: p.brandGreen),
       iconTheme: IconThemeData(color: p.text),
     );
   }
@@ -410,22 +408,13 @@ class AppTheme {
         height: 1.5,
         letterSpacing: -0.1,
       ),
-      bodyMedium: t.bodyMedium?.copyWith(
-        fontSize: 14.5,
-        height: 1.45,
-      ),
-      bodySmall: t.bodySmall?.copyWith(
-        fontSize: 13,
-        color: p.textMuted,
-      ),
+      bodyMedium: t.bodyMedium?.copyWith(fontSize: 14.5, height: 1.45),
+      bodySmall: t.bodySmall?.copyWith(fontSize: 13, color: p.textMuted),
       labelLarge: t.labelLarge?.copyWith(
         fontSize: 15,
         fontWeight: FontWeight.w600,
       ),
-      labelSmall: t.labelSmall?.copyWith(
-        fontSize: 12,
-        color: p.textSubtle,
-      ),
+      labelSmall: t.labelSmall?.copyWith(fontSize: 12, color: p.textSubtle),
     );
   }
 }

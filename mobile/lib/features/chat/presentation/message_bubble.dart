@@ -95,10 +95,7 @@ class MessageBubble extends StatelessWidget {
         );
       } else if (b.type == 'text' && b.text.isNotEmpty) {
         children.add(
-          _bubble(
-            p,
-            SelectableText(b.text, style: theme.textTheme.bodyLarge),
-          ),
+          _bubble(p, SelectableText(b.text, style: theme.textTheme.bodyLarge)),
         );
       }
     }
@@ -377,7 +374,8 @@ class _TypingDotsState extends State<_TypingDots>
             mainAxisSize: MainAxisSize.min,
             children: List.generate(3, (i) {
               final t = (_c.value + i * 0.2) % 1.0;
-              final scale = 0.6 + 0.4 * (1 - (t - 0.5).abs() * 2).clamp(0.0, 1.0);
+              final scale =
+                  0.6 + 0.4 * (1 - (t - 0.5).abs() * 2).clamp(0.0, 1.0);
               return Padding(
                 padding: const EdgeInsets.only(right: 5),
                 child: Transform.scale(
