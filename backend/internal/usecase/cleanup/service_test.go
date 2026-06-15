@@ -66,6 +66,8 @@ func (f *fakeStore) DeleteOldErrorEvents(_ context.Context, _ pgtype.Timestamptz
 	return 0, nil
 }
 
+func (f *fakeStore) InsertCleanupRun(_ context.Context, _ []byte) error { return nil }
+
 type fakeObjs struct {
 	prefixes    []string
 	deletedKeys []string

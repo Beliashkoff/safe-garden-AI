@@ -344,6 +344,67 @@ SELECT
 FROM seq;
 
 -- ============================================================================
+-- Data lifecycle & compliance (152-FZ / 406-FZ). user/conversation ids masked in
+-- the usecase before leaving the backend.
+-- ============================================================================
+
+-- name: ListDeletionEvents :many
+-- Erasure proof: account deletion + media purge events, newest first. Paired by
+-- masked user id in the UI (deleted -> purged).
+SELECT id, user_id, action, created_at
+FROM audit_log
+WHERE action IN ('account_deleted', 'account_media_purged') AND user_id IS NOT NULL
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
+
+-- name: ListStalePurges :many
+-- Deleted accounts whose Object Storage media has not been purged past the SLA
+-- cutoff (drill-down for the deletion-pipeline backlog).
+SELECT id, deleted_at, (EXTRACT(EPOCH FROM (NOW() - deleted_at)) / 3600)::float8 AS pending_hours
+FROM users
+WHERE deleted_at IS NOT NULL AND media_purged_at IS NULL AND deleted_at < $1
+ORDER BY deleted_at
+LIMIT 100;
+
+-- name: UploadGCStatsBefore :one
+-- Orphaned uploads: presigned-but-never-attached, and the stale subset (older
+-- than the GC window) that the cron should have removed.
+SELECT
+    COUNT(*) FILTER (WHERE used = FALSE)::bigint                                         AS unused_total,
+    COUNT(*) FILTER (WHERE used = FALSE AND created_at < $1)::bigint                     AS stale_total,
+    COALESCE(SUM(size_bytes) FILTER (WHERE used = FALSE AND created_at < $1), 0)::bigint AS stale_bytes
+FROM uploads;
+
+-- name: RetentionBacklog :one
+-- Service-table rows past their useful life (data-minimisation check, 152-FZ).
+SELECT
+    (SELECT COUNT(*) FROM email_codes WHERE expires_at < NOW())::bigint  AS expired_otp,
+    (SELECT COUNT(*) FROM oauth_states WHERE expires_at < NOW())::bigint AS expired_oauth,
+    (SELECT COUNT(*) FROM refresh_tokens WHERE revoked_at IS NOT NULL AND revoked_at < @revoked_before)::bigint AS old_revoked;
+
+-- name: UsageResidueDeletedUsers :one
+-- usage_log is the one table not cascaded on account deletion (kept for billing);
+-- this surfaces how much is still tied to deleted users and how old it is.
+SELECT
+    COUNT(*)::bigint                   AS rows,
+    COUNT(DISTINCT ul.user_id)::bigint AS users,
+    MIN(ul.created_at)::timestamptz    AS oldest
+FROM usage_log ul
+JOIN users u ON u.id = ul.user_id
+WHERE u.deleted_at IS NOT NULL;
+
+-- name: InsertCleanupRun :exec
+-- Heartbeat written by the cleanup cron at the end of each run; details is the
+-- JSONB count summary. No PII (counts only).
+INSERT INTO admin_audit_log (action, details) VALUES ('cleanup_run', $1);
+
+-- name: GetLastCleanupRun :one
+SELECT created_at, details FROM admin_audit_log
+WHERE action = 'cleanup_run'
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- ============================================================================
 -- Security & abuse. user_id/email are masked in the usecase before leaving the
 -- backend (CLAUDE.md invariant #3); these queries return the raw values only
 -- across the storage boundary.

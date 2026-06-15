@@ -118,6 +118,11 @@ func (h *Handler) Routes() chi.Router {
 		r.Get("/security/otp", h.getOtpStats)
 		r.Get("/security/suspicious-ips", h.getSuspiciousIPs)
 
+		// Data lifecycle & compliance ("Данные и комплаенс").
+		r.Get("/compliance/deletions", h.getDeletionEvents)
+		r.Get("/compliance/stale-purges", h.getStalePurges)
+		r.Get("/compliance/overview", h.getComplianceOverview)
+
 		r.Get("/errors", h.getErrors)
 		r.Get("/audit", h.getAudit)
 	})

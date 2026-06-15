@@ -294,6 +294,34 @@ export interface SuspiciousIP {
   count: number;
 }
 
+// --- Данные и комплаенс (data lifecycle & compliance) ---
+
+export interface DeletionEvent {
+  user?: string;
+  action: string;
+  created_at: string;
+}
+
+export interface StalePurge {
+  user: string;
+  deleted_at: string;
+  pending_hours: number;
+}
+
+export interface ComplianceOverview {
+  uploads: { unused_total: number; stale_total: number; stale_bytes: number };
+  retention: { expired_otp: number; expired_oauth: number; old_revoked: number };
+  usage_residue: { rows: number; users: number; oldest_hours: number; has_residue: boolean };
+  cleanup: {
+    recorded: boolean;
+    stale: boolean;
+    last_run_at?: string;
+    users_purged: number;
+    uploads_gc: number;
+    admin_rows_gc: number;
+  };
+}
+
 export interface DayPoint {
   day: string;
   users: number;

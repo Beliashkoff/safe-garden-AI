@@ -21,6 +21,9 @@ const CostPage = lazy(() => import('./pages/CostPage').then((m) => ({ default: m
 const SecurityPage = lazy(() =>
   import('./pages/SecurityPage').then((m) => ({ default: m.SecurityPage })),
 );
+const CompliancePage = lazy(() =>
+  import('./pages/CompliancePage').then((m) => ({ default: m.CompliancePage })),
+);
 const CatalogPage = lazy(() =>
   import('./pages/CatalogPage').then((m) => ({ default: m.CatalogPage })),
 );
@@ -67,6 +70,7 @@ export function App() {
           <Route path="/cost" element={<CostPage />} />
           <Route path="/reliability" element={<ReliabilityPage />} />
           <Route path="/security" element={<SecurityPage />} />
+          <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/catalog" element={<CatalogPage />} />
           <Route path="/errors" element={<ErrorsPage />} />
           <Route path="/audit" element={<AuditPage />} />

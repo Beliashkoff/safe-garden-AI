@@ -7,6 +7,7 @@ package cleanup
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -35,6 +36,7 @@ type store interface {
 	DeleteExpiredAdminSessions(ctx context.Context) (int64, error)
 	DeleteExpiredAdminCodes(ctx context.Context) (int64, error)
 	DeleteOldErrorEvents(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
+	InsertCleanupRun(ctx context.Context, details []byte) error
 }
 
 // objDeleter removes objects from object storage (satisfied by *objstore.Client).
@@ -81,7 +83,24 @@ func (s *Service) RunOnce(ctx context.Context) error {
 	}
 	s.logger.InfoContext(ctx, "cleanup run complete",
 		"users_purged", purged, "uploads_gc", gc, "admin_rows_gc", adminGC)
+	s.recordRun(ctx, purged, gc, adminGC)
 	return nil
+}
+
+// recordRun writes a heartbeat row to admin_audit_log so the admin panel can show
+// the cron's last run time + counts. Counts only — no PII. Best-effort.
+func (s *Service) recordRun(ctx context.Context, purged, gc int, adminGC int64) {
+	details, err := json.Marshal(map[string]int64{
+		"users_purged":  int64(purged),
+		"uploads_gc":    int64(gc),
+		"admin_rows_gc": adminGC,
+	})
+	if err != nil {
+		return
+	}
+	if err := s.store.InsertCleanupRun(ctx, details); err != nil {
+		s.logger.ErrorContext(ctx, "cleanup heartbeat insert failed", "err", err.Error())
+	}
 }
 
 // GCAdminArtifacts removes long-expired admin sessions and codes plus old

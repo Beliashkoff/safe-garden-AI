@@ -132,6 +132,7 @@ type Querier interface {
 	GetDeletionPipeline(ctx context.Context) (GetDeletionPipelineRow, error)
 	GetFertilizerByID(ctx context.Context, id uuid.UUID) (Fertilizer, error)
 	GetFertilizerBySlug(ctx context.Context, slug string) (Fertilizer, error)
+	GetLastCleanupRun(ctx context.Context) (GetLastCleanupRunRow, error)
 	GetMessageByID(ctx context.Context, id uuid.UUID) (Message, error)
 	// Idempotent: one chat per user. The DO UPDATE is a no-op that exists only so
 	// RETURNING yields the existing row on conflict — atomic, race-free.
@@ -153,6 +154,9 @@ type Querier interface {
 	// user_id is nullable for system-level events (e.g. failed verification of an
 	// id_token before any user could be resolved).
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
+	// Heartbeat written by the cleanup cron at the end of each run; details is the
+	// JSONB count summary. No PII (counts only).
+	InsertCleanupRun(ctx context.Context, details []byte) error
 	InsertErrorEvent(ctx context.Context, arg InsertErrorEventParams) error
 	InsertUsage(ctx context.Context, arg InsertUsageParams) error
 	LinkVKSub(ctx context.Context, arg LinkVKSubParams) (User, error)
@@ -163,6 +167,13 @@ type Querier interface {
 	// Batch-loads blocks for a page of messages (avoids N+1). Caller groups by
 	// message_id; rows arrive ordered within each message by order_index.
 	ListBlocksByMessageIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]MessageBlock, error)
+	// ============================================================================
+	// Data lifecycle & compliance (152-FZ / 406-FZ). user/conversation ids masked in
+	// the usecase before leaving the backend.
+	// ============================================================================
+	// Erasure proof: account deletion + media purge events, newest first. Paired by
+	// masked user id in the UI (deleted -> purged).
+	ListDeletionEvents(ctx context.Context, arg ListDeletionEventsParams) ([]ListDeletionEventsRow, error)
 	// Feed of disliked answers for the operator-agronomist to review. Returns message
 	// CONTENT (question + answer text): this is a per-request read into the
 	// authenticated panel, NOT a log — callers must never write it to slog/Sentry
@@ -188,6 +199,9 @@ type Querier interface {
 	// are excluded here (aggregated separately on the dashboard) to keep the feed
 	// actionable. Allowlist is fixed, not caller-supplied.
 	ListSecurityEvents(ctx context.Context, arg ListSecurityEventsParams) ([]ListSecurityEventsRow, error)
+	// Deleted accounts whose Object Storage media has not been purged past the SLA
+	// cutoff (drill-down for the deletion-pipeline backlog).
+	ListStalePurges(ctx context.Context, deletedAt pgtype.Timestamptz) ([]ListStalePurgesRow, error)
 	// GC candidates: presigned-but-never-attached uploads older than the cutoff.
 	ListUnusedUploadsBefore(ctx context.Context, createdAt pgtype.Timestamptz) ([]Upload, error)
 	// Cleanup work-list: deleted accounts whose Object Storage media has not been
@@ -214,6 +228,8 @@ type Querier interface {
 	// Average answer length (tokens_out) split by feedback verdict; the question is
 	// whether disliked answers are systematically longer or shorter.
 	ResponseLengthByVerdictSince(ctx context.Context, createdAt pgtype.Timestamptz) (ResponseLengthByVerdictSinceRow, error)
+	// Service-table rows past their useful life (data-minimisation check, 152-FZ).
+	RetentionBacklog(ctx context.Context, revokedBefore pgtype.Timestamptz) (RetentionBacklogRow, error)
 	// Weekly sign-up cohorts with D1/D7/D30 return rates. Eligibility gates the
 	// denominator so a young cohort that has not yet reached day N is not counted as
 	// "churned" (retained / eligible, not retained / size). Computed live; move to a
@@ -259,6 +275,9 @@ type Querier interface {
 	UpdateAdminPassword(ctx context.Context, arg UpdateAdminPasswordParams) error
 	UpdateFertilizer(ctx context.Context, arg UpdateFertilizerParams) (Fertilizer, error)
 	UpdateMessageStatus(ctx context.Context, arg UpdateMessageStatusParams) error
+	// Orphaned uploads: presigned-but-never-attached, and the stale subset (older
+	// than the GC window) that the cron should have removed.
+	UploadGCStatsBefore(ctx context.Context, createdAt pgtype.Timestamptz) (UploadGCStatsBeforeRow, error)
 	// Idempotent catalog seeding (Stage 5). Updates everything but id/created_at and
 	// bumps updated_at on conflict.
 	UpsertFertilizerBySlug(ctx context.Context, arg UpsertFertilizerBySlugParams) (Fertilizer, error)
@@ -266,6 +285,9 @@ type Querier interface {
 	// re-voting the same value just refreshes updated_at.
 	UpsertMessageFeedback(ctx context.Context, arg UpsertMessageFeedbackParams) error
 	UsageByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]UsageByDayRow, error)
+	// usage_log is the one table not cascaded on account deletion (kept for billing);
+	// this surfaces how much is still tied to deleted users and how old it is.
+	UsageResidueDeletedUsers(ctx context.Context) (UsageResidueDeletedUsersRow, error)
 	UsersByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]UsersByDayRow, error)
 }
 

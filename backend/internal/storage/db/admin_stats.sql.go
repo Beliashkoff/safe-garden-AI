@@ -690,6 +690,88 @@ func (q *Queries) GetDeletionPipeline(ctx context.Context) (GetDeletionPipelineR
 	return i, err
 }
 
+const getLastCleanupRun = `-- name: GetLastCleanupRun :one
+SELECT created_at, details FROM admin_audit_log
+WHERE action = 'cleanup_run'
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetLastCleanupRunRow struct {
+	CreatedAt pgtype.Timestamptz
+	Details   []byte
+}
+
+func (q *Queries) GetLastCleanupRun(ctx context.Context) (GetLastCleanupRunRow, error) {
+	row := q.db.QueryRow(ctx, getLastCleanupRun)
+	var i GetLastCleanupRunRow
+	err := row.Scan(&i.CreatedAt, &i.Details)
+	return i, err
+}
+
+const insertCleanupRun = `-- name: InsertCleanupRun :exec
+INSERT INTO admin_audit_log (action, details) VALUES ('cleanup_run', $1)
+`
+
+// Heartbeat written by the cleanup cron at the end of each run; details is the
+// JSONB count summary. No PII (counts only).
+func (q *Queries) InsertCleanupRun(ctx context.Context, details []byte) error {
+	_, err := q.db.Exec(ctx, insertCleanupRun, details)
+	return err
+}
+
+const listDeletionEvents = `-- name: ListDeletionEvents :many
+
+SELECT id, user_id, action, created_at
+FROM audit_log
+WHERE action IN ('account_deleted', 'account_media_purged') AND user_id IS NOT NULL
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListDeletionEventsParams struct {
+	Limit  int32
+	Offset int32
+}
+
+type ListDeletionEventsRow struct {
+	ID        int64
+	UserID    pgtype.UUID
+	Action    string
+	CreatedAt pgtype.Timestamptz
+}
+
+// ============================================================================
+// Data lifecycle & compliance (152-FZ / 406-FZ). user/conversation ids masked in
+// the usecase before leaving the backend.
+// ============================================================================
+// Erasure proof: account deletion + media purge events, newest first. Paired by
+// masked user id in the UI (deleted -> purged).
+func (q *Queries) ListDeletionEvents(ctx context.Context, arg ListDeletionEventsParams) ([]ListDeletionEventsRow, error) {
+	rows, err := q.db.Query(ctx, listDeletionEvents, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDeletionEventsRow
+	for rows.Next() {
+		var i ListDeletionEventsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Action,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDownvotedMessages = `-- name: ListDownvotedMessages :many
 SELECT
     f.message_id,
@@ -805,6 +887,42 @@ func (q *Queries) ListSecurityEvents(ctx context.Context, arg ListSecurityEvents
 			&i.Ip,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStalePurges = `-- name: ListStalePurges :many
+SELECT id, deleted_at, (EXTRACT(EPOCH FROM (NOW() - deleted_at)) / 3600)::float8 AS pending_hours
+FROM users
+WHERE deleted_at IS NOT NULL AND media_purged_at IS NULL AND deleted_at < $1
+ORDER BY deleted_at
+LIMIT 100
+`
+
+type ListStalePurgesRow struct {
+	ID           uuid.UUID
+	DeletedAt    pgtype.Timestamptz
+	PendingHours float64
+}
+
+// Deleted accounts whose Object Storage media has not been purged past the SLA
+// cutoff (drill-down for the deletion-pipeline backlog).
+func (q *Queries) ListStalePurges(ctx context.Context, deletedAt pgtype.Timestamptz) ([]ListStalePurgesRow, error) {
+	rows, err := q.db.Query(ctx, listStalePurges, deletedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListStalePurgesRow
+	for rows.Next() {
+		var i ListStalePurgesRow
+		if err := rows.Scan(&i.ID, &i.DeletedAt, &i.PendingHours); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1023,6 +1141,27 @@ func (q *Queries) ResponseLengthByVerdictSince(ctx context.Context, createdAt pg
 		&i.NDown,
 		&i.NNone,
 	)
+	return i, err
+}
+
+const retentionBacklog = `-- name: RetentionBacklog :one
+SELECT
+    (SELECT COUNT(*) FROM email_codes WHERE expires_at < NOW())::bigint  AS expired_otp,
+    (SELECT COUNT(*) FROM oauth_states WHERE expires_at < NOW())::bigint AS expired_oauth,
+    (SELECT COUNT(*) FROM refresh_tokens WHERE revoked_at IS NOT NULL AND revoked_at < $1)::bigint AS old_revoked
+`
+
+type RetentionBacklogRow struct {
+	ExpiredOtp   int64
+	ExpiredOauth int64
+	OldRevoked   int64
+}
+
+// Service-table rows past their useful life (data-minimisation check, 152-FZ).
+func (q *Queries) RetentionBacklog(ctx context.Context, revokedBefore pgtype.Timestamptz) (RetentionBacklogRow, error) {
+	row := q.db.QueryRow(ctx, retentionBacklog, revokedBefore)
+	var i RetentionBacklogRow
+	err := row.Scan(&i.ExpiredOtp, &i.ExpiredOauth, &i.OldRevoked)
 	return i, err
 }
 
@@ -1393,6 +1532,29 @@ func (q *Queries) UnitEconomicsSince(ctx context.Context, createdAt pgtype.Times
 	return i, err
 }
 
+const uploadGCStatsBefore = `-- name: UploadGCStatsBefore :one
+SELECT
+    COUNT(*) FILTER (WHERE used = FALSE)::bigint                                         AS unused_total,
+    COUNT(*) FILTER (WHERE used = FALSE AND created_at < $1)::bigint                     AS stale_total,
+    COALESCE(SUM(size_bytes) FILTER (WHERE used = FALSE AND created_at < $1), 0)::bigint AS stale_bytes
+FROM uploads
+`
+
+type UploadGCStatsBeforeRow struct {
+	UnusedTotal int64
+	StaleTotal  int64
+	StaleBytes  int64
+}
+
+// Orphaned uploads: presigned-but-never-attached, and the stale subset (older
+// than the GC window) that the cron should have removed.
+func (q *Queries) UploadGCStatsBefore(ctx context.Context, createdAt pgtype.Timestamptz) (UploadGCStatsBeforeRow, error) {
+	row := q.db.QueryRow(ctx, uploadGCStatsBefore, createdAt)
+	var i UploadGCStatsBeforeRow
+	err := row.Scan(&i.UnusedTotal, &i.StaleTotal, &i.StaleBytes)
+	return i, err
+}
+
 const usageByDay = `-- name: UsageByDay :many
 SELECT
     date_trunc('day', created_at, 'UTC')::timestamptz AS day,
@@ -1435,6 +1597,31 @@ func (q *Queries) UsageByDay(ctx context.Context, createdAt pgtype.Timestamptz) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const usageResidueDeletedUsers = `-- name: UsageResidueDeletedUsers :one
+SELECT
+    COUNT(*)::bigint                   AS rows,
+    COUNT(DISTINCT ul.user_id)::bigint AS users,
+    MIN(ul.created_at)::timestamptz    AS oldest
+FROM usage_log ul
+JOIN users u ON u.id = ul.user_id
+WHERE u.deleted_at IS NOT NULL
+`
+
+type UsageResidueDeletedUsersRow struct {
+	Rows   int64
+	Users  int64
+	Oldest pgtype.Timestamptz
+}
+
+// usage_log is the one table not cascaded on account deletion (kept for billing);
+// this surfaces how much is still tied to deleted users and how old it is.
+func (q *Queries) UsageResidueDeletedUsers(ctx context.Context) (UsageResidueDeletedUsersRow, error) {
+	row := q.db.QueryRow(ctx, usageResidueDeletedUsers)
+	var i UsageResidueDeletedUsersRow
+	err := row.Scan(&i.Rows, &i.Users, &i.Oldest)
+	return i, err
 }
 
 const usersByDay = `-- name: UsersByDay :many
