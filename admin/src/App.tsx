@@ -18,6 +18,9 @@ const ReliabilityPage = lazy(() =>
   import('./pages/ReliabilityPage').then((m) => ({ default: m.ReliabilityPage })),
 );
 const CostPage = lazy(() => import('./pages/CostPage').then((m) => ({ default: m.CostPage })));
+const SecurityPage = lazy(() =>
+  import('./pages/SecurityPage').then((m) => ({ default: m.SecurityPage })),
+);
 const CatalogPage = lazy(() =>
   import('./pages/CatalogPage').then((m) => ({ default: m.CatalogPage })),
 );
@@ -63,6 +66,7 @@ export function App() {
           <Route path="/quality" element={<QualityPage />} />
           <Route path="/cost" element={<CostPage />} />
           <Route path="/reliability" element={<ReliabilityPage />} />
+          <Route path="/security" element={<SecurityPage />} />
           <Route path="/catalog" element={<CatalogPage />} />
           <Route path="/errors" element={<ErrorsPage />} />
           <Route path="/audit" element={<AuditPage />} />

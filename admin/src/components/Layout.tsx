@@ -22,6 +22,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ThumbsUpDownIcon from '@mui/icons-material/ThumbsUpDown';
 import PaidIcon from '@mui/icons-material/Paid';
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
+import SecurityIcon from '@mui/icons-material/Security';
 import YardIcon from '@mui/icons-material/Yard';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import HistoryIcon from '@mui/icons-material/History';
@@ -39,6 +40,7 @@ const NAV = [
   { path: '/quality', label: 'Качество ответов', icon: <ThumbsUpDownIcon /> },
   { path: '/cost', label: 'Стоимость', icon: <PaidIcon /> },
   { path: '/reliability', label: 'Надёжность', icon: <MonitorHeartIcon /> },
+  { path: '/security', label: 'Безопасность', icon: <SecurityIcon /> },
   { path: '/catalog', label: 'Каталог удобрений', icon: <YardIcon /> },
   { path: '/errors', label: 'Ошибки', icon: <ReportProblemIcon /> },
   { path: '/audit', label: 'Журнал действий', icon: <HistoryIcon /> },

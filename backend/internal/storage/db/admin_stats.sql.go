@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"net/netip"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -757,6 +758,63 @@ func (q *Queries) ListDownvotedMessages(ctx context.Context, arg ListDownvotedMe
 	return items, nil
 }
 
+const listSecurityEvents = `-- name: ListSecurityEvents :many
+
+SELECT id, user_id, action, ip, created_at
+FROM audit_log
+WHERE action IN ('refresh_reuse_detected', 'account_deleted', 'account_media_purged')
+  AND user_id IS NOT NULL
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListSecurityEventsParams struct {
+	Limit  int32
+	Offset int32
+}
+
+type ListSecurityEventsRow struct {
+	ID        int64
+	UserID    pgtype.UUID
+	Action    string
+	Ip        *netip.Addr
+	CreatedAt pgtype.Timestamptz
+}
+
+// ============================================================================
+// Security & abuse. user_id/email are masked in the usecase before leaving the
+// backend (CLAUDE.md invariant #3); these queries return the raw values only
+// across the storage boundary.
+// ============================================================================
+// High-signal user security events (session hijack attempts, deletions). Logins
+// are excluded here (aggregated separately on the dashboard) to keep the feed
+// actionable. Allowlist is fixed, not caller-supplied.
+func (q *Queries) ListSecurityEvents(ctx context.Context, arg ListSecurityEventsParams) ([]ListSecurityEventsRow, error) {
+	rows, err := q.db.Query(ctx, listSecurityEvents, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSecurityEventsRow
+	for rows.Next() {
+		var i ListSecurityEventsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Action,
+			&i.Ip,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const loginsByProviderSince = `-- name: LoginsByProviderSince :many
 SELECT action, COUNT(*)::bigint AS logins, COUNT(DISTINCT user_id)::bigint AS users
 FROM audit_log
@@ -897,6 +955,37 @@ func (q *Queries) MessagesByDay(ctx context.Context, createdAt pgtype.Timestampt
 		return nil, err
 	}
 	return items, nil
+}
+
+const otpStatsSince = `-- name: OtpStatsSince :one
+SELECT
+    COUNT(*)::bigint                                                       AS issued,
+    COUNT(*) FILTER (WHERE used_at IS NOT NULL)::bigint                    AS used,
+    COUNT(*) FILTER (WHERE attempts >= 5)::bigint                          AS exhausted,
+    COUNT(*) FILTER (WHERE used_at IS NULL AND expires_at < NOW())::bigint AS expired_unused
+FROM email_codes
+WHERE created_at >= $1
+`
+
+type OtpStatsSinceRow struct {
+	Issued        int64
+	Used          int64
+	Exhausted     int64
+	ExpiredUnused int64
+}
+
+// email-OTP delivery + abuse. delivery_rate = used/issued (silent SMTP failure
+// shows as a drop); exhausted = codes that hit the attempt cap (brute force).
+func (q *Queries) OtpStatsSince(ctx context.Context, createdAt pgtype.Timestamptz) (OtpStatsSinceRow, error) {
+	row := q.db.QueryRow(ctx, otpStatsSince, createdAt)
+	var i OtpStatsSinceRow
+	err := row.Scan(
+		&i.Issued,
+		&i.Used,
+		&i.Exhausted,
+		&i.ExpiredUnused,
+	)
+	return i, err
 }
 
 const responseLengthByVerdictSince = `-- name: ResponseLengthByVerdictSince :one
@@ -1059,6 +1148,55 @@ func (q *Queries) SumUsageSince(ctx context.Context, createdAt pgtype.Timestampt
 	return i, err
 }
 
+const suspiciousIPsSince = `-- name: SuspiciousIPsSince :many
+WITH cutoff AS (SELECT $1::timestamptz AS ts)
+SELECT source, ip, COUNT(*)::bigint AS count
+FROM (
+    SELECT 'admin_login_failed'::text AS source, admin_audit_log.ip
+        FROM admin_audit_log, cutoff
+        WHERE admin_audit_log.action = 'admin_login_failed'
+          AND admin_audit_log.ip IS NOT NULL
+          AND admin_audit_log.created_at >= cutoff.ts
+    UNION ALL
+    SELECT 'refresh_reuse'::text AS source, audit_log.ip
+        FROM audit_log, cutoff
+        WHERE audit_log.action = 'refresh_reuse_detected'
+          AND audit_log.ip IS NOT NULL
+          AND audit_log.created_at >= cutoff.ts
+) t
+GROUP BY source, ip
+ORDER BY count DESC
+LIMIT 20
+`
+
+type SuspiciousIPsSinceRow struct {
+	Source string
+	Ip     *netip.Addr
+	Count  int64
+}
+
+// IPs by failed-auth volume: admin-panel brute force + refresh-token reuse. The
+// cutoff is an explicitly-typed CTE so sqlc resolves the param across the UNION.
+func (q *Queries) SuspiciousIPsSince(ctx context.Context, since pgtype.Timestamptz) ([]SuspiciousIPsSinceRow, error) {
+	rows, err := q.db.Query(ctx, suspiciousIPsSince, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SuspiciousIPsSinceRow
+	for rows.Next() {
+		var i SuspiciousIPsSinceRow
+		if err := rows.Scan(&i.Source, &i.Ip, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const tapsBySlugSince = `-- name: TapsBySlugSince :many
 SELECT split_part(endpoint, ':', 2) AS slug, COUNT(*)::bigint AS taps
 FROM usage_log
@@ -1166,6 +1304,48 @@ func (q *Queries) TopFertilizerTaps(ctx context.Context, createdAt pgtype.Timest
 	for rows.Next() {
 		var i TopFertilizerTapsRow
 		if err := rows.Scan(&i.Slug, &i.Taps); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const topOtpRequestersSince = `-- name: TopOtpRequestersSince :many
+SELECT email, COUNT(*)::bigint AS codes
+FROM email_codes
+WHERE created_at >= $1
+GROUP BY email
+HAVING COUNT(*) >= $2
+ORDER BY codes DESC
+LIMIT 20
+`
+
+type TopOtpRequestersSinceParams struct {
+	Since    pgtype.Timestamptz
+	MinCodes interface{}
+}
+
+type TopOtpRequestersSinceRow struct {
+	Email string
+	Codes int64
+}
+
+// Emails requesting the most codes (mailbox-flood / enumeration). email is
+// masked in the usecase before it leaves the backend.
+func (q *Queries) TopOtpRequestersSince(ctx context.Context, arg TopOtpRequestersSinceParams) ([]TopOtpRequestersSinceRow, error) {
+	rows, err := q.db.Query(ctx, topOtpRequestersSince, arg.Since, arg.MinCodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TopOtpRequestersSinceRow
+	for rows.Next() {
+		var i TopOtpRequestersSinceRow
+		if err := rows.Scan(&i.Email, &i.Codes); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -179,6 +179,15 @@ type Querier interface {
 	// First page of history (latest-first). The next cursor is the (created_at, id)
 	// of the last returned row.
 	ListRecentMessages(ctx context.Context, arg ListRecentMessagesParams) ([]Message, error)
+	// ============================================================================
+	// Security & abuse. user_id/email are masked in the usecase before leaving the
+	// backend (CLAUDE.md invariant #3); these queries return the raw values only
+	// across the storage boundary.
+	// ============================================================================
+	// High-signal user security events (session hijack attempts, deletions). Logins
+	// are excluded here (aggregated separately on the dashboard) to keep the feed
+	// actionable. Allowlist is fixed, not caller-supplied.
+	ListSecurityEvents(ctx context.Context, arg ListSecurityEventsParams) ([]ListSecurityEventsRow, error)
 	// GC candidates: presigned-but-never-attached uploads older than the cutoff.
 	ListUnusedUploadsBefore(ctx context.Context, createdAt pgtype.Timestamptz) ([]Upload, error)
 	// Cleanup work-list: deleted accounts whose Object Storage media has not been
@@ -196,6 +205,9 @@ type Querier interface {
 	// Terminal-status breakdown of assistant turns; success_rate = complete / (complete+failed+cancelled).
 	MessageStatusCountsSince(ctx context.Context, createdAt pgtype.Timestamptz) (MessageStatusCountsSinceRow, error)
 	MessagesByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]MessagesByDayRow, error)
+	// email-OTP delivery + abuse. delivery_rate = used/issued (silent SMTP failure
+	// shows as a drop); exhausted = codes that hit the attempt cap (brute force).
+	OtpStatsSince(ctx context.Context, createdAt pgtype.Timestamptz) (OtpStatsSinceRow, error)
 	// ARCH §6.4. plant = NULL → no crop filter; universal items (plants IS NULL) always
 	// match. Ranked by priority (highest first), at most 3.
 	RecommendFertilizers(ctx context.Context, arg RecommendFertilizersParams) ([]RecommendFertilizersRow, error)
@@ -223,12 +235,18 @@ type Querier interface {
 	// Backs per-user daily token limits and budget alerts (ARCH §13 cost risk; wired
 	// in Stage 2.3).
 	SumUserTokensSince(ctx context.Context, arg SumUserTokensSinceParams) (SumUserTokensSinceRow, error)
+	// IPs by failed-auth volume: admin-panel brute force + refresh-token reuse. The
+	// cutoff is an explicitly-typed CTE so sqlc resolves the param across the UNION.
+	SuspiciousIPsSince(ctx context.Context, since pgtype.Timestamptz) ([]SuspiciousIPsSinceRow, error)
 	// All slugs (unbounded, unlike TopFertilizerTaps) so CTR can be joined per slug.
 	TapsBySlugSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]TapsBySlugSinceRow, error)
 	// Most expensive users by Claude spend (taps excluded). user_id is masked to a hex
 	// prefix in the usecase before it leaves the backend (CLAUDE.md invariant #3/#10).
 	TopCostUsersSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]TopCostUsersSinceRow, error)
 	TopFertilizerTaps(ctx context.Context, createdAt pgtype.Timestamptz) ([]TopFertilizerTapsRow, error)
+	// Emails requesting the most codes (mailbox-flood / enumeration). email is
+	// masked in the usecase before it leaves the backend.
+	TopOtpRequestersSince(ctx context.Context, arg TopOtpRequestersSinceParams) ([]TopOtpRequestersSinceRow, error)
 	TouchAdminLogin(ctx context.Context, id uuid.UUID) error
 	// Sliding TTL: bump both the activity stamp and the expiry on use.
 	TouchAdminSession(ctx context.Context, arg TouchAdminSessionParams) error

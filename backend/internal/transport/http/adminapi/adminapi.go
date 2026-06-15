@@ -113,6 +113,11 @@ func (h *Handler) Routes() chi.Router {
 		r.Get("/stats/fail-codes", h.getFailCodes)
 		r.Get("/alerts", h.getAlerts)
 
+		// Security & abuse ("Безопасность").
+		r.Get("/security/events", h.getSecurityEvents)
+		r.Get("/security/otp", h.getOtpStats)
+		r.Get("/security/suspicious-ips", h.getSuspiciousIPs)
+
 		r.Get("/errors", h.getErrors)
 		r.Get("/audit", h.getAudit)
 	})

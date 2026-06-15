@@ -344,6 +344,67 @@ SELECT
 FROM seq;
 
 -- ============================================================================
+-- Security & abuse. user_id/email are masked in the usecase before leaving the
+-- backend (CLAUDE.md invariant #3); these queries return the raw values only
+-- across the storage boundary.
+-- ============================================================================
+
+-- name: ListSecurityEvents :many
+-- High-signal user security events (session hijack attempts, deletions). Logins
+-- are excluded here (aggregated separately on the dashboard) to keep the feed
+-- actionable. Allowlist is fixed, not caller-supplied.
+SELECT id, user_id, action, ip, created_at
+FROM audit_log
+WHERE action IN ('refresh_reuse_detected', 'account_deleted', 'account_media_purged')
+  AND user_id IS NOT NULL
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
+
+-- name: OtpStatsSince :one
+-- email-OTP delivery + abuse. delivery_rate = used/issued (silent SMTP failure
+-- shows as a drop); exhausted = codes that hit the attempt cap (brute force).
+SELECT
+    COUNT(*)::bigint                                                       AS issued,
+    COUNT(*) FILTER (WHERE used_at IS NOT NULL)::bigint                    AS used,
+    COUNT(*) FILTER (WHERE attempts >= 5)::bigint                          AS exhausted,
+    COUNT(*) FILTER (WHERE used_at IS NULL AND expires_at < NOW())::bigint AS expired_unused
+FROM email_codes
+WHERE created_at >= $1;
+
+-- name: TopOtpRequestersSince :many
+-- Emails requesting the most codes (mailbox-flood / enumeration). email is
+-- masked in the usecase before it leaves the backend.
+SELECT email, COUNT(*)::bigint AS codes
+FROM email_codes
+WHERE created_at >= @since
+GROUP BY email
+HAVING COUNT(*) >= @min_codes
+ORDER BY codes DESC
+LIMIT 20;
+
+-- name: SuspiciousIPsSince :many
+-- IPs by failed-auth volume: admin-panel brute force + refresh-token reuse. The
+-- cutoff is an explicitly-typed CTE so sqlc resolves the param across the UNION.
+WITH cutoff AS (SELECT @since::timestamptz AS ts)
+SELECT source, ip, COUNT(*)::bigint AS count
+FROM (
+    SELECT 'admin_login_failed'::text AS source, admin_audit_log.ip
+        FROM admin_audit_log, cutoff
+        WHERE admin_audit_log.action = 'admin_login_failed'
+          AND admin_audit_log.ip IS NOT NULL
+          AND admin_audit_log.created_at >= cutoff.ts
+    UNION ALL
+    SELECT 'refresh_reuse'::text AS source, audit_log.ip
+        FROM audit_log, cutoff
+        WHERE audit_log.action = 'refresh_reuse_detected'
+          AND audit_log.ip IS NOT NULL
+          AND audit_log.created_at >= cutoff.ts
+) t
+GROUP BY source, ip
+ORDER BY count DESC
+LIMIT 20;
+
+-- ============================================================================
 -- Cost / FinOps. Claude rows are endpoint='/v1/messages'; taps and 'transcribe'
 -- carry no Claude cost (cost_usd NULL → ignored by the SUMs).
 -- ============================================================================

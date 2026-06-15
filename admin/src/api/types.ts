@@ -265,6 +265,35 @@ export interface CostByKind {
   transcribe_sec: number;
 }
 
+// --- Безопасность (security & abuse) ---
+
+export interface SecurityEvent {
+  user?: string;
+  action: string;
+  ip?: string;
+  created_at: string;
+}
+
+export interface OtpRequester {
+  email: string;
+  codes: number;
+}
+
+export interface OtpStats {
+  issued: number;
+  used: number;
+  exhausted: number;
+  expired_unused: number;
+  delivery_rate: number;
+  top_requesters: OtpRequester[];
+}
+
+export interface SuspiciousIP {
+  source: string;
+  ip: string;
+  count: number;
+}
+
 export interface DayPoint {
   day: string;
   users: number;
