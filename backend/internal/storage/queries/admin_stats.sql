@@ -163,3 +163,208 @@ ORDER BY 1;
 SELECT COALESCE(SUM(cost_usd), 0)::numeric AS cost_usd
 FROM usage_log
 WHERE created_at >= @from_ts AND created_at < @to_ts AND endpoint NOT LIKE 'fertilizer_tap:%';
+
+-- ============================================================================
+-- Growth analytics (продуктовая аналитика). All read-only over existing tables.
+-- ============================================================================
+
+-- name: ActivationSince :one
+-- Activation proxy: of users registered in the window, how many asked at least
+-- one question, and the median delay from sign-up to that first question. Note:
+-- the SPEC §1.4 KPI is "photo in the first session"; input type of the first
+-- session is not flagged in the schema, so this approximates with "first question".
+WITH firstmsg AS (
+    SELECT user_id, MIN(created_at) AS first_at
+    FROM messages
+    WHERE role = 'user'
+    GROUP BY user_id
+)
+SELECT
+    COUNT(*)::bigint        AS signups,
+    COUNT(f.user_id)::bigint AS activated,
+    COALESCE(EXTRACT(EPOCH FROM percentile_cont(0.5) WITHIN GROUP (
+        ORDER BY (f.first_at - u.created_at)
+    )), 0)::float8          AS median_seconds
+FROM users u
+LEFT JOIN firstmsg f ON f.user_id = u.id
+WHERE u.created_at >= $1 AND u.deleted_at IS NULL;
+
+-- name: RetentionCohorts :many
+-- Weekly sign-up cohorts with D1/D7/D30 return rates. Eligibility gates the
+-- denominator so a young cohort that has not yet reached day N is not counted as
+-- "churned" (retained / eligible, not retained / size). Computed live; move to a
+-- materialized view if message volume grows.
+WITH cohort AS (
+    SELECT u.id, u.created_at
+    FROM users u
+    WHERE u.deleted_at IS NULL AND u.created_at >= $1
+),
+flags AS (
+    SELECT
+        date_trunc('week', c.created_at, 'UTC') AS week,
+        (NOW() >= c.created_at + interval '2 day')  AS elig_d1,
+        (NOW() >= c.created_at + interval '8 day')  AS elig_d7,
+        (NOW() >= c.created_at + interval '31 day') AS elig_d30,
+        EXISTS (SELECT 1 FROM messages m WHERE m.user_id = c.id AND m.role = 'user'
+            AND m.created_at >= c.created_at + interval '1 day'
+            AND m.created_at <  c.created_at + interval '2 day') AS ret_d1,
+        EXISTS (SELECT 1 FROM messages m WHERE m.user_id = c.id AND m.role = 'user'
+            AND m.created_at >= c.created_at + interval '7 day'
+            AND m.created_at <  c.created_at + interval '8 day') AS ret_d7,
+        EXISTS (SELECT 1 FROM messages m WHERE m.user_id = c.id AND m.role = 'user'
+            AND m.created_at >= c.created_at + interval '30 day'
+            AND m.created_at <  c.created_at + interval '31 day') AS ret_d30
+    FROM cohort c
+)
+SELECT
+    week::timestamptz                                         AS week,
+    COUNT(*)::bigint                                          AS size,
+    COUNT(*) FILTER (WHERE elig_d1)::bigint                   AS d1_eligible,
+    COUNT(*) FILTER (WHERE elig_d1 AND ret_d1)::bigint        AS d1_retained,
+    COUNT(*) FILTER (WHERE elig_d7)::bigint                   AS d7_eligible,
+    COUNT(*) FILTER (WHERE elig_d7 AND ret_d7)::bigint        AS d7_retained,
+    COUNT(*) FILTER (WHERE elig_d30)::bigint                  AS d30_eligible,
+    COUNT(*) FILTER (WHERE elig_d30 AND ret_d30)::bigint      AS d30_retained
+FROM flags
+GROUP BY week
+ORDER BY week;
+
+-- name: ConversationDepthSince :one
+-- Distribution of question count per active user plus avg/median/p90.
+WITH per_user AS (
+    SELECT user_id, COUNT(*) AS msgs
+    FROM messages
+    WHERE role = 'user' AND created_at >= $1
+    GROUP BY user_id
+)
+SELECT
+    COUNT(*) FILTER (WHERE msgs = 1)::bigint             AS bucket1,
+    COUNT(*) FILTER (WHERE msgs BETWEEN 2 AND 4)::bigint AS bucket2_4,
+    COUNT(*) FILTER (WHERE msgs BETWEEN 5 AND 9)::bigint AS bucket5_9,
+    COUNT(*) FILTER (WHERE msgs >= 10)::bigint           AS bucket10,
+    COALESCE(AVG(msgs), 0)::float8                                          AS avg_msgs,
+    COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY msgs), 0)::float8  AS median_msgs,
+    COALESCE(percentile_cont(0.9) WITHIN GROUP (ORDER BY msgs), 0)::float8  AS p90_msgs
+FROM per_user;
+
+-- name: ActivityHeatmapSince :many
+-- Question volume by Moscow day-of-week (0=Sun..6=Sat) and hour-of-day.
+SELECT
+    EXTRACT(DOW  FROM created_at AT TIME ZONE 'Europe/Moscow')::int AS dow,
+    EXTRACT(HOUR FROM created_at AT TIME ZONE 'Europe/Moscow')::int AS hour,
+    COUNT(*)::bigint                                                AS count
+FROM messages
+WHERE role = 'user' AND created_at >= $1
+GROUP BY 1, 2
+ORDER BY 1, 2;
+
+-- name: ActivityByWeekSince :many
+-- Weekly seasonal curve over a long horizon: questions and active users.
+SELECT
+    date_trunc('week', created_at, 'UTC')::timestamptz           AS week,
+    COUNT(*) FILTER (WHERE role = 'user')::bigint                AS messages,
+    COUNT(DISTINCT user_id) FILTER (WHERE role = 'user')::bigint AS active_users
+FROM messages
+WHERE created_at >= $1
+GROUP BY 1
+ORDER BY 1;
+
+-- ============================================================================
+-- Answer quality (качество ответов и обратная связь).
+-- ============================================================================
+
+-- name: CardImpressionsSince :one
+SELECT COUNT(*)::bigint AS impressions
+FROM message_blocks
+WHERE type = 'fertilizer_card' AND created_at >= $1;
+
+-- name: CardImpressionsBySlugSince :many
+-- Per-slug impressions from the {"products":[{"slug":...}]} card metadata.
+SELECT (p->>'slug')::text AS slug, COUNT(*)::bigint AS impressions
+FROM message_blocks mb,
+     LATERAL jsonb_array_elements(mb.metadata->'products') AS p
+WHERE mb.type = 'fertilizer_card' AND mb.created_at >= $1
+GROUP BY 1;
+
+-- name: TapsBySlugSince :many
+-- All slugs (unbounded, unlike TopFertilizerTaps) so CTR can be joined per slug.
+SELECT split_part(endpoint, ':', 2) AS slug, COUNT(*)::bigint AS taps
+FROM usage_log
+WHERE endpoint LIKE 'fertilizer_tap:%' AND created_at >= $1
+GROUP BY 1;
+
+-- name: ResponseLengthByVerdictSince :one
+-- Average answer length (tokens_out) split by feedback verdict; the question is
+-- whether disliked answers are systematically longer or shorter.
+SELECT
+    COALESCE(AVG(m.tokens_out) FILTER (WHERE f.value = 'up'), 0)::float8   AS avg_up,
+    COALESCE(AVG(m.tokens_out) FILTER (WHERE f.value = 'down'), 0)::float8 AS avg_down,
+    COALESCE(AVG(m.tokens_out) FILTER (WHERE f.value IS NULL), 0)::float8  AS avg_none,
+    COUNT(*) FILTER (WHERE f.value = 'up')::bigint   AS n_up,
+    COUNT(*) FILTER (WHERE f.value = 'down')::bigint AS n_down,
+    COUNT(*) FILTER (WHERE f.value IS NULL)::bigint  AS n_none
+FROM messages m
+LEFT JOIN message_feedback f ON f.message_id = m.id
+WHERE m.role = 'assistant' AND m.status = 'complete' AND m.created_at >= $1;
+
+-- name: ConversationsWithNegativeFeedbackSince :many
+-- Chats accumulating dislikes (1 chat per user in v1, so this flags unhappy users).
+SELECT
+    m.conversation_id,
+    COUNT(*)::bigint               AS downs,
+    MAX(f.updated_at)::timestamptz AS last_down
+FROM message_feedback f
+JOIN messages m ON m.id = f.message_id
+WHERE f.value = 'down' AND f.updated_at >= @since
+GROUP BY m.conversation_id
+HAVING COUNT(*) >= @min_downs
+ORDER BY downs DESC, last_down DESC
+LIMIT 50;
+
+-- name: FollowupRateSince :one
+-- Implicit dissatisfaction proxy: share of assistant answers immediately followed
+-- by another user message within 5 minutes (the user had to re-ask).
+WITH seq AS (
+    SELECT
+        m.role,
+        m.created_at,
+        LEAD(m.role)       OVER w AS next_role,
+        LEAD(m.created_at) OVER w AS next_at
+    FROM messages m
+    WHERE m.created_at >= $1 AND m.role IN ('user', 'assistant')
+    WINDOW w AS (PARTITION BY m.conversation_id ORDER BY m.created_at)
+)
+SELECT
+    COUNT(*) FILTER (WHERE role = 'assistant')::bigint AS answers,
+    COUNT(*) FILTER (
+        WHERE role = 'assistant'
+          AND next_role = 'user'
+          AND next_at <= created_at + interval '5 minutes'
+    )::bigint AS followups
+FROM seq;
+
+-- name: ListDownvotedMessages :many
+-- Feed of disliked answers for the operator-agronomist to review. Returns message
+-- CONTENT (question + answer text): this is a per-request read into the
+-- authenticated panel, NOT a log — callers must never write it to slog/Sentry
+-- (CLAUDE.md invariant #3).
+SELECT
+    f.message_id,
+    f.updated_at,
+    m.conversation_id,
+    (SELECT mb.content_text FROM message_blocks mb
+        WHERE mb.message_id = m.id AND mb.type = 'text'
+        ORDER BY mb.order_index LIMIT 1) AS answer_text,
+    (SELECT mb.content_text
+        FROM messages um
+        JOIN message_blocks mb ON mb.message_id = um.id AND mb.type = 'text'
+        WHERE um.conversation_id = m.conversation_id
+          AND um.role = 'user' AND um.created_at < m.created_at
+        ORDER BY um.created_at DESC, mb.order_index LIMIT 1) AS question_text,
+    EXISTS (SELECT 1 FROM message_blocks mb
+        WHERE mb.message_id = m.id AND mb.type = 'fertilizer_card') AS had_card
+FROM message_feedback f
+JOIN messages m ON m.id = f.message_id
+WHERE f.value = 'down'
+ORDER BY f.updated_at DESC
+LIMIT $1 OFFSET $2;

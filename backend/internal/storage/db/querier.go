@@ -12,15 +12,37 @@ import (
 )
 
 type Querier interface {
+	// ============================================================================
+	// Growth analytics (продуктовая аналитика). All read-only over existing tables.
+	// ============================================================================
+	// Activation proxy: of users registered in the window, how many asked at least
+	// one question, and the median delay from sign-up to that first question. Note:
+	// the SPEC §1.4 KPI is "photo in the first session"; input type of the first
+	// session is not flagged in the schema, so this approximates with "first question".
+	ActivationSince(ctx context.Context, createdAt pgtype.Timestamptz) (ActivationSinceRow, error)
 	// DAU/WAU/MAU: distinct users who sent a message inside each trailing window.
 	// All three read the same 30-day scan; the narrower windows are FILTERed.
 	ActiveUserWindows(ctx context.Context, arg ActiveUserWindowsParams) (ActiveUserWindowsRow, error)
+	// Weekly seasonal curve over a long horizon: questions and active users.
+	ActivityByWeekSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ActivityByWeekSinceRow, error)
+	// Question volume by Moscow day-of-week (0=Sun..6=Sat) and hour-of-day.
+	ActivityHeatmapSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]ActivityHeatmapSinceRow, error)
+	// Per-slug impressions from the {"products":[{"slug":...}]} card metadata.
+	CardImpressionsBySlugSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]CardImpressionsBySlugSinceRow, error)
+	// ============================================================================
+	// Answer quality (качество ответов и обратная связь).
+	// ============================================================================
+	CardImpressionsSince(ctx context.Context, createdAt pgtype.Timestamptz) (int64, error)
 	// Finalises an assistant message: status + token counts (from the worker's SSE
 	// `usage` event, ARCH §11.3).
 	CompleteMessage(ctx context.Context, arg CompleteMessageParams) error
 	// Single-use: the row is removed atomically on first presentation, so a
 	// replayed state (or one stolen from the redirect) fails the second time.
 	ConsumeOAuthState(ctx context.Context, arg ConsumeOAuthStateParams) (OauthState, error)
+	// Distribution of question count per active user plus avg/median/p90.
+	ConversationDepthSince(ctx context.Context, createdAt pgtype.Timestamptz) (ConversationDepthSinceRow, error)
+	// Chats accumulating dislikes (1 chat per user in v1, so this flags unhappy users).
+	ConversationsWithNegativeFeedbackSince(ctx context.Context, arg ConversationsWithNegativeFeedbackSinceParams) ([]ConversationsWithNegativeFeedbackSinceRow, error)
 	// Anti-flood cap for POST /auth/{provider}/start.
 	CountActiveOAuthStatesByIP(ctx context.Context, ip pgtype.Text) (int64, error)
 	// Aggregates for the admin panel dashboard. All read-only. Day bucketing is
@@ -84,6 +106,9 @@ type Querier interface {
 	FeedbackByDay(ctx context.Context, createdAt pgtype.Timestamptz) ([]FeedbackByDayRow, error)
 	// One verdict per (message, user), so up+down equals the number of rated answers.
 	FeedbackTotalsSince(ctx context.Context, createdAt pgtype.Timestamptz) (FeedbackTotalsSinceRow, error)
+	// Implicit dissatisfaction proxy: share of assistant answers immediately followed
+	// by another user message within 5 minutes (the user had to re-ask).
+	FollowupRateSince(ctx context.Context, createdAt pgtype.Timestamptz) (FollowupRateSinceRow, error)
 	GetActiveAdminCode(ctx context.Context, arg GetActiveAdminCodeParams) (AdminCode, error)
 	// Returns the most recent unused, unexpired code for the email. Older codes
 	// become irrelevant the moment a newer code is issued.
@@ -128,6 +153,11 @@ type Querier interface {
 	// Batch-loads blocks for a page of messages (avoids N+1). Caller groups by
 	// message_id; rows arrive ordered within each message by order_index.
 	ListBlocksByMessageIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]MessageBlock, error)
+	// Feed of disliked answers for the operator-agronomist to review. Returns message
+	// CONTENT (question + answer text): this is a per-request read into the
+	// authenticated panel, NOT a log — callers must never write it to slog/Sentry
+	// (CLAUDE.md invariant #3).
+	ListDownvotedMessages(ctx context.Context, arg ListDownvotedMessagesParams) ([]ListDownvotedMessagesRow, error)
 	ListErrorEvents(ctx context.Context, arg ListErrorEventsParams) ([]AdminErrorEvent, error)
 	// Admin panel catalog CRUD. The catalog is small (tens of items), so the list
 	// is unpaginated and filtered client-side.
@@ -159,6 +189,14 @@ type Querier interface {
 	// ARCH §6.4. plant = NULL → no crop filter; universal items (plants IS NULL) always
 	// match. Ranked by priority (highest first), at most 3.
 	RecommendFertilizers(ctx context.Context, arg RecommendFertilizersParams) ([]RecommendFertilizersRow, error)
+	// Average answer length (tokens_out) split by feedback verdict; the question is
+	// whether disliked answers are systematically longer or shorter.
+	ResponseLengthByVerdictSince(ctx context.Context, createdAt pgtype.Timestamptz) (ResponseLengthByVerdictSinceRow, error)
+	// Weekly sign-up cohorts with D1/D7/D30 return rates. Eligibility gates the
+	// denominator so a young cohort that has not yet reached day N is not counted as
+	// "churned" (retained / eligible, not retained / size). Computed live; move to a
+	// materialized view if message volume grows.
+	RetentionCohorts(ctx context.Context, createdAt pgtype.Timestamptz) ([]RetentionCohortsRow, error)
 	RevokeAdminSession(ctx context.Context, id uuid.UUID) error
 	RevokeAllAdminSessions(ctx context.Context, adminID uuid.UUID) error
 	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
@@ -175,6 +213,8 @@ type Querier interface {
 	// Backs per-user daily token limits and budget alerts (ARCH §13 cost risk; wired
 	// in Stage 2.3).
 	SumUserTokensSince(ctx context.Context, arg SumUserTokensSinceParams) (SumUserTokensSinceRow, error)
+	// All slugs (unbounded, unlike TopFertilizerTaps) so CTR can be joined per slug.
+	TapsBySlugSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]TapsBySlugSinceRow, error)
 	// Most expensive users by Claude spend (taps excluded). user_id is masked to a hex
 	// prefix in the usecase before it leaves the backend (CLAUDE.md invariant #3/#10).
 	TopCostUsersSince(ctx context.Context, createdAt pgtype.Timestamptz) ([]TopCostUsersSinceRow, error)

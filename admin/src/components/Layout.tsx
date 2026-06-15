@@ -16,6 +16,8 @@ import {
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import ThumbsUpDownIcon from '@mui/icons-material/ThumbsUpDown';
 import YardIcon from '@mui/icons-material/Yard';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import HistoryIcon from '@mui/icons-material/History';
@@ -28,6 +30,8 @@ const DRAWER_WIDTH = 248;
 
 const NAV = [
   { path: '/', label: 'Дашборд', icon: <DashboardIcon /> },
+  { path: '/growth', label: 'Рост', icon: <TrendingUpIcon /> },
+  { path: '/quality', label: 'Качество ответов', icon: <ThumbsUpDownIcon /> },
   { path: '/catalog', label: 'Каталог удобрений', icon: <YardIcon /> },
   { path: '/errors', label: 'Ошибки', icon: <ReportProblemIcon /> },
   { path: '/audit', label: 'Журнал действий', icon: <HistoryIcon /> },

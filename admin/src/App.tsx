@@ -10,6 +10,10 @@ import { AuthPage } from './pages/AuthPage';
 const DashboardPage = lazy(() =>
   import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 );
+const GrowthPage = lazy(() => import('./pages/GrowthPage').then((m) => ({ default: m.GrowthPage })));
+const QualityPage = lazy(() =>
+  import('./pages/QualityPage').then((m) => ({ default: m.QualityPage })),
+);
 const CatalogPage = lazy(() =>
   import('./pages/CatalogPage').then((m) => ({ default: m.CatalogPage })),
 );
@@ -51,6 +55,8 @@ export function App() {
       <Suspense fallback={<Spinner />}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/growth" element={<GrowthPage />} />
+          <Route path="/quality" element={<QualityPage />} />
           <Route path="/catalog" element={<CatalogPage />} />
           <Route path="/errors" element={<ErrorsPage />} />
           <Route path="/audit" element={<AuditPage />} />

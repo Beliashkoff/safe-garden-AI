@@ -86,6 +86,21 @@ func (h *Handler) Routes() chi.Router {
 		r.Get("/stats/login-breakdown", h.getLoginBreakdown)
 		r.Get("/stats/top-users", h.getTopUsers)
 		r.Get("/stats/errors-breakdown", h.getErrorsBreakdown)
+
+		// Growth analytics ("Рост").
+		r.Get("/stats/activation", h.getActivation)
+		r.Get("/stats/retention", h.getRetention)
+		r.Get("/stats/conversation-depth", h.getConversationDepth)
+		r.Get("/stats/heatmap", h.getHeatmap)
+		r.Get("/stats/activity-weekly", h.getActivityWeekly)
+
+		// Answer quality ("Качество ответов").
+		r.Get("/stats/ctr", h.getCTR)
+		r.Get("/stats/length-vs-verdict", h.getLengthVsVerdict)
+		r.Get("/stats/negative-conversations", h.getNegativeConversations)
+		r.Get("/stats/followup", h.getFollowup)
+		r.Get("/stats/downvoted", h.getDownvoted)
+
 		r.Get("/errors", h.getErrors)
 		r.Get("/audit", h.getAudit)
 	})

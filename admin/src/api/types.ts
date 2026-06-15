@@ -115,6 +115,90 @@ export interface ErrorBreakdown {
   by_day: ErrorDayPoint[];
 }
 
+// --- Рост (growth analytics) ---
+
+export interface Activation {
+  signups: number;
+  activated: number;
+  median_hours: number;
+}
+
+export interface RetentionCohort {
+  week: string;
+  size: number;
+  d1_eligible: number;
+  d1_retained: number;
+  d7_eligible: number;
+  d7_retained: number;
+  d30_eligible: number;
+  d30_retained: number;
+}
+
+export interface ConversationDepth {
+  bucket_1: number;
+  bucket_2_4: number;
+  bucket_5_9: number;
+  bucket_10: number;
+  avg: number;
+  median: number;
+  p90: number;
+}
+
+export interface HeatCell {
+  dow: number;
+  hour: number;
+  count: number;
+}
+
+export interface WeekPoint {
+  week: string;
+  messages: number;
+  active_users: number;
+}
+
+// --- Качество ответов (answer quality) ---
+
+export interface CTRSlug {
+  slug: string;
+  impressions: number;
+  taps: number;
+}
+
+export interface CTROverview {
+  cards: number;
+  impressions: number;
+  taps: number;
+  per_slug: CTRSlug[];
+}
+
+export interface LengthVsVerdict {
+  avg_up: number;
+  avg_down: number;
+  avg_none: number;
+  n_up: number;
+  n_down: number;
+  n_none: number;
+}
+
+export interface NegativeConversation {
+  conversation: string;
+  downs: number;
+  last_down: string;
+}
+
+export interface Followup {
+  answers: number;
+  followups: number;
+}
+
+export interface DownvotedMessage {
+  conversation: string;
+  question?: string;
+  answer?: string;
+  had_card: boolean;
+  created_at: string;
+}
+
 export interface DayPoint {
   day: string;
   users: number;
