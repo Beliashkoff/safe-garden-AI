@@ -15,7 +15,7 @@ RUN go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
 # debian-slim (not distroless/static) because the API converts uploaded voice
 # messages with ffmpeg (m4a/aac -> OggOpus for SpeechKit); ffmpeg needs a base
 # with a package manager.
-FROM debian:12-slim
+FROM debian:13-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg ca-certificates wget \
     && rm -rf /var/lib/apt/lists/* \
