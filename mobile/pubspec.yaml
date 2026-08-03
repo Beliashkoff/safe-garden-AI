@@ -16,9 +16,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^2.5.1
   go_router: ^14.6.0
-  dio: ^5.7.0
-  freezed_annotation: ^2.4.4
-  json_annotation: ^4.9.0
+  dio: ^5.11.0
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
   flutter_secure_storage: ^9.0.0
   # RU-провайдеры входа (406-ФЗ): VK ID — официальный SDK (confidential flow,
   # код выдаётся приложению, обмен — на бэке); Яндекс ID — authorization code
@@ -26,23 +26,23 @@ dependencies:
   vkid_flutter_sdk: ^1.0.3
   flutter_web_auth_2: ^5.0.3
   crypto: ^3.0.0
-  flutter_markdown_plus: ^1.0.7
+  flutter_markdown_plus: ^1.0.12
   # Brand logo + in-UI vector icons rendered from bundled SVG (loft redesign).
   flutter_svg: ^2.0.10
   # drift codegen (drift_dev) shares source_gen with freezed; the project is on
   # freezed 2.5 (source_gen ^2), so drift is pinned to the last line that uses
   # source_gen ^2 (drift_dev >=2.28.2 moved to source_gen ^3). drift_flutter is
   # omitted on purpose — we open the database with NativeDatabase directly.
-  drift: ">=2.24.0 <2.28.2"
-  sqlite3_flutter_libs: ^0.5.0
-  path_provider: ^2.1.5
+  drift: ^2.34.3
+  sqlite3_flutter_libs: ^0.6.0+eol
+  path_provider: ^2.1.6
   # Photo attachments (stage 3.3): pick from camera/gallery, compress, request
   # runtime permissions.
-  image_picker: ^1.1.2
-  flutter_image_compress: ^2.3.0
+  image_picker: ^1.2.3
+  flutter_image_compress: ^2.5.1
   permission_handler: ^11.3.1
   record: ^6.2.1
-  just_audio: ^0.10.5
+  just_audio: ^0.10.6
   # Fertilizer card deeplink (stage 5.3): open the product page in the browser.
   url_launcher: ^6.3.0
   # Share an assistant answer via the native share sheet (loft redesign footer).
@@ -56,15 +56,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  build_runner: ^2.4.13
-  freezed: ^2.5.7
-  json_serializable: ^6.8.0
-  drift_dev: ">=2.24.0 <2.28.2"
+  build_runner: ^2.15.1
+  freezed: ^3.2.5
+  json_serializable: ^6.14.1
+  drift_dev: ^2.34.0
   mocktail: ^1.0.4
-  path_provider_platform_interface: ^2.1.2
+  path_provider_platform_interface: ^2.1.3
   plugin_platform_interface: ^2.1.8
   flutter_launcher_icons: ^0.14.4
-  flutter_native_splash: ^2.4.7
+  flutter_native_splash: ^2.4.8
 
 flutter:
   uses-material-design: true
