@@ -4,7 +4,7 @@
 # below: whether the build ends up static (CGO off) or glibc-dynamic, it execs in
 # debian:12-slim. An alpine/musl build does NOT run in debian (no musl loader) —
 # that mismatch caused "exec /usr/local/bin/api: no such file or directory".
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.27-bookworm AS builder
 ENV CGO_ENABLED=0
 WORKDIR /src
 COPY go.mod go.sum ./
